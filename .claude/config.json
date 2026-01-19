@@ -1,0 +1,20 @@
+{
+    "tools": {
+        "bash": {
+            "auto_allow": true
+        },
+        "read_file": {
+            "auto_allow": true
+        }
+    },
+    "commands": {
+        "review": {
+            "description": "Antigravity가 작성한 계획서를 검토하고 피드백을 하단에 추가합니다. [cite: 52, 55]",
+            "prompt": "docs/work-plans/ 폴더의 최신 .md 파일을 읽고, CLAUDE.md 규칙에 따라 검토해줘. 수정사항은 덮어쓰지 말고 문서 맨 아래에 '## Claude Code Review' 섹션을 추가해서 작성해줘."
+        },
+        "verify-db": {
+            "description": "DB 테이블이 정상적으로 생성되었는지 확인합니다. [cite: 67]",
+            "prompt": "psql -h localhost -U postgres -d coinpilot -c '\\dt' 명령어를 실행하고 결과를 보여줘."
+        }
+    }
+}
