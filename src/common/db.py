@@ -1,0 +1,63 @@
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from dotenv import load_dotenv
+
+# .env 파일 로드 (src/폴더 상위 기준)
+load_dotenv()
+
+# 데이터베이스 연결 URL 구성 (asyncpg 사용)
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "coinpilot")
+
+DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# 비동기 엔진 생성
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,  # SQL 로그 출력 여부 (디버깅 시 True)
+    future=True,
+    pool_size=20,
+    max_overflow=10
+)
+
+# 비동기 세션 팩토리
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
+)
+
+@asynccontextmanager
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    데이터베이스 비동기 세션을 생성하고 제공하는 컨텍스트 매니저
+    의존성 주입 또는 직접 세션이 필요할 때 사용
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+async def init_db_models():
+    """
+    (주의) 이 함수는 SQLAlchemy를 통해 테이블을 생성합니다. 
+    TimescaleDB 하이퍼테이블 등 고급 설정은 init.sql에서 처리하지만, 
+    기본 테이블 구조 정합성을 위해 호출할 수 있습니다.
+    """
+    from src.common.models import Base
+    async with engine.begin() as conn:
+        # await conn.run_sync(Base.metadata.create_all)
+        pass # 현재는 init.sql을 통해 생성하는 것을 권장
