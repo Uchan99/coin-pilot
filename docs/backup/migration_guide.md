@@ -23,11 +23,11 @@ wsl --install
 
 ```ini
 [wsl2]
-# RAM: 전체 32GB 중 24GB를 WSL2에 할당 (딥러닝/도커용으로 넉넉하게, 윈도우용 8GB 남김)
-memory=24GB
+# RAM: 16GB (32GB의 절반). 개발과 고사양 게임을 동시에 하기에 가장 이상적인 '황금 밸런스'입니다.
+memory=16GB
 
-# CPU: i5-12400F의 12스레드 중 10개를 할당 (멀티프로세싱 최대로 활용)
-processors=10
+# CPU: 8개 할당. 윈도우(게임)를 위해 4개 이상의 스레드를 남겨둡니다. 
+processors=8
 
 # Swap: RAM 부족 시 디스크를 사용하는 공간 (8GB로 충분)
 swap=8GB
