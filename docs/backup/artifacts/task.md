@@ -1,0 +1,22 @@
+# Week 1: PostgreSQL Schema Design and Project Structure Definition
+
+- [x] Planning
+    - [x] Review PROJECT_CHARTER.md
+    - [x] Design DB Schema (PostgreSQL + TimescaleDB)
+        - [x] Market Data (Hypertable, Compression)
+        - [x] Trading History (executed_at, fee, indices)
+        - [x] Risk Audit (related_order_id)
+        - [x] Agent Memory (pgvector, embedding)
+    - [x] Define Project Structure (MSA-ready)
+    - [x] Create `docs/work-plans/week1-db-schema.md` (Updated with Review)
+    - [x] Document Troubleshooting in `docs/troubleshooting/week1-ts.md`
+- [/] Execution
+    - [x] Initialize project directory structure
+    - [x] Create requirements.txt
+    - [x] Create Docker Compose for PostgreSQL (TimescaleDB + pgvector)
+    - [x] Implement DB connection and models (SQLAlchemy)
+    - [x] Implement initial Data Collector (Upbit API)
+- [x] Verification
+    - [x] Verify TimescaleDB Hypertable creation
+    - [x] Verify pgvector extension and Agent Memory table
+    - [x] Verify data collection and insertion performance
