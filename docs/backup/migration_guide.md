@@ -23,21 +23,21 @@ wsl --install
 
 ```ini
 [wsl2]
-# RAM: 16GB (32GB의 절반). 개발과 고사양 게임을 동시에 하기에 가장 이상적인 '황금 밸런스'입니다.
-memory=16GB
+# RAM: 12GB (32GB의 약 37%). Windows(게임)에 20GB를 확보하여 OOM 위험을 차단합니다.
+memory=12GB
 
 # CPU: 8개 할당. 윈도우(게임)를 위해 4개 이상의 스레드를 남겨둡니다. 
 processors=8
 
-# Swap: RAM 부족 시 디스크를 사용하는 공간 (8GB로 충분)
+# Swap: 8GB
 swap=8GB
 
 # localhost forwarding: WSL2 내부 서버를 윈도우에서 localhost로 접속 허용
 localhostForwarding=true
 
-[gui]
-# WSL2 내부에서 띄운 GUI 앱이 흐릿하지 않게 설정
-autoProxy=true
+[experimental]
+# 메모리 자동 회수 (WSL2가 안 쓰는 메모리를 Windows에 반환하여 게임 성능 확보)
+autoMemoryReclaim=gradual
 ```
 4.  저장 후 PowerShell(관리자)에서 `wsl --shutdown` 명령어로 WSL2를 완전히 껐다가 다시 켜야 적용됩니다.
 
@@ -51,6 +51,14 @@ autoProxy=true
 ## 2. 프로젝트 가져오기 (WSL2 터미널)
 
 WSL2(Ubuntu) 터미널을 열고 작업을 시작합니다.
+
+### 2.0 Git 초기 설정 (권장)
+Windows와 Linux 간 줄바꿈 문자(CRLF/LF) 충돌 방지 및 커밋 정보 설정.
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your@email.com"
+git config --global core.autocrlf input
+```
 
 ### 2.1 Git Clone
 ```bash
