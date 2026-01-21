@@ -14,6 +14,33 @@ wsl --install
 - 설치 완료 후 컴퓨터를 재부팅해야 할 수 있습니다.
 - 재부팅 후 Ubuntu 초기 설정(Username, Password)을 완료하세요.
 
+### 1.1.X 마이그레이션 필수 최적화 (사용자 스펙 맞춤)
+사용자님의 하드웨어(i5-12400F, 32GB RAM, RTX 3060 Ti) 성능을 WSL2에서 100% 활용하기 위해, **반드시** 설정 파일을 생성해야 합니다. 이 설정이 없으면 WSL2가 메모리를 과도하게 점유하여 윈도우가 버벅거릴 수 있습니다.
+
+1.  윈도우 탐색기 주소창에 `%UserProfile%` 을 입력하고 엔터를 칩니다.
+2.  해당 폴더에 `.wslconfig` 라는 이름의 파일(확장자 없음)을 생성합니다. (메모장으로 열기)
+3.  아래 내용을 복사해서 붙여넣고 저장하세요.
+
+```ini
+[wsl2]
+# RAM: 전체 32GB 중 24GB를 WSL2에 할당 (딥러닝/도커용으로 넉넉하게, 윈도우용 8GB 남김)
+memory=24GB
+
+# CPU: i5-12400F의 12스레드 중 10개를 할당 (멀티프로세싱 최대로 활용)
+processors=10
+
+# Swap: RAM 부족 시 디스크를 사용하는 공간 (8GB로 충분)
+swap=8GB
+
+# localhost forwarding: WSL2 내부 서버를 윈도우에서 localhost로 접속 허용
+localhostForwarding=true
+
+[gui]
+# WSL2 내부에서 띄운 GUI 앱이 흐릿하지 않게 설정
+autoProxy=true
+```
+4.  저장 후 PowerShell(관리자)에서 `wsl --shutdown` 명령어로 WSL2를 완전히 껐다가 다시 켜야 적용됩니다.
+
 ### 1.2 Docker Desktop 설치
 1.  [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)를 다운로드하여 설치합니다.
 2.  설정(Settings) > **Resources** > **WSL Integration** 메뉴로 이동합니다.
