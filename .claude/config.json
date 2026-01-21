@@ -15,6 +15,22 @@
         "verify-db": {
             "description": "DB 테이블이 정상적으로 생성되었는지 확인합니다.",
             "prompt": "psql -h localhost -U postgres -d coinpilot -c '\\dt' 명령어를 실행하고 결과를 보여줘."
+        },
+        "fix": {
+            "description": "발생한 에러나 버그를 자동으로 분석하고 수정합니다.",
+            "prompt": "현재 발생한 에러 로그나 문제를 분석하고, 가장 적절한 수정 코드를 제안해줘. 수정 후에는 테스트를 실행해서 해결되었는지 확인해."
+        },
+        "test": {
+            "description": "현재 변경 사항에 대한 테스트를 실행합니다.",
+            "prompt": "프로젝트의 테스트 스위트(pytest)를 실행해줘. 실패한 테스트가 있다면 원인을 분석해줘."
+        },
+        "arch": {
+            "description": "프로젝트의 파일 구조 트리를 보여줍니다.",
+            "prompt": "현재 프로젝트의 디렉토리 구조를 tree 명령어로 보여주고, 각 주요 폴더의 역할을 한 줄로 요약해줘."
+        },
+        "git-push": {
+            "description": "변경 사항을 커밋하고 푸시합니다.",
+            "prompt": "git status를 확인하고, 변경 사항에 대해 Conventional Commits 규칙(feat, fix, docs 등)에 맞는 커밋 메시지를 작성해서 보여줘. 내가 승인하면 commit 및 push를 진행해."
         }
     }
 }
