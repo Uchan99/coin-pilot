@@ -87,7 +87,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 * **출력:** 변동성 높음(High) → 포지션 50% 축소
 
 ### 4.2 고급 기능
-* **Agent Memory:** 성공/실패 패턴을 Vector DB에 저장해 유사 상황 시 참조 (RAG)
+* **Agent Memory:** 성공/실패 패턴을 Vector DB(pgvector)에 저장해 유사 상황 시 참조 (RAG)
 * **Self-Reflection:** Critic Agent가 SQL/검색 결과의 타당성 2차 검증
 
 ## 5. 기술 스택
@@ -99,8 +99,8 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Model** | GARCH / PyTorch | 변동성 예측용 |
 | **LLM** | GPT-4o-mini / Claude 3.5 | 비용 효율성 |
 | **Backend** | FastAPI | 비동기 API |
-| **Database** | PostgreSQL | 시계열 + 관계형 |
-| **Vector DB** | ChromaDB | 메모리 및 뉴스 저장 |
+| **Database** | PostgreSQL 16 | TimescaleDB (Time-series) + pgvector (Vector) |
+| **Vector DB** | pgvector | PostgreSQL 내장 확장 (ChromaDB 대체) |
 | **Infra** | Docker, K8s (Minikube) | MSA, Self-healing |
 | **CI/CD** | GitHub Actions | 자동화 |
 
