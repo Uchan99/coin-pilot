@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Column, BigInteger, String, Numeric, DateTime, JSON, Text, ForeignKey
+from sqlalchemy import Column, BigInteger, String, Numeric, DateTime, JSON, Text, ForeignKey, Integer, Date, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
@@ -39,7 +39,9 @@ class TradingHistory(Base):
     quantity = Column(Numeric(20, 8), nullable=False)
     fee = Column(Numeric(20, 8), default=0)
     status = Column(String(20), nullable=False)  # FILLED, CANCELLED, PENDING
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    strategy_name = Column(String(50), nullable=True, index=True)  # 전략 이름
+    signal_info = Column(JSONB, nullable=True)  # 진입 당시 지표 정보 (RSI, BB 등)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
 
     # RiskAudit과의 관계 (1:N)
@@ -56,7 +58,7 @@ class RiskAudit(Base):
     violation_type = Column(String(50), nullable=False)
     description = Column(Text)
     related_order_id = Column(UUID(as_uuid=True), ForeignKey("trading_history.id"), nullable=True)
-    timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # TradingHistory와의 관계
     related_order = relationship("TradingHistory", back_populates="risk_audits")
@@ -74,4 +76,41 @@ class AgentMemory(Base):
     decision = Column(Text)
     outcome = Column(String(20)) # SUCCESS, FAILURE
     embedding = Column(Vector(1536)) # OpenAI/Claude Embedding Dimension
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class DailyRiskState(Base):
+    """
+    일일 리스크 관리 상태를 저장하는 테이블
+    - 컨테이너 재시작 시에도 당일 손실액, 거래 횟수 등을 유지하기 위함
+    """
+    __tablename__ = "daily_risk_state"
+
+    date = Column(Date, primary_key=True, default=lambda: datetime.now(timezone.utc).date())
+    total_pnl = Column(Numeric(20, 8), default=0, nullable=False)
+    trade_count = Column(Integer, default=0, nullable=False)
+    consecutive_losses = Column(Integer, default=0, nullable=False)
+    cooldown_until = Column(DateTime(timezone=True), nullable=True)
+    is_trading_halted = Column(Boolean, default=False, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class AccountState(Base):
+    """
+    계좌 잔고 보관 테이블 (Paper Trading용)
+    """
+    __tablename__ = "account_state"
+
+    id = Column(Integer, primary_key=True)
+    balance = Column(Numeric(20, 8), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class Position(Base):
+    """
+    현재 보유 중인 포지션 정보 (Stateless Pod 지원을 위해 DB 저장)
+    """
+    __tablename__ = "positions"
+
+    symbol = Column(String(20), primary_key=True)
+    quantity = Column(Numeric(20, 8), nullable=False)
+    avg_price = Column(Numeric(20, 8), nullable=False)
+    opened_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

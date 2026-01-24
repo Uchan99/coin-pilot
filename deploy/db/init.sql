@@ -1,6 +1,8 @@
 -- CoinPilot v3.0 Database Initialization Script
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+
 CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE IF NOT EXISTS market_data (
@@ -16,16 +18,28 @@ CREATE TABLE IF NOT EXISTS market_data (
     PRIMARY KEY (timestamp, id)
 );
 
-SELECT create_hypertable('market_data', 'timestamp', if_not_exists => TRUE);
+SELECT create_hypertable (
+        'market_data', 'timestamp', if_not_exists => TRUE
+    );
 
-CREATE INDEX IF NOT EXISTS idx_market_data_symbol_interval_time ON market_data (symbol, interval, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_market_data_symbol_interval_time ON market_data (
+    symbol,
+    interval,
+    timestamp DESC
+);
 
-ALTER TABLE market_data SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol, interval');
+ALTER TABLE market_data
+SET (
+        timescaledb.compress,
+        timescaledb.compress_segmentby = 'symbol, interval'
+    );
 
-SELECT add_compression_policy('market_data', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_compression_policy (
+        'market_data', INTERVAL '7 days', if_not_exists => TRUE
+    );
 
 CREATE TABLE IF NOT EXISTS trading_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
     symbol VARCHAR(20) NOT NULL,
     side VARCHAR(10) NOT NULL,
     order_type VARCHAR(10) NOT NULL,
@@ -33,9 +47,13 @@ CREATE TABLE IF NOT EXISTS trading_history (
     quantity NUMERIC(20, 8) NOT NULL,
     fee NUMERIC(20, 8) DEFAULT 0,
     status VARCHAR(20) NOT NULL,
+    strategy_name VARCHAR(50),
+    signal_info JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     executed_at TIMESTAMP WITH TIME ZONE
 );
+
+CREATE INDEX IF NOT EXISTS idx_trading_history_strategy ON trading_history (strategy_name);
 
 CREATE INDEX IF NOT EXISTS idx_trading_history_symbol_created ON trading_history (symbol, created_at DESC);
 
@@ -43,19 +61,51 @@ CREATE TABLE IF NOT EXISTS risk_audit (
     id SERIAL PRIMARY KEY,
     violation_type VARCHAR(50) NOT NULL,
     description TEXT,
-    related_order_id UUID REFERENCES trading_history(id),
+    related_order_id UUID REFERENCES trading_history (id),
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS agent_memory (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
     agent_type VARCHAR(20) NOT NULL,
     context JSONB,
     decision TEXT,
     outcome VARCHAR(20),
-    embedding vector(1536),
+    embedding vector (1536),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_memory_type ON agent_memory (agent_type);
+
 CREATE INDEX IF NOT EXISTS idx_agent_memory_embedding ON agent_memory USING hnsw (embedding vector_cosine_ops);
+
+-- Week 2: Additional Tables
+CREATE TABLE IF NOT EXISTS daily_risk_state (
+    date DATE PRIMARY KEY,
+    total_pnl NUMERIC(20, 8) DEFAULT 0 NOT NULL,
+    trade_count INTEGER DEFAULT 0 NOT NULL,
+    consecutive_losses INTEGER DEFAULT 0 NOT NULL,
+    cooldown_until TIMESTAMP WITH TIME ZONE,
+    is_trading_halted BOOLEAN DEFAULT FALSE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS account_state (
+    id SERIAL PRIMARY KEY,
+    balance NUMERIC(20, 8) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Initialize default balance (10,000,000 KRW)
+INSERT INTO
+    account_state (id, balance)
+VALUES (1, 10000000.0)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS positions (
+    symbol VARCHAR(20) PRIMARY KEY,
+    quantity NUMERIC(20, 8) NOT NULL,
+    avg_price NUMERIC(20, 8) NOT NULL,
+    opened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

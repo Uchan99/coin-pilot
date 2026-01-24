@@ -1,0 +1,130 @@
+import os
+from decimal import Decimal
+from datetime import datetime, timezone
+from typing import Optional, Dict
+from sqlalchemy import select, update, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.common.models import AccountState, Position, TradingHistory
+
+class PaperTradingExecutor:
+    """
+    모의 투자(Paper Trading) 실행기: 실제 API 호출 없이 DB 상의 잔고와 포지션을 업데이트합니다.
+    """
+    def __init__(self, initial_balance: Optional[float] = None):
+        self.default_balance = Decimal(str(initial_balance)) if initial_balance else Decimal(os.getenv("PAPER_BALANCE", "10000000"))
+
+    async def get_balance(self, session: AsyncSession) -> Decimal:
+        """
+        현재 계좌 잔고를 DB에서 조회합니다.
+        """
+        stmt = select(AccountState).where(AccountState.id == 1)
+        result = await session.execute(stmt)
+        account = result.scalar_one_or_none()
+        
+        if not account:
+            # 잔고 정보가 없으면 초기값으로 생성
+            account = AccountState(id=1, balance=self.default_balance)
+            session.add(account)
+            await session.flush()
+            print(f"[*] Initialized account balance with {self.default_balance:,.0f} KRW.")
+        
+        return account.balance
+
+    async def get_position(self, session: AsyncSession, symbol: str) -> Optional[Dict]:
+        """
+        특정 심볼의 현재 포지션 정보를 조회합니다.
+        """
+        stmt = select(Position).where(Position.symbol == symbol)
+        result = await session.execute(stmt)
+        pos = result.scalar_one_or_none()
+        
+        if pos:
+            return {
+                "symbol": pos.symbol,
+                "quantity": pos.quantity,
+                "avg_price": pos.avg_price,
+                "opened_at": pos.opened_at
+            }
+        return None
+
+    async def execute_order(self, 
+                            session: AsyncSession, 
+                            symbol: str, 
+                            side: str, 
+                            price: Decimal, 
+                            quantity: Decimal,
+                            strategy_name: str,
+                            signal_info: Dict) -> bool:
+        """
+        주문을 실행하고 DB 상태를 업데이트합니다.
+        """
+        try:
+            # 1. 잔고 조회 및 업데이트
+            current_balance = await self.get_balance(session)
+            order_amount = price * quantity
+            
+            if side == "BUY":
+                if current_balance < order_amount:
+                    print(f"[!] Insufficient balance for BUY: {current_balance} < {order_amount}")
+                    return False
+                # 잔고 차감
+                await session.execute(
+                    update(AccountState).where(AccountState.id == 1).values(balance=AccountState.balance - order_amount)
+                )
+                # 포지션 추가 (동시성 제어를 위해 with_for_update 사용)
+                stmt = select(Position).where(Position.symbol == symbol).with_for_update()
+                res = await session.execute(stmt)
+                existing_pos = res.scalar_one_or_none()
+                
+                if existing_pos:
+                    # 평균 단가 계산 및 수량 업데이트
+                    new_qty = existing_pos.quantity + quantity
+                    new_avg_price = (existing_pos.avg_price * existing_pos.quantity + price * quantity) / new_qty
+                    existing_pos.quantity = new_qty
+                    existing_pos.avg_price = new_avg_price
+                else:
+                    new_pos = Position(symbol=symbol, quantity=quantity, avg_price=price)
+                    session.add(new_pos)
+                    
+            elif side == "SELL":
+                # 포지션 조회
+                stmt = select(Position).where(Position.symbol == symbol)
+                res = await session.execute(stmt)
+                existing_pos = res.scalar_one_or_none()
+                
+                if not existing_pos or existing_pos.quantity < quantity:
+                    print(f"[!] Insufficient quantity for SELL")
+                    return False
+                
+                # 잔고 증가 (매도 금액 가산)
+                await session.execute(
+                    update(AccountState).where(AccountState.id == 1).values(balance=AccountState.balance + order_amount)
+                )
+                
+                # 포지션 차감 또는 삭제
+                if existing_pos.quantity == quantity:
+                    await session.execute(delete(Position).where(Position.symbol == symbol))
+                else:
+                    existing_pos.quantity -= quantity
+
+            # 2. 거래 이력 기록
+            history = TradingHistory(
+                symbol=symbol,
+                side=side,
+                order_type="MARKET", # 모의 투자는 단순화를 위해 시장가 체결 가정
+                price=price,
+                quantity=quantity,
+                status="FILLED",
+                strategy_name=strategy_name,
+                signal_info=signal_info,
+                executed_at=datetime.now(timezone.utc)
+            )
+            session.add(history)
+            
+            print(f"[+] Order Executed: {side} {symbol} (Qty: {quantity}, Price: {price:,.0f})")
+            return True
+            
+        except Exception as e:
+            print(f"[!] Execution Error: {e}")
+            return False
