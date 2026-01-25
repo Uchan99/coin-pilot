@@ -20,5 +20,16 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:alpine
+    container_name: coinpilot-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - coinpilot_redis_data:/data
+
 volumes:
   coinpilot_db_data:
+  coinpilot_redis_data:

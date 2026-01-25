@@ -51,6 +51,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await session.close()
 
+# Redis 연결 설정
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+
+async def get_redis_client():
+    """
+    Redis 클라이언트를 생성하여 반환합니다. (aioredis 사용 권장 - redis-py 4.2+ 통합됨)
+    """
+    import redis.asyncio as redis
+    client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+    return client
+
 async def init_db_models():
     """
     (주의) 이 함수는 SQLAlchemy를 통해 테이블을 생성합니다. 

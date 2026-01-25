@@ -114,3 +114,18 @@ class Position(Base):
     avg_price = Column(Numeric(20, 8), nullable=False)
     opened_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class AgentDecision(Base):
+    """
+    AI 에이전트의 의사결정 이력 및 근거 저장 테이블
+    """
+    __tablename__ = "agent_decisions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    strategy_name = Column(String(50), nullable=False, index=True)
+    decision = Column(String(20), nullable=False)  # CONFIRM, REJECT, SAFE, WARNING
+    reasoning = Column(Text, nullable=True)        # AI의 분석 근거
+    confidence = Column(Integer, nullable=True)     # 확신도 (0-100)
+    model_used = Column(String(50), nullable=True) # 사용된 LLM 모델명
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)

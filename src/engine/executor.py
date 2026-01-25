@@ -58,8 +58,26 @@ class PaperTradingExecutor:
                             signal_info: Dict) -> bool:
         """
         주문을 실행하고 DB 상태를 업데이트합니다.
+        (BUY 주문 시 AI 에이전트의 2차 검증을 수행합니다.)
         """
         try:
+            # 0. AI 에이전트 검증 (BUY 주문인 경우에만 수행)
+            if side == "BUY":
+                from src.agents.runner import runner
+                # market_context는 signal_info에서 추출하거나 별도로 전달받아야 함
+                # 현재는 signal_info를 context로 활용
+                is_approved, reasoning = await runner.run(
+                    symbol=symbol,
+                    strategy_name=strategy_name,
+                    market_context=signal_info.get("market_context", {}),
+                    indicators=signal_info
+                )
+                
+                if not is_approved:
+                    print(f"[-] Trade Rejected by AI Agent: {reasoning}")
+                    return False
+                print(f"[+] Trade Approved by AI Agent: {reasoning}")
+
             # 1. 잔고 조회 및 업데이트
             current_balance = await self.get_balance(session)
             order_amount = price * quantity

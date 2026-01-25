@@ -1,9 +1,15 @@
+import os
 import pytest_asyncio
 import asyncio
 from datetime import datetime, timezone
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from src.common.models import Base
+
+# 테스트를 위한 환경 변수 설정
+os.environ["ANTHROPIC_API_KEY"] = "dummy_key_for_testing"
+os.environ["REDIS_HOST"] = "localhost"
+os.environ["REDIS_PORT"] = "6379"
 
 # 테스팅을 위한 비동기 SQLite 인메모리 엔진 설정 명시
 # 테스팅을 위한 PostgreSQL 테스트용 DB 설정
