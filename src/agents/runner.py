@@ -130,7 +130,6 @@ class AgentRunner:
                     decision=decision,
                     reasoning=reasoning,
                     confidence=confidence,
-                    confidence=confidence,
                     model_used=get_analyst_llm().model
                 )
                 session.add(log)

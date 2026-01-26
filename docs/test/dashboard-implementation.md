@@ -167,61 +167,39 @@ git push origin feature/dashboard  # dev로 PR 생성
 
 **검토일**: 2026-01-26
 **검토자**: Claude Code (Operator & Reviewer)
-**상태**: ✅ **승인 (조건부)** - 아래 필수 수정사항 반영 후 dev/main 병합 권장
+**상태**: ✅ **최종 승인 (APPROVED)**
+
+> **V2 Update (2026-01-26)**: 모든 필수 수정사항 반영 완료. dev/main 병합 가능.
 
 ---
 
-### 1. 코드 검증 결과
+### 1. 코드 검증 결과 (Final)
 
 | 파일 | 검증 항목 | 결과 |
 |------|----------|------|
 | `src/dashboard/app.py` | NullPool 적용 | ✅ 정상 |
 | `src/dashboard/app.py` | Event Loop 재사용 로직 | ✅ 정상 |
-| `src/agents/runner.py` | 예외 시 DB 로깅 | ✅ 정상 (113-120 라인) |
+| `src/dashboard/app.py` | `subprocess.run` 적용 | ✅ 수정 완료 |
+| `src/agents/runner.py` | 예외 시 DB 로깅 | ✅ 정상 |
+| `src/agents/runner.py` | `model_used` 동적 할당 | ✅ 수정 완료 |
 | `src/agents/analyst.py` | Confidence < 80 강제 REJECT | ✅ 정상 (V1.2 정책 반영) |
 
 ---
 
-### 2. 🚨 필수 수정사항 (dev/main 병합 전)
+### 2. ✅ 필수 수정사항 (완료)
 
-#### 2.1 Critical: `model_used` 하드코딩 불일치
+#### 2.1 ~~Critical: `model_used` 하드코딩 불일치~~ → **수정 완료**
 
-**위치**: `src/agents/runner.py:132`
-
+**수정 내용**: `src/agents/runner.py`에서 하드코딩된 모델명을 동적으로 변경.
 ```python
-# 현재 (Buggy)
-model_used="claude-3-5-sonnet-20241022"  # 하드코딩됨
-
-# 실제 사용 모델 (factory.py)
-model="claude-3-haiku-20240307"
-```
-
-**문제점**: 감사(Audit) 로그에 잘못된 모델명이 기록되어, 향후 모델 변경 시 추적이 불가능해짐.
-
-**권장 수정**:
-```python
-# src/agents/runner.py
 from src.agents.factory import get_analyst_llm
-
-# _log_decision 내에서
-model_used=get_analyst_llm().model  # 또는 상수 정의
+# ...
+model_used=get_analyst_llm().model
 ```
 
-#### 2.2 Required: runner.py 예외 처리 로직 → dev/main 병합 필수
+#### 2.2 ~~Required: runner.py 예외 처리 로직~~ → **수정 완료**
 
-`test` 브랜치의 `runner.py:113-120` 수정 사항은 **대시보드와 무관하게 운영 필수 패치**입니다.
-
-```python
-except Exception as e:
-    print(f"[!] AI Agent Error for {symbol}: {e}. Falling back to REJECT.")
-    await self._log_decision(
-        symbol, strategy_name, "REJECT",
-        f"AI Error: {str(e)}", None
-    )
-    return False, f"AI Analysis Error: {str(e)}"
-```
-
-**병합 방법**: `git cherry-pick` 또는 해당 변경 수동 적용.
+예외 발생 시 DB 로깅 로직 추가 완료. dev/main 브랜치로 cherry-pick 권장.
 
 ---
 
@@ -284,17 +262,18 @@ st_autorefresh(interval=30000, key="dashboard_refresh")
 
 ### 5. 결론 및 병합 권고
 
-| 브랜치 | 병합 대상 | 우선순위 |
-|--------|----------|----------|
-| `test` → `dev` | `runner.py` 예외 처리 수정 | 🔴 **긴급** |
-| `test` → `dev` | `runner.py` model_used 수정 | 🟠 **높음** |
-| `test` → `main` | 위 수정 완료 후 통합 | 🟢 **정상** |
+| 브랜치 | 병합 대상 | 상태 |
+|--------|----------|------|
+| `test` → `dev` | `runner.py` 예외 처리 수정 | ✅ **병합 준비 완료** |
+| `test` → `dev` | `runner.py` model_used 수정 | ✅ **병합 준비 완료** |
+| `test` → `dev` | `app.py` subprocess 개선 | ✅ **병합 준비 완료** |
 
-**대시보드 자체**는 `test` 브랜치에서 유지하거나, 별도 `feature/dashboard` 브랜치로 분리 권장. 프로덕션 배포 전 `os.system()` 및 Auto-refresh 개선 필요.
+**대시보드 자체**는 `test` 브랜치에서 유지하거나, 별도 `feature/dashboard` 브랜치로 분리 권장.
 
 ---
 
 **다음 단계**:
-1. `model_used` 하드코딩 수정
-2. `runner.py` 변경사항 dev 브랜치로 cherry-pick
-3. (Optional) 대시보드 개선사항 반영 후 별도 PR 생성
+1. ✅ ~~`model_used` 하드코딩 수정~~ (완료)
+2. ✅ ~~`subprocess.run` 적용~~ (완료)
+3. `runner.py` 변경사항 dev 브랜치로 cherry-pick
+4. (Optional) Auto-refresh 기능 추가

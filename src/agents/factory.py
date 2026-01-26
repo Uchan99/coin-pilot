@@ -16,6 +16,7 @@ def get_llm(model_type="analyst"):
     
     return ChatAnthropic(
         model="claude-3-haiku-20240307",
+        # model="claude-3-5-sonnet-20241022", # API Key Tier에 따라 404 발생 시 Haiku 사용
         temperature=0,
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
     )
