@@ -116,6 +116,31 @@ except Exception as e:
 
 ---
 
+### 이슈 4: 데이터 공백 및 시간대 혼동 (UX/Data Quality)
+
+#### 🔴 문제 상황
+1.  **Empty Charts**: Collector 재시작 시 수집되지 않은 기간이 빈 공간으로 남음 (기술 지표 왜곡 야기).
+2.  **Timezone Confusion**: DB는 UTC로 저장되나, 사용자는 KST(한국 시간) 기준의 차트를 원함.
+
+#### ✅ 해결 방안
+
+**A. Smart Backfill with Pagination (Collector)**
+- Startup 시점에 DB의 마지막 캔들 시간을 확인하여 누락된 기간만큼 자동 수집.
+- **Pagination**: Upbit API 제한(200개)을 고려하여 반복문(Loop) 처리.
+- **Data Integrity**: `market_data` 테이블에 `UNIQUE(symbol, interval, timestamp)` 제약 조건 추가 (`ON CONFLICT DO NOTHING` 적용).
+
+**B. KST Display Conversion (Dashboard)**
+- **Backend(Storage)**: UTC 유지 (글로벌 표준 준수).
+- **Frontend(Display)**: Streamlit 표시 단계에서만 KST로 변환.
+
+```python
+# src/dashboard/app.py
+df['timestamp_kst'] = df['timestamp'].dt.tz_convert('Asia/Seoul')
+fig = go.Figure(data=[go.Candlestick(x=df['timestamp_kst'], ...)])
+```
+
+---
+
 ## 4. 파일 매니페스트 (Files Created)
 
 | 파일 경로 | 설명 |
@@ -276,4 +301,49 @@ st_autorefresh(interval=30000, key="dashboard_refresh")
 1. ✅ ~~`model_used` 하드코딩 수정~~ (완료)
 2. ✅ ~~`subprocess.run` 적용~~ (완료)
 3. `runner.py` 변경사항 dev 브랜치로 cherry-pick
-4. (Optional) Auto-refresh 기능 추가
+4. `collector/main.py` backfill 변경사항 dev 브랜치로 cherry-pick
+5. (Optional) Auto-refresh 기능 추가
+
+---
+
+## 7. Data Backfill 구현 완료 (2026-01-26)
+
+### 구현 내역
+
+| 파일 | 변경 사항 |
+|------|----------|
+| `src/collector/main.py` | Pagination 기반 backfill 로직 추가 |
+| `src/common/models.py` | `UNIQUE(symbol, interval, timestamp)` 제약 추가 |
+
+### 코드 검증 결과
+
+- ✅ **Pagination**: `while remaining_count > 0` 루프로 200개씩 청크 처리
+- ✅ **Upbit API `to` 파라미터**: 과거 방향으로 cursor 이동하며 fetch
+- ✅ **ON CONFLICT DO NOTHING**: 중복 삽입 방지 (`uq_market_data_symbol_interval_ts`)
+- ✅ **UTC 표준화**: `datetime.now(timezone.utc)` 사용, naive→aware 변환 로직 포함
+- ✅ **Rate Limit**: 0.1초 sleep으로 API 과부하 방지
+- ✅ **무한루프 방지**: `n < fetch_count` 시 break
+
+### Cherry-pick 대상 파일
+
+```bash
+# dev 브랜치로 병합 필요
+src/collector/main.py      # backfill 로직
+src/common/models.py       # UNIQUE 제약
+```
+
+### ⚠️ 주의사항: DB 마이그레이션
+
+기존 DB에 중복 데이터가 있을 경우 UNIQUE 제약 추가 시 에러 발생 가능.
+```sql
+-- 중복 제거 후 제약 추가 (필요시)
+DELETE FROM market_data a USING market_data b
+WHERE a.id < b.id
+  AND a.symbol = b.symbol
+  AND a.interval = b.interval
+  AND a.timestamp = b.timestamp;
+
+ALTER TABLE market_data
+ADD CONSTRAINT uq_market_data_symbol_interval_ts
+UNIQUE (symbol, interval, timestamp);
+```

@@ -84,16 +84,29 @@ with col1:
             "volume": float(d.volume)
         } for d in market_data])
         
+        # User requested KST conversion for display
+        # DB is UTC. We convert to 'Asia/Seoul'
+        if df['timestamp'].dt.tz is None:
+             # Fallback if naive: assume UTC then convert
+             df['timestamp'] = df['timestamp'].dt.tz_localize('UTC')
+             
+        df['timestamp_kst'] = df['timestamp'].dt.tz_convert('Asia/Seoul')
+        
         # 캔들스틱 차트
         fig = go.Figure(data=[go.Candlestick(
-            x=df['timestamp'],
+            x=df['timestamp_kst'], # Use KST
             open=df['open'],
             high=df['high'],
             low=df['low'],
             close=df['close']
         )])
         
-        fig.update_layout(height=500, margin=dict(l=20, r=20, t=20, b=20))
+        fig.update_layout(
+            height=500, 
+            margin=dict(l=20, r=20, t=20, b=20),
+            title="KRW-BTC (KST)",
+            xaxis_rangeslider_visible=False
+        )
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("No market data found.")
