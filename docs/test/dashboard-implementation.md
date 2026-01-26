@@ -103,6 +103,19 @@ except Exception as e:
 
 ---
 
+### 이슈 3: AI API 호출 오류 (401 & 404)
+
+#### 🔴 문제 상황
+`debug_simulation.py` 실행 시 다음과 같은 에러들이 순차적으로 발생함.
+1.  **401 Unauthorized**: "invalid x-api-key"
+2.  **404 Not Found**: "model: claude-3-5-sonnet-20241022" (API Key 권한 부족)
+
+#### ✅ 해결 방안
+1.  **401 해결**: `.env` 파일에 유효한 `ANTHROPIC_API_KEY` 설정.
+2.  **404 해결**: 사용자의 API Key 등급에서 접근 가능한 모델(`claude-3-haiku-20240307`)로 `factory.py` 코드를 수정.
+
+---
+
 ## 4. 파일 매니페스트 (Files Created)
 
 | 파일 경로 | 설명 |
@@ -112,6 +125,176 @@ except Exception as e:
 | `scripts/check_db.py` | DB에 저장된 데이터 확인용 유틸리티 |
 | `docs/test/dashboard-implementation.md` | 본 문서 |
 
-## 5. 결론 및 향후 계획
+## 5. 브랜치 관리 및 배포 전략 (Branch Strategy)
+본 대시보드 및 수정 사항은 다음과 같은 전략으로 관리됩니다.
+
+### Phase 1: 운영 필수 패치 (Backport to Dev)
+`test` 브랜치에서 발견된 백엔드 결함(로그 누락, 모델명 하드코딩)은 운영 환경에 필수적이므로 `dev`로 병합합니다.
+```bash
+git checkout dev
+git cherry-pick <commit-hash>
+# 또는 수동으로 runner.py 관련 수정 사항만 적용
+```
+
+### Phase 2: 검증용 브랜치 유지 (Sync)
+`test` 브랜치는 Sandbox 환경으로 유지하며, `dev`의 변경 사항을 주기적으로 받아옵니다.
+```bash
+git checkout test
+git merge dev  # 최신 코드 동기화
+```
+
+### Phase 3: 도구 성숙화 (Feature Promotion)
+대시보드 기능이 충분히 안정화되고 프로덕션에 필요하다고 판단되면 별도 기능 브랜치로 격상합니다.
+```bash
+git checkout -b feature/dashboard  # test에서 분기
+# ... 다듬기 및 테스트 ...
+git push origin feature/dashboard  # dev로 PR 생성
+```
+
+---
+
+## 6. 결론
 `test` 브랜치에서의 실험을 통해 **"복잡한 백엔드 설정 없이도 DB 직접 접속을 통해 모니터링 시스템을 구축할 수 있음"** 을 확인했습니다.
-이 방식은 향후 프로덕션 환경(Kubernetes)에서도 **Admin Pod** 형태로 띄워 운영자가 시스템 상태를 파악하는 데 유용하게 쓰일 수 있습니다.
+또한 이 과정에서 **운영 환경의 잠재적 버그(`runner.py` 로그 누락)** 를 발견하고 수정하는 성과를 거두었습니다.
+
+### 최종 수정 반영 내역
+1.  **Backend Fix**: `runner.py`의 에러 로깅 추가 및 하드코딩된 `model_used` 수정.
+2.  **Dashboard Improvement**: `os.system`을 `subprocess.run`으로 교체하여 보안 강화 및 에러 메시지 UI 노출.
+
+---
+
+## Claude Code Review
+
+**검토일**: 2026-01-26
+**검토자**: Claude Code (Operator & Reviewer)
+**상태**: ✅ **승인 (조건부)** - 아래 필수 수정사항 반영 후 dev/main 병합 권장
+
+---
+
+### 1. 코드 검증 결과
+
+| 파일 | 검증 항목 | 결과 |
+|------|----------|------|
+| `src/dashboard/app.py` | NullPool 적용 | ✅ 정상 |
+| `src/dashboard/app.py` | Event Loop 재사용 로직 | ✅ 정상 |
+| `src/agents/runner.py` | 예외 시 DB 로깅 | ✅ 정상 (113-120 라인) |
+| `src/agents/analyst.py` | Confidence < 80 강제 REJECT | ✅ 정상 (V1.2 정책 반영) |
+
+---
+
+### 2. 🚨 필수 수정사항 (dev/main 병합 전)
+
+#### 2.1 Critical: `model_used` 하드코딩 불일치
+
+**위치**: `src/agents/runner.py:132`
+
+```python
+# 현재 (Buggy)
+model_used="claude-3-5-sonnet-20241022"  # 하드코딩됨
+
+# 실제 사용 모델 (factory.py)
+model="claude-3-haiku-20240307"
+```
+
+**문제점**: 감사(Audit) 로그에 잘못된 모델명이 기록되어, 향후 모델 변경 시 추적이 불가능해짐.
+
+**권장 수정**:
+```python
+# src/agents/runner.py
+from src.agents.factory import get_analyst_llm
+
+# _log_decision 내에서
+model_used=get_analyst_llm().model  # 또는 상수 정의
+```
+
+#### 2.2 Required: runner.py 예외 처리 로직 → dev/main 병합 필수
+
+`test` 브랜치의 `runner.py:113-120` 수정 사항은 **대시보드와 무관하게 운영 필수 패치**입니다.
+
+```python
+except Exception as e:
+    print(f"[!] AI Agent Error for {symbol}: {e}. Falling back to REJECT.")
+    await self._log_decision(
+        symbol, strategy_name, "REJECT",
+        f"AI Error: {str(e)}", None
+    )
+    return False, f"AI Analysis Error: {str(e)}"
+```
+
+**병합 방법**: `git cherry-pick` 또는 해당 변경 수동 적용.
+
+---
+
+### 3. ⚠️ 권장 개선사항 (Optional)
+
+#### 3.1 대시보드: `os.system()` 보안 및 모니터링 이슈
+
+**위치**: `src/dashboard/app.py:55`
+
+```python
+# 현재
+os.system("PYTHONPATH=. .venv/bin/python scripts/simulate_with_ai.py")
+```
+
+**문제점**:
+- 실행 결과(stdout/stderr) 캡처 불가
+- 실패 시 사용자에게 정보 전달 불가
+- 잠재적 보안 취약점 (인젝션 가능성)
+
+**권장 수정**:
+```python
+import subprocess
+result = subprocess.run(
+    [".venv/bin/python", "scripts/simulate_with_ai.py"],
+    capture_output=True, text=True,
+    env={**os.environ, "PYTHONPATH": "."}
+)
+if result.returncode != 0:
+    st.sidebar.error(f"Simulation Failed: {result.stderr}")
+else:
+    st.sidebar.success("Simulation Completed!")
+```
+
+#### 3.2 대시보드: Auto-Refresh 기능 부재
+
+현재 수동 새로고침만 가능. 실시간 모니터링을 위해 `st.rerun()` 또는 `streamlit-autorefresh` 패키지 도입 권장.
+
+```python
+# 예시: 30초마다 자동 갱신
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=30000, key="dashboard_refresh")
+```
+
+#### 3.3 TradingHistory 연동 미구현
+
+`app.py:109-110`에 TODO로 남아있음. Week 3 범위 외로 판단되나, 향후 구현 시 동일한 `NullPool` 패턴 적용 권장.
+
+---
+
+### 4. 아키텍처 평가
+
+| 항목 | 평가 |
+|------|------|
+| Streamlit + 직접 DB 연결 방식 | ✅ 테스트/모니터링 용도로 적절 |
+| NullPool 사용 (Event Loop 격리) | ✅ 올바른 접근 |
+| Admin Pod 배포 구상 (K8s) | ✅ 확장성 고려됨 |
+| FastAPI 우회 (REST API 미사용) | ⚠️ 프로덕션에서는 API 레이어 권장 |
+
+---
+
+### 5. 결론 및 병합 권고
+
+| 브랜치 | 병합 대상 | 우선순위 |
+|--------|----------|----------|
+| `test` → `dev` | `runner.py` 예외 처리 수정 | 🔴 **긴급** |
+| `test` → `dev` | `runner.py` model_used 수정 | 🟠 **높음** |
+| `test` → `main` | 위 수정 완료 후 통합 | 🟢 **정상** |
+
+**대시보드 자체**는 `test` 브랜치에서 유지하거나, 별도 `feature/dashboard` 브랜치로 분리 권장. 프로덕션 배포 전 `os.system()` 및 Auto-refresh 개선 필요.
+
+---
+
+**다음 단계**:
+1. `model_used` 하드코딩 수정
+2. `runner.py` 변경사항 dev 브랜치로 cherry-pick
+3. (Optional) 대시보드 개선사항 반영 후 별도 PR 생성

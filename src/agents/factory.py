@@ -15,7 +15,7 @@ def get_llm(model_type="analyst"):
     # provider = os.getenv("LLM_PROVIDER", "anthropic")
     
     return ChatAnthropic(
-        model="claude-3-5-sonnet-20241022",
+        model="claude-3-haiku-20240307",
         temperature=0,
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
     )

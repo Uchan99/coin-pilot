@@ -48,12 +48,22 @@ def run_async(coroutine):
     
     return loop.run_until_complete(coroutine)
 
+import subprocess
+
 # 사이드바 설정
 st.sidebar.header("Controls")
 if st.sidebar.button("Run Simulation"):
     with st.spinner("Running AI Simulation..."):
-        os.system("PYTHONPATH=. .venv/bin/python scripts/simulate_with_ai.py")
-    st.sidebar.success("Simulation Completed!")
+        result = subprocess.run(
+            [".venv/bin/python", "scripts/simulate_with_ai.py"],
+            capture_output=True, text=True,
+            env={**os.environ, "PYTHONPATH": "."}
+        )
+        
+    if result.returncode == 0:
+        st.sidebar.success("Simulation Completed!")
+    else:
+        st.sidebar.error(f"Error: {result.stderr}")
 
 # 메인 레이아웃
 col1, col2 = st.columns([2, 1])

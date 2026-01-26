@@ -9,6 +9,7 @@ from src.agents.analyst import market_analyst_node
 from src.agents.guardian import risk_guardian_node
 from src.common.db import get_db_session
 from src.common.models import AgentDecision
+from src.agents.factory import get_analyst_llm
 
 def create_agent_graph():
     """AI 에이전트 워크플로우 그래프 생성"""
@@ -129,7 +130,8 @@ class AgentRunner:
                     decision=decision,
                     reasoning=reasoning,
                     confidence=confidence,
-                    model_used="claude-3-5-sonnet-20241022"
+                    confidence=confidence,
+                    model_used=get_analyst_llm().model
                 )
                 session.add(log)
                 await session.commit()
