@@ -15,8 +15,8 @@ def get_llm(model_type="analyst"):
     # provider = os.getenv("LLM_PROVIDER", "anthropic")
     
     return ChatAnthropic(
-        model="claude-3-haiku-20240307",
-        # model="claude-3-5-sonnet-20241022", # API Key Tier에 따라 404 발생 시 Haiku 사용
+        # model="claude-3-haiku-20240307",    # Development (Low Cost, Fast)
+        model="claude-sonnet-4-5-20250929",   # Production (High Reasoning)
         temperature=0,
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
     )

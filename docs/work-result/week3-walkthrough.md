@@ -272,3 +272,7 @@ def get_analyst_llm():
 - Redis StatefulSet 구성
 - ConfigMap/Secret으로 환경변수 관리
 - Grafana 대시보드 (AgentDecision 모니터링)
+
+## 6. Maintenance Records
+*   **Troubleshooting**: AI 모델 연결(404 Error) 및 전략 수정에 대한 상세 분석은 [`docs/troubleshooting/week3-ts.md`](../../troubleshooting/week3-ts.md#issue-4-model-availability--strategy-adjustment-ai-404-error)를 참조하십시오.
+*   **Policy Update**: 운영 환경 모델을 `Claude 4.5 Sonnet`으로 상향 조정했습니다.

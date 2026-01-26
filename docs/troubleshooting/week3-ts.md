@@ -313,3 +313,47 @@ if state["analyst_decision"]["decision"] == "REJECT":
 - [LangChain Testing Guide](https://python.langchain.com/docs/guides/testing)
 - [Pydantic v2 - Literal Types](https://docs.pydantic.dev/latest/concepts/types/#literal-types)
 - [Factory Pattern - Refactoring Guru](https://refactoring.guru/design-patterns/factory-method)
+
+---
+
+## Issue #4: Model Availability & Strategy Adjustment (AI 404 Error)
+
+### Problem Statement
+AI Agent 연결 테스트(`debug_simulation.py`) 중 Anthropic API로부터 `404 Not Found` 및 `401 Authentication Error`가 간헐적으로 발생했습니다.
+
+```json
+{'type': 'error', 'error': {'type': 'not_found_error', 'message': 'model: claude-3-5-sonnet-20241022'}}
+```
+
+### Technical Context
+- **Provider**: Anthropic API
+- **Model Target**: `claude-3-5-sonnet-20241022` (Sonnet 3.5 New)
+- **Constraint**: API Key의 Tier 또는 Beta 접근 권한에 따라 특정 모델 ID 사용이 제한될 수 있음.
+
+### Root Cause Analysis
+API Key의 권한 레벨이나 지역적 제한, 또는 회사/조직 계정 정책에 따라 최신 모델(`20241022` 버전)에 대한 접근이 차단된 상태였습니다. 반면, `claude-sonnet-4-5-20250929`(최신 4.5 모델)와 `claude-3-haiku`는 정상 응답함을 확인했습니다.
+
+### Solution: Dual-Model Strategy for Dev/Prod
+
+단순히 모델 ID만 바꾸는 것이 아니라, 개발 단계와 운영 단계의 모델을 분리하는 전략을 수립했습니다.
+
+**1. Strategy Definition**
+| 환경 | 모델 | 선정 이유 |
+|------|------|-----------|
+| **Development** | `claude-3-haiku-20240307` | 비용 효율성, 빠른 응답 속도 (디버깅 용이) |
+| **Production** | `claude-sonnet-4-5-20250929` | 시장 분석의 정확도와 추론 능력 극대화 |
+
+**2. Implementation**
+`src/agents/factory.py` 코드를 수정하여 상황에 따라 모델을 유연하게 교체할 수 있도록 주석 처리 및 가이드를 추가했습니다.
+
+```python
+return ChatAnthropic(
+    model="claude-sonnet-4-5-20250929", # Production (High Reasoning)
+    # model="claude-3-haiku-20240307",    # Development (Low Cost)
+    temperature=0,
+    anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
+)
+```
+
+### Key Takeaway
+> **Dependency Flexibility**: 외부 API(LLM 포함)에 의존하는 시스템은 언제든 **공급자의 사정(모델 단종, 정책 변경, 서버 오류)**에 의해 중단될 수 있습니다. 특정 모델에 강결합되지 않도록 설정을 추상화하고, Fallback 대안(예: Haiku)을 마련해두는 것이 중요합니다.

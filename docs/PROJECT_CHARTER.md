@@ -97,7 +97,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Rule Engine** | 자체 구현 (Python) | 테스트 용이성, 명확성 |
 | **AI Framework** | LangChain, LangGraph | 워크플로우 관리 |
 | **Model** | GARCH / PyTorch | 변동성 예측용 |
-| **LLM** | GPT-4o-mini / Claude 3.5 | 비용 효율성 |
+| **LLM** | Claude 3.5 Haiku (Dev) / Claude 4.5 Sonnet (Prod) | 비용 효율성 및 고성능 추론 최적화 |
 | **Backend** | FastAPI | 비동기 API |
 | **Database** | PostgreSQL 16 | TimescaleDB (Time-series) + pgvector (Vector) |
 | **Vector DB** | pgvector | PostgreSQL 내장 확장 (ChromaDB 대체) |
