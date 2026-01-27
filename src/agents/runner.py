@@ -9,6 +9,7 @@ from src.agents.analyst import market_analyst_node
 from src.agents.guardian import risk_guardian_node
 from src.common.db import get_db_session
 from src.common.models import AgentDecision
+from src.agents.factory import get_analyst_llm
 
 def create_agent_graph():
     """AI 에이전트 워크플로우 그래프 생성"""
@@ -105,9 +106,18 @@ class AgentRunner:
             
         except asyncio.TimeoutError:
             print(f"[!] AI Agent Timeout (20s) for {symbol}. Falling back to REJECT.")
+            await self._log_decision(
+                symbol, strategy_name, "REJECT", 
+                "AI Analysis Timed Out (Conservative Fallback)", None
+            )
             return False, "AI Analysis Timed Out (Conservative Fallback: REJECT)"
         except Exception as e:
             print(f"[!] AI Agent Error for {symbol}: {e}. Falling back to REJECT.")
+            # 에러 상황도 DB에 기록 (대시보드 노출 위해)
+            await self._log_decision(
+                symbol, strategy_name, "REJECT", 
+                f"AI Error: {str(e)}", None
+            )
             return False, f"AI Analysis Error: {str(e)}"
 
     async def _log_decision(self, symbol, strategy, decision, reasoning, confidence):
@@ -120,7 +130,7 @@ class AgentRunner:
                     decision=decision,
                     reasoning=reasoning,
                     confidence=confidence,
-                    model_used="claude-3-5-sonnet-20241022"
+                    model_used=get_analyst_llm().model
                 )
                 session.add(log)
                 await session.commit()

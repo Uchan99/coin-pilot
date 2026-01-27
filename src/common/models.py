@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-from sqlalchemy import Column, BigInteger, String, Numeric, DateTime, JSON, Text, ForeignKey, Integer, Date, Boolean
+from sqlalchemy import Column, BigInteger, String, Numeric, DateTime, JSON, Text, ForeignKey, Integer, Date, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
@@ -13,6 +13,9 @@ class MarketData(Base):
     - AI SQL Agent가 기술 지표 계산 시 주로 참조
     """
     __tablename__ = "market_data"
+    __table_args__ = (
+        UniqueConstraint('symbol', 'interval', 'timestamp', name='uq_market_data_symbol_interval_ts'),
+    )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False, index=True)
