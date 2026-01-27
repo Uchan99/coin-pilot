@@ -34,6 +34,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/collector.Dockerfile
+    image: collector:latest
     container_name: coinpilot-collector
     restart: always
     depends_on:
@@ -51,6 +52,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/bot.Dockerfile
+    image: bot:latest
     container_name: coinpilot-bot
     restart: always
     depends_on:
@@ -68,6 +70,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/docker/dashboard.Dockerfile
+    image: dashboard:latest
     container_name: coinpilot-dashboard
     restart: always
     ports:
