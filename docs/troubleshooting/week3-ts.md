@@ -357,3 +357,33 @@ return ChatAnthropic(
 
 ### Key Takeaway
 > **Dependency Flexibility**: 외부 API(LLM 포함)에 의존하는 시스템은 언제든 **공급자의 사정(모델 단종, 정책 변경, 서버 오류)**에 의해 중단될 수 있습니다. 특정 모델에 강결합되지 않도록 설정을 추상화하고, Fallback 대안(예: Haiku)을 마련해두는 것이 중요합니다.
+
+---
+
+## Issue #5: Data Gaps on Collector Restart (Smart Backfill)
+
+### Problem Statement
+수집기(Collector)가 점검이나 장애로 중단된 후 재시작될 때, **중단된 기간 동안의 데이터가 영구적으로 누락**되는 현상이 확인되었습니다. 이는 기술적 지표(MA, RSI 등) 계산에 왜곡을 초래합니다.
+
+### Technical Context
+- **Component**: `src/collector/main.py`
+- **Impact**: 데이터 연속성 단절 (Missing Candles)
+
+### Solution: Smart Backfill & Safe Insert
+
+**1. Smart Backfill Logic (`src/collector/main.py`)**
+
+수집기 시작 시 실행되는 로직(`backfill`)을 구현했습니다:
+- DB에서 **마지막 저장된 캔들 시간** 조회.
+- 현재 시간과의 차이(분)를 계산하여 `count` 도출.
+- Upbit API의 Pagination 제한(200개)을 극복하기 위해 반복문(Loop) 처리.
+
+**2. Data Integrity (`src/common/models.py`)**
+
+Backfill 중복 실행 시 데이터 충돌 방지를 위해 **UNIQUE 제약**과 **Safe Insert**를 적용했습니다.
+
+- **Unique Constraint**: `(symbol, interval, timestamp)`
+- **Query**: `INSERT ... ON CONFLICT DO NOTHING`
+
+### Key Takeaway
+> **Self-Healing**: 시스템은 중단될 수 있습니다. 중요한 것은 재시작 시 스스로 상태를 복구(Self-Healing)하여 데이터의 무결성을 유지하는 능력입니다.
