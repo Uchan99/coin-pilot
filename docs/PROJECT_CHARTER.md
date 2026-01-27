@@ -104,12 +104,26 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Infra** | Docker, K8s (Minikube) | MSA, Self-healing |
 | **CI/CD** | GitHub Actions | 자동화 |
 
-## 6. 개발 로드맵 (5주)
-* **Week 1 (Foundation):** 데이터 파이프라인 (Collector, DB), Paper Trading 로직
-* **Week 2 (Core Logic):** Rule Engine, Risk Manager, 백테스팅 엔진
-* **Week 3 (AI Integration):** SQL Agent, RAG Agent, LangGraph 통합
-* **Week 4 (Infra):** Docker, K8s 배포, 모니터링 (Prometheus/Grafana)
-* **Week 5 (Finish):** 대시보드(Streamlit), 문서화(실패 분석 포함)
+## 6. 개발 로드맵 (7주)
+* **Week 1 (Foundation):** 데이터 파이프라인 (Collector, DB), Paper Trading 로직 ✅
+* **Week 2 (Core Logic):** Rule Engine, Risk Manager, 백테스팅 엔진 ✅
+* **Week 3 (AI Integration):** SQL Agent, RAG Agent, LangGraph 통합 ✅
+* **Week 4 (Infra):** Docker, K8s 배포, 모니터링 (Prometheus/Grafana) ✅
+* **Week 5 (Notification):** n8n 워크플로우 자동화, Discord 알림 시스템
+  * 거래 체결 알림 (Trade Executed)
+  * 리스크 경고 알림 (Risk Alert)
+  * 일간 리포트 발송 (Daily Report)
+* **Week 6 (Polish):** 대시보드 고도화(Streamlit), 문서화(실패 분석), 최종 테스트
+* **Week 7 (Chatbot):** 대시보드 내장 AI 챗봇 (Streamlit)
+  * 잔고/포지션 조회, 시장 지표 분석, 매매 내역 요약
+  * 차트와 함께 실시간 대화형 분석 가능
+  * ⚠️ **읽기 전용 권한** 기본값 (거래 트리거 불가)
+
+### Future Consideration (Optional)
+* **MCP (Model Context Protocol)**: 챗봇 및 외부 LLM 클라이언트용 표준 인터페이스
+  * 도입 시기: 핵심 개발 완료 후 필요 시 검토
+  * 장점: 재사용성, 표준화
+  * 단점: 추가 인프라 및 복잡도 증가
 
 ## 7. 차별화 포인트 (Portfolio)
 | 일반적인 프로젝트 | **CoinPilot** |

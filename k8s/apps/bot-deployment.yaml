@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bot
+  namespace: coin-pilot-ns
+  labels:
+    app: bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bot
+  template:
+    metadata:
+      labels:
+        app: bot
+    spec:
+      containers:
+        - name: bot
+          image: bot:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://postgres:$(DB_PASSWORD)@db:5432/coinpilot"
+            - name: REDIS_URL
+              valueFrom:
+                 secretKeyRef:
+                   name: coin-pilot-secret
+                   key: REDIS_URL
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                 secretKeyRef:
+                   name: coin-pilot-secret
+                   key: ANTHROPIC_API_KEY
+            - name: PAPER_BALANCE
+              value: "10000000"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "ps aux | grep main.py | grep -v grep"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            exec:
+              command:
+              - python
+              - scripts/check_db.py
+            initialDelaySeconds: 15
+            periodSeconds: 30

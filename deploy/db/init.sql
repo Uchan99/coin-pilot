@@ -38,6 +38,9 @@ SELECT add_compression_policy (
         'market_data', INTERVAL '7 days', if_not_exists => TRUE
     );
 
+ALTER TABLE market_data
+ADD CONSTRAINT uq_market_data_symbol_interval_ts UNIQUE (symbol, interval, timestamp);
+
 CREATE TABLE IF NOT EXISTS trading_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4 (),
     symbol VARCHAR(20) NOT NULL,

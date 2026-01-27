@@ -13,7 +13,7 @@ pytest-asyncio
 pandas
 numpy>=1.24.0
 scipy>=1.10.0
-pandas-ta>=0.3.14b
+pandas-ta
 aiosqlite
 langchain
 langchain-anthropic
