@@ -1,54 +1,77 @@
 import asyncio
 import sys
+import httpx
 from src.collector.main import UpbitCollector
+from src.common.db import get_db_session
+from src.common.models import MarketData
+from datetime import datetime, timezone
+from decimal import Decimal
+from sqlalchemy.dialects.postgresql import insert
 
 async def fetch_history():
     """
-    대시보드 차트용 과거 데이터 200개 수집
+    대시보드 차트용 과거 데이터 수집 (1분봉 200개 + 일봉 200개)
     """
-    print("[*] Starting Historical Data Fetch (200 candles)...")
-    collector = UpbitCollector(symbol="KRW-BTC")
+    symbol = "KRW-BTC"
+    
+    # 1. 1분봉 데이터 수집 (기존 로직)
+    print("[*] Starting Historical Data Fetch (1m: 200, 1d: 200)...")
+    collector = UpbitCollector(symbol=symbol)
     
     try:
-        # Upbit API는 최대 200개까지 요청 가능
-        candles = await collector.fetch_candles(count=200)
+        # [1m Data] Upbit API 최대 200개
+        print("[*] Fetching 1m candles...")
+        candles_1m = await collector.fetch_candles(count=200)
+        await save_to_db(candles_1m, "1m")
         
-        if candles:
-            # DB 저장
-            # save_candles 함수가 내부적으로 session을 열고 닫으므로 바로 호출 가능
-            # 단, main.py의 save_candles가 bulk insert가 아니라 loop insert라 조금 느릴 수 있음
-            from src.common.db import get_db_session
-            from src.common.models import MarketData
-            from datetime import datetime
-            from decimal import Decimal
-
-            async with get_db_session() as session:
-                print(f"[*] Saving {len(candles)} candles to DB...")
-                for candle in candles:
-                    # 중복 방지 로직이 없으므로 try-except로 감싸거나, 간단히 구현
-                    # 여기서는 데모용이므로 그냥 입력 시도 (PK 충돌 시 에러날 수 있음)
-                    try:
-                        md = MarketData(
-                            symbol=candle["market"],
-                            interval="1m",
-                            open_price=Decimal(str(candle["opening_price"])),
-                            high_price=Decimal(str(candle["high_price"])),
-                            low_price=Decimal(str(candle["low_price"])),
-                            close_price=Decimal(str(candle["trade_price"])),
-                            volume=Decimal(str(candle["candle_acc_trade_volume"])),
-                            timestamp=datetime.fromisoformat(candle["candle_date_time_utc"])
-                        )
-                        session.add(md)
-                    except Exception as e:
-                        print(f"Skipping error: {e}")
-                
-                await session.commit()
-            print("[+] Successfully saved historical data.")
-        else:
-            print("[-] No data received from Upbit.")
+        # [1d Data] Daily API 호출 (MA200 계산용)
+        print("[*] Fetching 1d candles...")
+        async with httpx.AsyncClient() as client:
+            url = "https://api.upbit.com/v1/candles/days"
+            resp = await client.get(url, params={"market": symbol, "count": 200})
+            resp.raise_for_status()
+            candles_1d = resp.json()
+            
+        await save_to_db(candles_1d, "1d")
+        
+        print("[+] Successfully saved all historical data.")
             
     except Exception as e:
         print(f"[!] Error: {e}")
+
+async def save_to_db(candles, interval):
+    if not candles:
+        print(f"[-] No data received for {interval}")
+        return
+
+    async with get_db_session() as session:
+        print(f"[*] Saving {len(candles)} {interval} candles to DB...")
+        count = 0
+        for candle in candles:
+            try:
+                # Upbit keys are same for 1m and 1d usually
+                data_dict = {
+                    "symbol": candle["market"],
+                    "interval": interval,
+                    "open_price": Decimal(str(candle["opening_price"])),
+                    "high_price": Decimal(str(candle["high_price"])),
+                    "low_price": Decimal(str(candle["low_price"])),
+                    "close_price": Decimal(str(candle["trade_price"])),
+                    "volume": Decimal(str(candle["candle_acc_trade_volume"])),
+                    "timestamp": datetime.fromisoformat(candle["candle_date_time_utc"]).replace(tzinfo=timezone.utc)
+                }
+                
+                stmt = insert(MarketData).values(**data_dict)
+                stmt = stmt.on_conflict_do_nothing(
+                    constraint='uq_market_data_symbol_interval_ts'
+                )
+                await session.execute(stmt)
+                count += 1
+            except Exception as e:
+                print(f"Skipping error: {e}")
+        
+        await session.commit()
+        print(f"[+] Saved {count} records.")
 
 if __name__ == "__main__":
     asyncio.run(fetch_history())
