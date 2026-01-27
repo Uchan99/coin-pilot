@@ -104,12 +104,16 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Infra** | Docker, K8s (Minikube) | MSA, Self-healing |
 | **CI/CD** | GitHub Actions | 자동화 |
 
-## 6. 개발 로드맵 (5주)
-* **Week 1 (Foundation):** 데이터 파이프라인 (Collector, DB), Paper Trading 로직
-* **Week 2 (Core Logic):** Rule Engine, Risk Manager, 백테스팅 엔진
-* **Week 3 (AI Integration):** SQL Agent, RAG Agent, LangGraph 통합
-* **Week 4 (Infra):** Docker, K8s 배포, 모니터링 (Prometheus/Grafana)
-* **Week 5 (Finish):** 대시보드(Streamlit), 문서화(실패 분석 포함)
+## 6. 개발 로드맵 (6주)
+* **Week 1 (Foundation):** 데이터 파이프라인 (Collector, DB), Paper Trading 로직 ✅
+* **Week 2 (Core Logic):** Rule Engine, Risk Manager, 백테스팅 엔진 ✅
+* **Week 3 (AI Integration):** SQL Agent, RAG Agent, LangGraph 통합 ✅
+* **Week 4 (Infra):** Docker, K8s 배포, 모니터링 (Prometheus/Grafana) ✅
+* **Week 5 (Notification):** n8n 워크플로우 자동화, Discord 알림 시스템
+  * 거래 체결 알림 (Trade Executed)
+  * 리스크 경고 알림 (Risk Alert)
+  * 일간 리포트 발송 (Daily Report)
+* **Week 6 (Polish):** 대시보드 고도화(Streamlit), 문서화(실패 분석), 최종 테스트
 
 ## 7. 차별화 포인트 (Portfolio)
 | 일반적인 프로젝트 | **CoinPilot** |
