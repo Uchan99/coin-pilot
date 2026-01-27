@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coin-pilot-config
+  namespace: coin-pilot-ns
+data:
+  # Environment Variables
+  TZ: "Asia/Seoul"
+  # Others will be injected via Secret or Deployment env

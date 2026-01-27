@@ -30,6 +30,54 @@ services:
     volumes:
       - coinpilot_redis_data:/data
 
+  collector:
+    build:
+      context: ..
+      dockerfile: deploy/docker/collector.Dockerfile
+    container_name: coinpilot-collector
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      REDIS_URL: redis://redis:6379/0
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+
+  bot:
+    build:
+      context: ..
+      dockerfile: deploy/docker/bot.Dockerfile
+    container_name: coinpilot-bot
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/docker/dashboard.Dockerfile
+    container_name: coinpilot-dashboard
+    restart: always
+    ports:
+      - "8501:8501"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+
 volumes:
   coinpilot_db_data:
   coinpilot_redis_data:

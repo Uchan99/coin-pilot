@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector
+  namespace: coin-pilot-ns
+  labels:
+    app: collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+    spec:
+      containers:
+        - name: collector
+          image: collector:latest # Minikube will use local image if pullPolicy is Never or ifNotPresent
+          imagePullPolicy: IfNotPresent # Important for Minikube
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://postgres:$(DB_PASSWORD)@db:5432/coinpilot"
+            - name: REDIS_URL
+              valueFrom:
+                 secretKeyRef:
+                   name: coin-pilot-secret
+                   key: REDIS_URL
+            - name: UPBIT_ACCESS_KEY
+              valueFrom:
+                 secretKeyRef:
+                   name: coin-pilot-secret
+                   key: UPBIT_ACCESS_KEY
+            - name: UPBIT_SECRET_KEY
+              valueFrom:
+                 secretKeyRef:
+                   name: coin-pilot-secret
+                   key: UPBIT_SECRET_KEY
+          # Construct DATABASE_URL using env var expansion? 
+          # K8s env doesn't support recursive expansion easily in value.
+          # Better to have STARTUP script or set DATABASE_URL in Secret directly.
+          # Or use $(DB_PASSWORD) in command? 
+          # Simplest: Add DATABASE_URL to Secret.
+          # But Secret example didn't have it.
+          # I will assume I can construct it or user adds it.
+          # Let's try to set it via 'value' using $(DB_PASSWORD) referencing k8s dependent env vars?
+          # Kubernetes allows using previously defined env vars in value.
+          # So:
+          # - name: DB_PASSWORD ...
+          # - name: DATABASE_URL
+          #   value: "postgresql+asyncpg://postgres:$(DB_PASSWORD)@db:5432/coinpilot"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            # Collector is a daemon loop. How to check liveness?
+            # Check if process is running? Or log file update?
+            # Simple exec check: ps aux | grep python?
+            # Or just check if it invoked frequently?
+            # Let's use a simple command that succeeds.
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "ps aux | grep main.py | grep -v grep"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            # Check DB connection
+            exec:
+              command:
+              - python
+              - scripts/check_db.py
+            initialDelaySeconds: 15
+            periodSeconds: 30
