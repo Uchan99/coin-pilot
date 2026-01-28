@@ -42,6 +42,7 @@ watch kubectl get pods -n coin-pilot-ns
 - **Dashboard**: [http://localhost:30000](http://localhost:30000)
 - **Grafana**: [http://localhost:30001](http://localhost:30001) (ID/PW: admin/admin)
 - **Prometheus**: [http://localhost:30090](http://localhost:30090)
+- **n8n Automation**: [http://localhost:5678](http://localhost:5678) (Mode B처럼 포트포워딩 필요)
 
 ---
 
@@ -52,9 +53,10 @@ watch kubectl get pods -n coin-pilot-ns
 로컬(Host)에서 K8s 내부 DB에 접속할 수 있도록 길을 뚫어줍니다.
 **터미널 탭을 하나 열어서** 다음 명령어를 실행하고 유지하세요.
 ```bash
-# DB & Redis 포트 포워딩 (종료하지 말고 켜두세요!)
+# DB, Redis & n8n 포트 포워딩 (종료하지 말고 켜두세요!)
 kubectl port-forward -n coin-pilot-ns service/db 5432:5432 & \
-kubectl port-forward -n coin-pilot-ns service/redis 6379:6379
+kubectl port-forward -n coin-pilot-ns service/redis 6379:6379 & \
+kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678
 ```
 
 ### 2.2 로컬 대시보드 실행
