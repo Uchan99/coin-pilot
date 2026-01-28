@@ -1,6 +1,6 @@
 # CoinPilot Daily Startup Guide 🚀
 
-**작성일**: 2026-01-27 (Updated for Week 4 K8s)
+**작성일**: 2026-01-29 (Updated for Week 5 Notification)
 **목적**: 컴퓨터 부팅 후 개발/운영 환경을 빠르게 세팅하기 위한 체크리스트
 
 ---
@@ -42,7 +42,16 @@ watch kubectl get pods -n coin-pilot-ns
 - **Dashboard**: [http://localhost:30000](http://localhost:30000)
 - **Grafana**: [http://localhost:30001](http://localhost:30001) (ID/PW: admin/admin)
 - **Prometheus**: [http://localhost:30090](http://localhost:30090)
-- **n8n Automation**: [http://localhost:5678](http://localhost:5678) (Mode B처럼 포트포워딩 필요)
+- **n8n Automation**: [http://localhost:5678](http://localhost:5678) ⚠️ 포트포워딩 필요 (아래 참조)
+
+### 1.5 n8n 워크플로우 접속 (Week 5)
+n8n은 내부 서비스(ClusterIP)로만 노출되어 있어, UI 접속 시 포트포워딩이 필요합니다.
+```bash
+# n8n UI 접속용 포트포워딩
+kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678
+```
+- 접속: [http://localhost:5678](http://localhost:5678)
+- **Discord 알림 테스트**: n8n UI → 워크플로우 선택 → Execute 버튼
 
 ---
 
@@ -94,9 +103,35 @@ PYTHONPATH=. .venv/bin/streamlit run src/dashboard/app.py
 
 ---
 
-## 4. 🛑 작업 종료 (Shutdown)
+## 4. 🔔 알림 시스템 테스트 (Week 5)
+n8n + Discord 알림이 정상 작동하는지 빠르게 확인합니다.
 
-### Kubernetes (Minikube) 종료
+### 4.1 수동 Webhook 테스트
+```bash
+# 포트포워딩이 켜져 있어야 함 (1.5 또는 2.1 참조)
+
+# Trade 알림 테스트
+curl -X POST http://localhost:5678/webhook/trade \
+  -H "X-Webhook-Secret: $(kubectl get secret -n coin-pilot-ns coin-pilot-secret -o jsonpath='{.data.N8N_WEBHOOK_SECRET}' | base64 -d)" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"KRW-BTC", "side":"BUY", "price":100000000, "quantity":0.001}'
+
+# Risk 알림 테스트
+curl -X POST http://localhost:5678/webhook/risk \
+  -H "X-Webhook-Secret: $(kubectl get secret -n coin-pilot-ns coin-pilot-secret -o jsonpath='{.data.N8N_WEBHOOK_SECRET}' | base64 -d)" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"STOP_LOSS", "level":"WARNING", "message":"Test alert"}'
+```
+
+### 4.2 예상 결과
+- Discord `#coinpilot-bot` 채널에 메시지 도착 ✅
+- n8n UI에서 실행 로그 확인 가능
+
+---
+
+## 5. 🛑 작업 종료 (Shutdown)
+
+### 5.1 Kubernetes (Minikube) 종료
 ```bash
 # 클러스터 중지 (데이터 유지)
 minikube stop
@@ -105,7 +140,7 @@ minikube stop
 # minikube delete
 ```
 
-### Docker Compose 종료
+### 5.2 Docker Compose 종료
 ```bash
 docker-compose -f deploy/docker-compose.yml stop
 ```
