@@ -30,6 +30,7 @@ echo "[-] Applying Apps..."
 ./minikube kubectl -- apply -f k8s/apps/collector-deployment.yaml
 ./minikube kubectl -- apply -f k8s/apps/bot-deployment.yaml
 ./minikube kubectl -- apply -f k8s/apps/dashboard-deployment.yaml
+./minikube kubectl -- apply -f k8s/apps/n8n-deployment.yaml
 
 # Monitoring
 echo "[-] Applying Monitoring..."

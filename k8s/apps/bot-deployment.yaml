@@ -61,3 +61,4 @@ spec:
               - scripts/check_db.py
             initialDelaySeconds: 15
             periodSeconds: 30
+            timeoutSeconds: 5
