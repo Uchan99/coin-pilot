@@ -1,0 +1,57 @@
+{
+    "name": "Trade Notification",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "trade",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+                "sendBody": true,
+                "contentType": "json",
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "content",
+                            "value": "={{ \"🪙 Trade Executed!\\n\" + \"Symbol: \" + $json[\"symbol\"] + \"\\n\" + \"Side: \" + $json[\"side\"] + \"\\n\" + \"Price: \" + $json[\"price\"] }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Discord Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Discord Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

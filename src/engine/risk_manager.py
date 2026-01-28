@@ -5,6 +5,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.models import DailyRiskState, AccountState, RiskAudit
+from src.common.notification import notifier
+import asyncio
 
 class RiskManager:
     """
@@ -89,6 +91,14 @@ class RiskManager:
             description=desc
         )
         session.add(audit)
+        
+        # n8n 리스크 알림 발송
+        asyncio.create_task(notifier.send_webhook("/webhook/risk", {
+            "type": v_type,
+            "message": desc,
+            "level": "WARNING"
+        }))
+        
         print(f"[!] Risk Violation: {v_type} - {desc}")
 
     async def update_after_trade(self, session: AsyncSession, pnl: Decimal):
@@ -105,6 +115,14 @@ class RiskManager:
             if state.consecutive_losses >= 3:
                 state.cooldown_until = datetime.now(timezone.utc) + timedelta(hours=self.cooldown_hours)
                 state.consecutive_losses = 0 # 쿨다운 진입 후 초기화
+                
+                # n8n 쿨다운 알림 발송
+                asyncio.create_task(notifier.send_webhook("/webhook/risk", {
+                    "type": "COOLDOWN",
+                    "message": f"3연패로 인해 {self.cooldown_hours}시간 동안 거래를 중단합니다.",
+                    "level": "CRITICAL"
+                }))
+                
                 print(f"[!] 3 consecutive losses detected. Cooldown for {self.cooldown_hours} hours.")
         else:
             state.consecutive_losses = 0 # 수익 발생 시 연패 초기화

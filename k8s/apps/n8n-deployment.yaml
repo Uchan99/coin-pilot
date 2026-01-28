@@ -1,0 +1,87 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pvc
+  namespace: coin-pilot-ns
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: coin-pilot-ns
+spec:
+  ports:
+    - port: 5678
+      targetPort: 5678
+  selector:
+    app: n8n
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: coin-pilot-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest
+          env:
+            - name: N8N_BLOCK_ENV_ACCESS_IN_NODE
+              value: "false"
+            - name: N8N_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: N8N_WEBHOOK_SECRET
+            - name: DISCORD_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: DISCORD_WEBHOOK_URL
+            # Simple SQLite config. 
+            # In n8n, by default it uses SQLite if DB_TYPE is not set.
+            # We mount the n8n data folder to the PVC.
+          ports:
+            - containerPort: 5678
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: n8n-data
+          persistentVolumeClaim:
+            claimName: n8n-pvc

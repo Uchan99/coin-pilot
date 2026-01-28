@@ -1,0 +1,61 @@
+{
+    "name": "Daily Report",
+    "nodes": [
+        {
+            "parameters": {
+                "triggerTimes": {
+                    "item": [
+                        {
+                            "mode": "everyDay",
+                            "hour": 9
+                        }
+                    ]
+                }
+            },
+            "name": "Cron",
+            "type": "n8n-nodes-base.cron",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+                "sendBody": true,
+                "contentType": "json",
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "content",
+                            "value": "={{ \"📅 Daily Report\\nStatus: Operating Normal\\nDate: \" + $today.format(\"YYYY-MM-DD\") }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Discord Webhook",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Cron": {
+            "main": [
+                [
+                    {
+                        "node": "Discord Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

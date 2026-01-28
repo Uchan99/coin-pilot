@@ -1,4 +1,5 @@
 import os
+import asyncio
 from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional, Dict
@@ -139,6 +140,17 @@ class PaperTradingExecutor:
                 executed_at=datetime.now(timezone.utc)
             )
             session.add(history)
+            
+            # 3. n8n 알림 발송 (비동기)
+            from src.common.notification import notifier
+            asyncio.create_task(notifier.send_webhook("/webhook/trade", {
+                "symbol": symbol,
+                "side": side,
+                "price": float(price),
+                "quantity": float(quantity),
+                "strategy": strategy_name,
+                "executed_at": history.executed_at.isoformat()
+            }))
             
             print(f"[+] Order Executed: {side} {symbol} (Qty: {quantity}, Price: {price:,.0f})")
             return True
