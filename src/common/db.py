@@ -20,6 +20,17 @@ if not DATABASE_URL:
     
     DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
+def get_sync_db_url() -> str:
+    """
+    LangChain SQLDatabase 등 동기식 연결이 필요한 도구를 위한 URL 반환
+    (asyncpg -> psycopg2)
+    """
+    if not DATABASE_URL:
+        # Fallback if env vars not loaded properly, though they should be
+        return f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        
+    return DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+
 # 비동기 엔진 생성
 engine = create_async_engine(
     DATABASE_URL,
