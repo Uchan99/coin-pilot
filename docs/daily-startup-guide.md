@@ -1,7 +1,9 @@
 # CoinPilot Daily Startup Guide 🚀
 
-**작성일**: 2026-01-29 (Updated for Week 5 Notification)
+**작성일**: 2026-01-30 (Updated for Week 6 Dashboard)
 **목적**: 컴퓨터 부팅 후 개발/운영 환경을 빠르게 세팅하기 위한 체크리스트
+
+> 📖 **운영자 매뉴얼**: 대시보드 사용법 및 긴급 대응은 [USER_MANUAL.md](USER_MANUAL.md) 참조
 
 ---
 
@@ -68,19 +70,33 @@ kubectl port-forward -n coin-pilot-ns service/redis 6379:6379 & \
 kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678
 ```
 
-### 2.2 로컬 대시보드 실행
+### 2.2 로컬 대시보드 실행 (Week 6 Updated)
 새로운 터미널 탭에서 실행합니다.
 ```bash
 # 1. 가상환경 활성화
 source .venv/bin/activate
 
 # 2. 필수 환경변수 확인 (.env)
-# DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_USER=postgres
+# DB_PASSWORD=postgres
+# DB_NAME=coinpilot
+# (Note: 대시보드는 psycopg2 동기 드라이버를 사용하므로 asyncpg URL 불필요)
 
 # 3. Streamlit 실행
-PYTHONPATH=. .venv/bin/streamlit run src/dashboard/app.py
+PYTHONPATH=. streamlit run src/dashboard/app.py
 ```
-* 접속: [http://localhost:8501](http://localhost:8501) (포트 30000이 아님)
+* 접속: [http://localhost:8501](http://localhost:8501)
+
+### 2.3 대시보드 기능 (Week 6)
+| 페이지 | 기능 |
+|--------|------|
+| **Overview** | 총 자산, PnL, 보유 포지션 |
+| **Market** | Plotly 캔들차트, TimescaleDB 연동 |
+| **Risk** | 일일 손실 한도, 거래 횟수 제한, 쿨다운 |
+| **History** | 거래 내역 필터링, 매수/매도 비율 |
+| **System** | DB/Redis/n8n 연결 상태 |
 
 ---
 
@@ -144,3 +160,13 @@ minikube stop
 ```bash
 docker-compose -f deploy/docker-compose.yml stop
 ```
+
+---
+
+## 6. 📚 참조 문서
+
+| 문서 | 용도 |
+|------|------|
+| [USER_MANUAL.md](USER_MANUAL.md) | 대시보드 사용법 및 긴급 대응 |
+| [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md) | 장애 유형별 대응 플레이북 |
+| [troubleshooting/week6-ts.md](troubleshooting/week6-ts.md) | 대시보드 개발 트러블슈팅 |
