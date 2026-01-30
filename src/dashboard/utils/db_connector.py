@@ -1,0 +1,75 @@
+import os
+import pandas as pd
+import streamlit as st
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+
+# .env 로드
+load_dotenv()
+
+# 동기식 DB 연결 (Sync Engine)
+# Streamlit은 멀티스레드 환경이므로 Async Engine을 억지로 쓰기보다
+# 별도의 Sync Engine을 만드는 것이 훨씬 안정적입니다.
+def get_sync_db_url():
+    # 기존 URL에서 'postgresql+asyncpg'를 'postgresql' (psycopg2)로 변경
+    async_url = os.getenv("DATABASE_URL")
+    if async_url and "asyncpg" in async_url:
+        return async_url.replace("+asyncpg", "")
+    
+    # URL이 없으면 새로 조합
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "coinpilot")
+    
+    return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# 전역 엔진 생성 (Connection Pool 공유)
+_engine = None
+
+def get_engine():
+    global _engine
+    if _engine is None:
+        db_url = get_sync_db_url()
+        _engine = create_engine(db_url, pool_size=10, max_overflow=20)
+    return _engine
+
+@st.cache_data(ttl=30)
+def get_data_as_dataframe(query: str, params: dict = None) -> pd.DataFrame:
+    """
+    [동기 방식] SQL 쿼리를 실행하여 Pandas DataFrame으로 반환합니다.
+    psycopg2 드라이버를 사용하여 Async Loop 이슈를 원천 차단합니다.
+    """
+    try:
+        engine = get_engine()
+        # Pandas의 read_sql은 params를 dict로 받지 않고 리스트나 튜플로 받는 경우가 많아,
+        # SQLAlchemy Connection을 직접 사용하여 실행
+        with engine.connect() as conn:
+            # text()로 감싸서 실행
+            result = conn.execute(text(query), params or {})
+            # 컬럼명 가져오기
+            columns = result.keys()
+            # 데이터 가져오기
+            data = result.fetchall()
+            
+            if not data:
+                return pd.DataFrame(columns=columns)
+                
+            return pd.DataFrame(data, columns=columns)
+            
+    except Exception as e:
+        # 에러 메시지를 좀 더 명확하게 표시
+        st.error(f"DB Error: {str(e)}")
+        # 빈 값 반환하여 UI 깨짐 방지
+        return pd.DataFrame()
+
+def check_db_connection() -> bool:
+    """
+    DB 연결 상태를 확인합니다.
+    """
+    try:
+        df = get_data_as_dataframe("SELECT 1 as connected")
+        return not df.empty and df.iloc[0]['connected'] == 1
+    except Exception:
+        return False
