@@ -13,6 +13,9 @@ st.set_page_config(
 st.sidebar.title("CoinPilot v3.0")
 st.sidebar.caption("AI-Powered Crypto Trading System")
 st.sidebar.markdown("---")
+# Auto Refresh
+from src.dashboard.components.autorefresh import auto_refresh_component
+auto_refresh_component()
 
 # 시스템 상태 확인 (간단한 Ping)
 if st.sidebar.button("시스템 상태 확인"):
