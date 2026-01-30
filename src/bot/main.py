@@ -127,9 +127,27 @@ async def bot_loop():
                 # -----------------------------------------------------------
                 df = await get_recent_candles(session, symbol)
                 
+                # Redis 클라이언트 초기화 (모든 분기에서 사용)
+                try:
+                    redis_client = await get_redis_client()
+                except Exception as e:
+                    print(f"[!] Redis Init Error: {e}")
+                    redis_client = None
+
                 # 데이터 부족 시 대기 (최소 200개 필요 for MA 200)
                 if len(df) < 200:
-                    print(f"[-] Not enough data ({len(df)} < 200). Waiting for collector...")
+                    msg = f"[-] Not enough data ({len(df)} < 200). Waiting for collector..."
+                    print(msg)
+                    if redis_client:
+                        status_data = {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "symbol": symbol,
+                            "action": "WAITING",
+                            "reason": f"데이터 부족: {len(df)} lines (Need 200+)",
+                            "indicators": {}
+                        }
+                        await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+
                 else:
                     # 데이터 신선도(Freshness) 체크
                     # 수집기가 죽어서 과거 데이터만 남았을 경우 매매를 방지합니다.
@@ -137,7 +155,17 @@ async def bot_loop():
                     now = datetime.now(timezone.utc)
                     
                     if (now - last_ts) > timedelta(minutes=2):
-                        print(f"[!] Data stale. Last candle: {last_ts.isoformat()}. Waiting for updates...")
+                        msg = f"[!] Data stale. Last candle: {last_ts.isoformat()}. Waiting for updates..."
+                        print(msg)
+                        if redis_client:
+                            status_data = {
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "symbol": symbol,
+                                "action": "WAITING",
+                                "reason": f"데이터 지연됨: {last_ts.isoformat()} (Collector 확인 필요)",
+                                "indicators": {}
+                            }
+                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
                     else:
                         # -------------------------------------------------------
                         # Step 2. Market Analysis
@@ -153,8 +181,9 @@ async def bot_loop():
                         pos = await executor.get_position(session, symbol)
                         
                         # 4-1. 상태 요약 및 Redis 저장 (Dashboard Visualization)
-                        try:
-                            redis_client = await get_redis_client()
+                        if redis_client:
+                            # redis_client = await get_redis_client() # 이미 위에서 초기화함
+
                             
                             # 기본적으로 'HOLD' 상태, 신호 발생 시 변경
                             bot_action = "HOLD"
@@ -194,11 +223,15 @@ async def bot_loop():
                                 "reason": bot_reason
                             }
                             
-                            # 1차 저장 (분석 직후)
-                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
                             
-                        except Exception as redis_err:
-                            print(f"[!] Redis Publish Error: {redis_err}")
+                            # 1차 저장 (분석 직후)
+                            try:
+                                await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                            except Exception as e:
+                                print(f"[!] Redis Publish Error: {e}")
+                            
+                        # except Exception as redis_err: # 삭제
+                        #     print(f"[!] Redis Publish Error: {redis_err}")
                         
                         if pos:
                             # [Case A] 포지션 보유 중 -> 청산(Exit) 로직 가동
