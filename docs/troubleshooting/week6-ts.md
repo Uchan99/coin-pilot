@@ -161,11 +161,23 @@ def get_data_as_dataframe(query: str, params: dict = None):
 
 ### 🔴 문제 상황
 -   **현상**: 대시보드의 Market 페이지에서 "Bot Status not found" 경고가 표시됨. 봇은 실행 중(`kubectl get pods`)이나, 상태 정보가 뜨지 않음.
--   **원인**: `bot/main.py`의 로직에서 **"Data Stale(데이터 지연)"** 체크가 Redis 저장 로직보다 먼저 수행됨.
-    -   데이터가 2분 이상 지연되면 `continue` 하거나 흐름이 끊겨서, Redis에 상태를 저장하는 코드(`redis_client.set`)에 도달하지 못함.
--   **해결**:
+
+### 🔍 원인 분석
+1.  **Redis 저장 로직 미도달**: `bot/main.py`에서 "Data Stale" 체크가 Redis 저장 로직보다 먼저 수행되어, 데이터 지연 시 Redis에 상태가 저장되지 않음.
+2.  **심볼 형식 불일치**: 봇은 `KRW-BTC` 형식을 사용하나, DB/대시보드는 `BTC-KRW` 형식을 사용할 수 있음.
+
+### ✅ 해결 방법
+1.  **Bot 코드 수정** (`src/bot/main.py`):
     -   Redis 클라이언트 초기화를 루프 최상단으로 이동.
-    -   Data Stale 또는 Insufficient Data 분기에서도 "WAITING" 상태를 Redis에 저장하도록 `else` 처리 추가.
+    -   Data Stale/Insufficient Data 분기에서도 "WAITING" 상태를 Redis에 저장.
+2.  **Dashboard 코드 수정** (`src/dashboard/pages/2_market.py`):
+    -   심볼 형식 역변환 로직 추가 (`BTC-KRW` ↔ `KRW-BTC`).
+    -   Redis 연결 timeout 추가 (2초).
+3.  **테스트 스크립트 추가** (`scripts/test_bot_status.py`):
+    -   봇 없이도 Bot Brain UI를 테스트할 수 있도록 Redis에 테스트 데이터 삽입.
+    ```bash
+    python scripts/test_bot_status.py
+    ```
 
 ---
 
