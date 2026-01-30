@@ -15,7 +15,7 @@ with col2:
 # 2. Query Construction
 base_query = """
     SELECT 
-        created_at, 
+        created_at + interval '9 hours' as created_at, 
         symbol, 
         side, 
         price, 

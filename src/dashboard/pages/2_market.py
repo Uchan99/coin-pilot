@@ -20,7 +20,7 @@ limit = st.sidebar.slider("Candle Limit", 50, 500, 200)
 # models.py columns: open_price, high_price, low_price, close_price, volume
 query = f"""
     SELECT 
-        time_bucket('{selected_interval}', timestamp) as bucket,
+        time_bucket('{selected_interval}', timestamp) + interval '9 hours' as bucket,
         FIRST(open_price, timestamp) as open,
         MAX(high_price) as high,
         MIN(low_price) as low,
