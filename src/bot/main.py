@@ -7,12 +7,13 @@ from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 import pandas as pd
+import json
 from sqlalchemy import select, desc
 
 # Add project root to path
 sys.path.append(os.getcwd())
 
-from src.common.db import get_db_session
+from src.common.db import get_db_session, get_redis_client
 from src.common.models import MarketData
 from src.common.indicators import get_all_indicators
 from src.engine.strategy import MeanReversionStrategy
@@ -30,6 +31,21 @@ def handle_sigterm(signum, frame):
 # Register signals
 signal.signal(signal.SIGTERM, handle_sigterm)
 signal.signal(signal.SIGINT, handle_sigterm)
+
+def build_status_reason(indicators: Dict, pos: Dict, risk_valid: bool = True, risk_reason: str = None) -> str:
+    """봇의 판단 근거를 사람이 읽기 쉬운 문장으로 생성합니다."""
+    if pos:
+        pnl_pct = (indicators["close"] - pos["avg_price"]) / pos["avg_price"] * 100
+        return f"포지션 보유 중 (수익률: {pnl_pct:.2f}%) - 매도 조건 감시 중"
+    
+    if not risk_valid:
+        return f"진입 보류: {risk_reason}"
+
+    rsi = indicators.get("rsi", 0)
+    if rsi > 30:
+        return f"관망 중: RSI({rsi:.1f}) > 30 (과매도 아님)"
+    
+    return "진입 조건 충족! AI 검증 대기 중..."
 
 
 async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataFrame:
@@ -135,6 +151,54 @@ async def bot_loop():
                         # 현재 내가 이 코인을 들고 있는지 확인합니다.
                         # -------------------------------------------------------
                         pos = await executor.get_position(session, symbol)
+                        
+                        # 4-1. 상태 요약 및 Redis 저장 (Dashboard Visualization)
+                        try:
+                            redis_client = await get_redis_client()
+                            
+                            # 기본적으로 'HOLD' 상태, 신호 발생 시 변경
+                            bot_action = "HOLD"
+                            bot_reason = ""
+                            
+                            # 임시 변수들
+                            risk_valid_flag = True
+                            risk_reason_msg = None
+
+                            if not pos:
+                                # 진입 전 리스크 체크 (가상으로 미리 확인해서 reason 생성)
+                                balance = await executor.get_balance(session)
+                                invest_amount = balance * risk_manager.max_per_order
+                                is_valid, method_reason = await risk_manager.check_order_validity(session, symbol, invest_amount)
+                                if not is_valid:
+                                    risk_valid_flag = False
+                                    risk_reason_msg = method_reason
+                                    
+                            bot_reason = build_status_reason(indicators, pos, risk_valid_flag, risk_reason_msg)
+                            
+                            status_data = {
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "symbol": symbol,
+                                "current_price": float(current_price),
+                                "indicators": {
+                                    "rsi": float(indicators.get("rsi", 0)),
+                                    "bb_upper": float(indicators.get("bb_upper", 0)),
+                                    "bb_lower": float(indicators.get("bb_lower", 0)),
+                                    "ma_200": float(indicators.get("ma_200", 0))
+                                },
+                                "position": {
+                                    "has_position": bool(pos),
+                                    "avg_price": float(pos["avg_price"]) if pos else None,
+                                    "quantity": float(pos["quantity"]) if pos else None
+                                },
+                                "action": bot_action, # 다음 로직에서 BUY/SELL 발생 시 덮어쓰기 로직 필요하지만, 단순화를 위해 루프 끝단에서 갱신하거나 여기서 1차 저장
+                                "reason": bot_reason
+                            }
+                            
+                            # 1차 저장 (분석 직후)
+                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                            
+                        except Exception as redis_err:
+                            print(f"[!] Redis Publish Error: {redis_err}")
                         
                         if pos:
                             # [Case A] 포지션 보유 중 -> 청산(Exit) 로직 가동
