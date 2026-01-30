@@ -108,7 +108,7 @@ if not positions_df.empty:
             "current_price": "Cur Price",
             "unrealized_pnl_pct": "P&L (%)"
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
 else:

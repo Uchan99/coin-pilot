@@ -59,7 +59,7 @@ with col1:
         }
     ))
     fig_loss.update_layout(height=300)
-    st.plotly_chart(fig_loss, use_container_width=True)
+    st.plotly_chart(fig_loss, width="stretch")
     
     if current_pnl <= -500000: # 예시 한도
         st.error("🚨 Daily Loss Limit Reached! (Trading Halted)")
@@ -104,6 +104,6 @@ audit_df = get_data_as_dataframe("""
 """)
 
 if not audit_df.empty:
-    st.dataframe(audit_df, use_container_width=True)
+    st.dataframe(audit_df, width="stretch")
 else:
     st.info("Risk 이벤트 기록이 없습니다. (Clean!)")

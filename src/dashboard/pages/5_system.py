@@ -84,7 +84,8 @@ audit_df = get_data_as_dataframe("""
 """)
 
 if not audit_df.empty:
-    st.dataframe(audit_df, use_container_width=True)
+    st.dataframe(audit_df, width="stretch")
+
 else:
     st.write("No critical system events found.")
 

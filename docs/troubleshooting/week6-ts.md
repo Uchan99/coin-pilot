@@ -181,7 +181,17 @@ def get_data_as_dataframe(query: str, params: dict = None):
 
 ---
 
-## 9. 교훈 (Lessons Learned)
+## 9. Streamlit Deprecation Warnings (use_container_width)
+
+### 🔴 문제 상황
+-   **현상**: Streamlit 터미널 로그에 `Please replace use_container_width with width` 경고가 다수 발생.
+-   **원인**: Streamlit 최신 버전(1.42+)에서 `use_container_width=True` 파라미터가 Deprecated 됨.
+-   **해결**:
+    -   `st.dataframe`, `st.plotly_chart` 등에서 `use_container_width=True`를 `width="stretch"`로 일괄 변경.
+
+---
+
+## 10. 교훈 (Lessons Learned)
 1.  **Sync vs Async**: Streamlit 같은 동기 프레임워크에서는 굳이 기존의 Async 로직을 재사용하려 하기보다, 전용 Sync 로직을 짜는 게 정신건강과 안정성에 좋다.
 2.  **Schema Check**: 계획 짤 때 "내 기억"을 믿지 말고 `models.py`를 먼저 `view_file` 해보고 짜자.
 3.  **Defensive Coding**: 데이터가 '없는' 경우(Empty DB)를 항상 가정하고 변수를 초기화하자.
