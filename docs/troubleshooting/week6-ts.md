@@ -157,7 +157,19 @@ def get_data_as_dataframe(query: str, params: dict = None):
 
 ---
 
-## 8. 교훈 (Lessons Learned)
+## 8. Bot Status Not Found on Dashboard
+
+### 🔴 문제 상황
+-   **현상**: 대시보드의 Market 페이지에서 "Bot Status not found" 경고가 표시됨. 봇은 실행 중(`kubectl get pods`)이나, 상태 정보가 뜨지 않음.
+-   **원인**: `bot/main.py`의 로직에서 **"Data Stale(데이터 지연)"** 체크가 Redis 저장 로직보다 먼저 수행됨.
+    -   데이터가 2분 이상 지연되면 `continue` 하거나 흐름이 끊겨서, Redis에 상태를 저장하는 코드(`redis_client.set`)에 도달하지 못함.
+-   **해결**:
+    -   Redis 클라이언트 초기화를 루프 최상단으로 이동.
+    -   Data Stale 또는 Insufficient Data 분기에서도 "WAITING" 상태를 Redis에 저장하도록 `else` 처리 추가.
+
+---
+
+## 9. 교훈 (Lessons Learned)
 1.  **Sync vs Async**: Streamlit 같은 동기 프레임워크에서는 굳이 기존의 Async 로직을 재사용하려 하기보다, 전용 Sync 로직을 짜는 게 정신건강과 안정성에 좋다.
 2.  **Schema Check**: 계획 짤 때 "내 기억"을 믿지 말고 `models.py`를 먼저 `view_file` 해보고 짜자.
 3.  **Defensive Coding**: 데이터가 '없는' 경우(Empty DB)를 항상 가정하고 변수를 초기화하자.

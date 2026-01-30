@@ -10,11 +10,32 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 
 def get_bot_status(symbol: str) -> dict:
+    """
+    Redis에서 봇 상태를 조회합니다.
+    심볼 형식이 다를 수 있으므로 여러 형식으로 시도합니다.
+    - DB: KRW-BTC 또는 BTC-KRW
+    - Bot: KRW-BTC
+    """
     try:
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True, socket_timeout=2)
+
+        # 원본 심볼로 먼저 시도
         data = r.get(f"bot:status:{symbol}")
-        return json.loads(data) if data else None
-    except:
+        if data:
+            return json.loads(data)
+
+        # 심볼 형식 변환 시도 (BTC-KRW -> KRW-BTC 또는 반대)
+        if "-" in symbol:
+            parts = symbol.split("-")
+            reversed_symbol = f"{parts[1]}-{parts[0]}"
+            data = r.get(f"bot:status:{reversed_symbol}")
+            if data:
+                return json.loads(data)
+
+        return None
+    except redis.ConnectionError:
+        return None
+    except Exception:
         return None
 
 
@@ -58,7 +79,13 @@ with st.expander(f"🤖 Bot Brain: {selected_symbol} (Live Status)", expanded=Tr
         st.info(f"💭 **Reasoning**: {bot_status.get('reason', 'No reasoning available')}")
         
     else:
-        st.warning(f"⚠️ Bot Status not found for {selected_symbol}. Is the bot running?")
+        st.warning(f"⚠️ Bot Status not found for {selected_symbol}")
+        st.caption("""
+        **가능한 원인:**
+        1. 봇이 실행 중이 아님 (`kubectl get pods -l app=bot -n coin-pilot-ns`)
+        2. Redis 포트 포워딩 누락 (`kubectl port-forward -n coin-pilot-ns service/redis 6379:6379`)
+        3. 봇이 아직 첫 번째 루프를 완료하지 않음 (1분 대기)
+        """)
 
 
 # 2. 데이터 조회
