@@ -47,6 +47,52 @@ Week 4~6 개발 과정에서 실제로 겪은 이슈들을 바탕으로 작성�
     1.  n8n 설정 수정 후 활성화(Active) 상태 재확인.
     2.  Engine 로그에서 Webhook URL이 올바른지 확인.
 
+### Type D: Redis 연결 실패
+*   **증상**: 대시보드 System Health에서 Redis가 🔴 Error 표시.
+*   **원인**:
+    1.  Redis 파드가 실행되지 않음.
+    2.  Redis 포트 포워딩 누락.
+*   **대응 절차**:
+    1.  파드 상태 확인:
+        ```bash
+        kubectl get pods -l app=redis -n coin-pilot-ns
+        ```
+    2.  포트 포워딩 실행:
+        ```bash
+        kubectl port-forward -n coin-pilot-ns service/redis 6379:6379
+        ```
+
+### Type E: 봇 파드 CrashLoopBackOff
+*   **증상**: `kubectl get pods`에서 봇 파드가 `CrashLoopBackOff` 상태.
+*   **원인**:
+    1.  환경 변수 누락 (API Key, DB URL 등).
+    2.  코드 버그로 인한 즉시 종료.
+    3.  DB 연결 실패로 초기화 중 에러.
+*   **대응 절차**:
+    1.  로그 확인:
+        ```bash
+        kubectl logs -l app=bot -n coin-pilot-ns --previous
+        ```
+    2.  ConfigMap/Secret 확인:
+        ```bash
+        kubectl get configmap -n coin-pilot-ns
+        kubectl get secret -n coin-pilot-ns
+        ```
+    3.  DB 파드 상태 우선 확인 후 봇 재배포.
+
+### Type F: TimescaleDB 쿼리 실패 (time_bucket 에러)
+*   **증상**: Market 페이지에서 `function time_bucket does not exist` 에러.
+*   **원인**: TimescaleDB 확장이 활성화되지 않음.
+*   **대응 절차**:
+    1.  DB에 접속하여 확장 확인:
+        ```sql
+        SELECT * FROM pg_extension WHERE extname = 'timescaledb';
+        ```
+    2.  확장이 없으면 활성화:
+        ```sql
+        CREATE EXTENSION IF NOT EXISTS timescaledb;
+        ```
+
 ---
 
 ## 3. 예방 점검 리스트 (Preventive Checks)
@@ -58,6 +104,37 @@ Week 4~6 개발 과정에서 실제로 겪은 이슈들을 바탕으로 작성�
 
 ---
 
-## 4. 참고 문서
+## 4. 긴급 대응 명령어 (Quick Reference)
+
+| 상황 | 명령어 |
+|------|--------|
+| **봇 즉시 중지** | `kubectl scale deployment bot --replicas=0 -n coin-pilot-ns` |
+| **봇 재시작** | `kubectl rollout restart deployment bot -n coin-pilot-ns` |
+| **전체 파드 재시작** | `kubectl delete pods --all -n coin-pilot-ns` |
+| **특정 파드 강제 종료** | `kubectl delete pod <pod-name> -n coin-pilot-ns --force` |
+| **포트 충돌 해제** | `lsof -t -i:5432 \| xargs -r kill -9` |
+| **Minikube 재시작** | `minikube stop && minikube start` |
+
+---
+
+## 5. 롤백 절차 (Rollback)
+
+배포 후 문제가 발생한 경우:
+
+```bash
+# 1. 이전 버전으로 롤백
+kubectl rollout undo deployment bot -n coin-pilot-ns
+
+# 2. 롤백 상태 확인
+kubectl rollout status deployment bot -n coin-pilot-ns
+
+# 3. 히스토리 확인
+kubectl rollout history deployment bot -n coin-pilot-ns
+```
+
+---
+
+## 6. 참고 문서
 -   [Week 5 Troubleshooting](troubleshooting/week5-ts.md): n8n 및 알림 관련 이슈
 -   [Week 6 Troubleshooting](troubleshooting/week6-ts.md): 대시보드 및 DB 연결 이슈
+-   [Daily Startup Guide](guides/daily-startup.md): 일일 시작 가이드

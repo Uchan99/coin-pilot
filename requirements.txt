@@ -23,3 +23,4 @@ redis[hiredis]
 tenacity
 streamlit
 plotly
+streamlit-autorefresh

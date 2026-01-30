@@ -123,7 +123,41 @@ def get_data_as_dataframe(query: str, params: dict = None):
 
 ---
 
-## 6. 교훈 (Lessons Learned)
+---
+
+## 6. Auto-refresh Infinite Loop Bug
+
+### 🔴 문제 상황
+-   **현상**: Auto Refresh 기능을 켜자마자 페이지가 미친듯이 새로고침됨 (초당 1회 이상).
+-   **원인**: `autorefresh.py`의 로직 오류.
+    ```python
+    else:
+        time.sleep(1)
+        st.rerun() # 조건이 안 맞아도 매초 강제 리로드
+    ```
+-   **해결**: `if time_since_last >= interval:` 조건이 충족될 때만 `rerun` 하도록 수정하고, `else` 블록(@`sleep`)을 제거함.
+
+---
+
+## 7. Environment & Setup Issues
+
+### 🔴 Port Forwarding "Address already in use"
+-   **현상**: `kubectl port-forward` 실패.
+-   **해결**: 좀비 프로세스 정리.
+    ```bash
+    lsof -t -i:5432 | xargs -r kill -9
+    ```
+
+### 🔴 Missing Dependencies
+-   **현상**: `streamlit-autorefresh` 설치 시도 시 `pip: command not found` 또는 설치 후에도 모듈 못 찾음.
+-   **해결**: 반드시 가상환경의 pip를 사용해야 함.
+    ```bash
+    .venv/bin/pip install streamlit-autorefresh
+    ```
+
+---
+
+## 8. 교훈 (Lessons Learned)
 1.  **Sync vs Async**: Streamlit 같은 동기 프레임워크에서는 굳이 기존의 Async 로직을 재사용하려 하기보다, 전용 Sync 로직을 짜는 게 정신건강과 안정성에 좋다.
 2.  **Schema Check**: 계획 짤 때 "내 기억"을 믿지 말고 `models.py`를 먼저 `view_file` 해보고 짜자.
 3.  **Defensive Coding**: 데이터가 '없는' 경우(Empty DB)를 항상 가정하고 변수를 초기화하자.

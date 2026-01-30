@@ -14,20 +14,33 @@ CoinPilot v3.0은 Kubernetes 기반의 AI 자동 매매 시스템입니다.
 ## 2. 대시보드 사용법 (Dashboard Guide)
 
 ### 2.1 실행 방법
-로컬 환경(VS Code)에서 대시보드를 실행하려면 다음 2단계가 필요합니다.
+로컬 환경(VS Code)에서 대시보드를 실행하려면 다음 단계가 필요합니다.
 
-1.  **DB 포트 포워딩 (필수)**
-    ```bash
-    kubectl port-forward -n coin-pilot-ns service/db 5432:5432
-    ```
-    *주의: 터미널 창을 닫지 마세요.*
+**Step 1. 포트 포워딩 (별도 터미널에서 실행)**
+```bash
+# DB (필수)
+kubectl port-forward -n coin-pilot-ns service/db 5432:5432 &
 
-2.  **대시보드 앱 실행**
-    ```bash
-    source .venv/bin/activate
-    PYTHONPATH=. streamlit run src/dashboard/app.py
-    ```
-    브라우저에서 `http://localhost:8501` 접속.
+# Redis (System Health 페이지용)
+kubectl port-forward -n coin-pilot-ns service/redis 6379:6379 &
+
+# n8n (System Health 페이지용, 선택)
+kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678 &
+```
+*Tip: `&`를 붙이면 백그라운드 실행됩니다.*
+
+**Step 2. 대시보드 앱 실행**
+```bash
+source .venv/bin/activate
+PYTHONPATH=. streamlit run src/dashboard/app.py
+```
+브라우저에서 `http://localhost:8501` 접속.
+
+**Step 3. 포트 포워딩 종료 (세션 종료 시)**
+```bash
+# 백그라운드 포트 포워딩 프로세스 종료
+pkill -f "kubectl port-forward"
+```
 
 ### 2.2 메뉴 설명
 -   **📊 Overview**:
@@ -54,9 +67,14 @@ CoinPilot v3.0은 Kubernetes 기반의 AI 자동 매매 시스템입니다.
 ### 3.1 봇 시작/종료
 Minikube 클러스터 전체를 관리합니다.
 
-*   **시작**: `deploy/deploy_to_minikube.sh`
-*   **중지**: `./minikube stop`
-*   **로그 확인**: `./minikube kubectl -- logs -f -l app=bot -n coin-pilot-ns`
+| 작업 | 명령어 |
+|------|--------|
+| **클러스터 시작** | `minikube start` |
+| **전체 배포** | `./deploy/deploy_to_minikube.sh` |
+| **클러스터 중지** | `minikube stop` |
+| **봇 로그 확인** | `kubectl logs -f -l app=bot -n coin-pilot-ns` |
+| **Collector 로그** | `kubectl logs -f -l app=collector -n coin-pilot-ns` |
+| **전체 파드 상태** | `kubectl get pods -n coin-pilot-ns` |
 
 ### 3.2 긴급 상황 대응
 *   **거래 멈추기**:
