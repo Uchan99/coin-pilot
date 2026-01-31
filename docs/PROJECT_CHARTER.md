@@ -142,12 +142,6 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Agent Memory** | 🟢 낮음 | pgvector 활용 성공/실패 패턴 저장 |
 
 ### Future Consideration (Optional)
-* **비서 챗봇 고도화**: Week 7 챗봇을 개인 비서 수준으로 발전
-  * Phase 1: 플로팅 UI + Agent Memory (대화 맥락 기억)
-  * Phase 2: Volatility Model + 백테스팅 리포트 조회
-  * Phase 3: 뉴스 RAG 확장 + 일간 리포트 자동 생성
-  * Phase 4: MCP 연동 + 거래 실행 권한 (Optional)
-  * 상세 계획: `docs/work-plans/chatbot-advancement.md` 참조
 * **MCP (Model Context Protocol)**: 챗봇 및 외부 LLM 클라이언트용 표준 인터페이스
   * 도입 시기: Week 8 이후 필요 시 검토
   * 장점: 재사용성, 표준화
