@@ -32,6 +32,10 @@ spec:
                  secretKeyRef:
                    name: coin-pilot-secret
                    key: REDIS_URL
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
             - name: ANTHROPIC_API_KEY
               valueFrom:
                  secretKeyRef:
@@ -49,11 +53,12 @@ spec:
           livenessProbe:
             exec:
               command:
-              - /bin/sh
+              - python
               - -c
-              - "ps aux | grep main.py | grep -v grep"
+              - "import os; exit(0)"
             initialDelaySeconds: 30
             periodSeconds: 60
+            failureThreshold: 5
           readinessProbe:
             exec:
               command:

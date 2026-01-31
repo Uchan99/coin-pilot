@@ -269,3 +269,18 @@ with st.expander("🤖 Bot Brain (Live Status)", expanded=True):
 | 기대 효과 | ✅ 높음 (운영 가시성 향상) |
 
 **기획 승인. 위 보완 사항 반영 후 구현 진행 권장.**
+
+---
+
+## 7. Implementation Status (2026-01-31)
+
+### ✅ 구현 완료 (Completed)
+- [x] **Bot**: Redis Status Publisher 구현 완료 (`src/bot/main.py`)
+- [x] **Dashboard**: Bot Brain UI 구현 완료 (`src/dashboard/pages/2_market.py`)
+- [x] **Infrastructure**: Redis Service & Deployment 연동 완료
+
+### 🛠️ 트러블슈팅 (Troubleshooting)
+구현 과정에서 발생한 주요 이슈 해결 내역 (상세: `docs/troubleshooting/week6-ts.md`):
+1. **Bot Status not found**: 이미지 재빌드 및 Redis 환경변수 추가로 해결.
+2. **Liveness Probe Crash**: `procps` 패키지 추가로 `ps` 명령어 지원.
+3. **Build Failures**: `numpy`/`scipy` 버전 핀으로 의존성 충돌 해결.

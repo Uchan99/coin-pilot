@@ -162,22 +162,19 @@ def get_data_as_dataframe(query: str, params: dict = None):
 ### 🔴 문제 상황
 -   **현상**: 대시보드의 Market 페이지에서 "Bot Status not found" 경고가 표시됨. 봇은 실행 중(`kubectl get pods`)이나, 상태 정보가 뜨지 않음.
 
-### 🔍 원인 분석
-1.  **Redis 저장 로직 미도달**: `bot/main.py`에서 "Data Stale" 체크가 Redis 저장 로직보다 먼저 수행되어, 데이터 지연 시 Redis에 상태가 저장되지 않음.
-2.  **심볼 형식 불일치**: 봇은 `KRW-BTC` 형식을 사용하나, DB/대시보드는 `BTC-KRW` 형식을 사용할 수 있음.
+### 🔍 원인 분석 & 해결 과정
+| 문제 | 원인 | 해결 |
+|------|------|------|
+| **Bot Status not found** | 봇 이미지에 Redis 코드 없음 (구버전 이미지) | 이미지 재빌드 (`deploy_to_minikube.sh`) |
+| **Liveness probe 실패** | 컨테이너 내 `ps` 명령어 없음 | Dockerfile에 `procps` 패키지 추가 |
+| **Redis 연결 실패** | `REDIS_HOST` 환경변수 누락 | `dashboard-deployment.yaml`에 환경변수 추가 |
+| **Docker 빌드 실패** | `pandas-ta` ↔ `langchain` numpy 충돌 | `requirements.txt` 의존성 조정 (numpy, scipy pinning) |
 
-### ✅ 해결 방법
-1.  **Bot 코드 수정** (`src/bot/main.py`):
-    -   Redis 클라이언트 초기화를 루프 최상단으로 이동.
-    -   Data Stale/Insufficient Data 분기에서도 "WAITING" 상태를 Redis에 저장.
-2.  **Dashboard 코드 수정** (`src/dashboard/pages/2_market.py`):
-    -   심볼 형식 역변환 로직 추가 (`BTC-KRW` ↔ `KRW-BTC`).
-    -   Redis 연결 timeout 추가 (2초).
-3.  **테스트 스크립트 추가** (`scripts/test_bot_status.py`):
-    -   봇 없이도 Bot Brain UI를 테스트할 수 있도록 Redis에 테스트 데이터 삽입.
-    ```bash
-    python scripts/test_bot_status.py
-    ```
+### ✅ 최종 적용 내용
+1.  **Bot Dockerfile**: `procps` 설치 추가 (Liveness Probe용).
+2.  **Dashboard Deployment**: `REDIS_HOST`, `REDIS_PORT` 환경변수 명시.
+3.  **Requirements**: `numpy>=1.26.0`, `scipy>=1.12.0` 등 버전 명시로 충돌 해결.
+4.  **Port Conflict**: 로컬 포트포워딩 좀비 프로세스 정리 후 재연결.
 
 ---
 

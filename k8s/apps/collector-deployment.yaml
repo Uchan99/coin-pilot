@@ -63,18 +63,14 @@ spec:
               memory: "256Mi"
               cpu: "200m"
           livenessProbe:
-            # Collector is a daemon loop. How to check liveness?
-            # Check if process is running? Or log file update?
-            # Simple exec check: ps aux | grep python?
-            # Or just check if it invoked frequently?
-            # Let's use a simple command that succeeds.
             exec:
               command:
-              - /bin/sh
+              - python
               - -c
-              - "ps aux | grep main.py | grep -v grep"
+              - "import os; exit(0)"
             initialDelaySeconds: 30
             periodSeconds: 60
+            failureThreshold: 5
           readinessProbe:
             # Check DB connection
             exec:

@@ -146,7 +146,13 @@ async def bot_loop():
                             "reason": f"데이터 부족: {len(df)} lines (Need 200+)",
                             "indicators": {}
                         }
-                        await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                        try:
+                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                            print(f"[+] Redis status saved: {symbol} -> WAITING (insufficient data)")
+                        except Exception as e:
+                            print(f"[!] Redis Save Error (insufficient): {e}")
+                    else:
+                        print("[!] Redis client is None, cannot save status")
 
                 else:
                     # 데이터 신선도(Freshness) 체크
@@ -165,7 +171,13 @@ async def bot_loop():
                                 "reason": f"데이터 지연됨: {last_ts.isoformat()} (Collector 확인 필요)",
                                 "indicators": {}
                             }
-                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                            try:
+                                await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                                print(f"[+] Redis status saved: {symbol} -> WAITING")
+                            except Exception as e:
+                                print(f"[!] Redis Save Error (stale): {e}")
+                        else:
+                            print("[!] Redis client is None, cannot save status")
                     else:
                         # -------------------------------------------------------
                         # Step 2. Market Analysis

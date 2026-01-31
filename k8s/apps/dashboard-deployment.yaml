@@ -29,6 +29,10 @@ spec:
                   key: DB_PASSWORD
             - name: DATABASE_URL
               value: "postgresql+asyncpg://postgres:$(DB_PASSWORD)@db:5432/coinpilot"
+            - name: REDIS_HOST
+              value: "redis"
+            - name: REDIS_PORT
+              value: "6379"
           # Dashboard needs access to DB to visualize data.
           resources:
             requests:

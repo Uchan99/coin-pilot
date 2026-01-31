@@ -23,7 +23,7 @@
 ### 1.1 Minikube 시작
 ```bash
 # Minikube 클러스터 시작 (Docker 드라이버 사용)
-minikube start --driver=docker --cpus 4 --memory 8192
+./minikube start --driver=docker --cpus 4 --memory 8192
 ```
 
 ### 1.2 배포 스크립트 실행
@@ -150,10 +150,10 @@ curl -X POST http://localhost:5678/webhook/risk \
 ### 5.1 Kubernetes (Minikube) 종료
 ```bash
 # 클러스터 중지 (데이터 유지)
-minikube stop
+./minikube stop
 
 # (선택) 클러스터 삭제 (데이터 초기화됨!)
-# minikube delete
+# ./minikube delete
 ```
 
 ### 5.2 Docker Compose 종료
