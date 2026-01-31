@@ -66,6 +66,11 @@ Week 6의 목표는 운영 중인 CoinPilot 봇의 상태를 실시간으로 모
 -   **테스트 도구**: `scripts/test_bot_status.py` - 봇 없이 Bot Brain UI 테스트 가능.
 
 
+### 4.4 Post-Launch Stabilization (2026-01-31)
+-   **Dependencies**: `numpy` vs `pandas-ta` 충돌 해결 (`pandas-ta` 제거, 직접 계산 도입).
+-   **K8s Reliability**: `procps` 추가 (Liveness Probe) 및 환경변수(`REDIS_HOST`) 누락 수정.
+-   **Deployment**: 로컬 빌드 스크립트(`deploy_to_minikube.sh`) 의존성 문제 해결.
+
 ---
 
 ## 5. Phase 4: Documentation (문서화)

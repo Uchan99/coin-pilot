@@ -284,3 +284,4 @@ with st.expander("🤖 Bot Brain (Live Status)", expanded=True):
 1. **Bot Status not found**: 이미지 재빌드 및 Redis 환경변수 추가로 해결.
 2. **Liveness Probe Crash**: `procps` 패키지 추가로 `ps` 명령어 지원.
 3. **Build Failures**: `numpy`/`scipy` 버전 핀으로 의존성 충돌 해결.
+4. **Dependency Hell**: `pandas-ta` 제거(직접 계산 구현으로 대체)하여 LangChain 호환성 확보.

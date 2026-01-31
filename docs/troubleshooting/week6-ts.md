@@ -175,6 +175,11 @@ def get_data_as_dataframe(query: str, params: dict = None):
 2.  **Dashboard Deployment**: `REDIS_HOST`, `REDIS_PORT` 환경변수 명시.
 3.  **Requirements**: `numpy>=1.26.0`, `scipy>=1.12.0` 등 버전 명시로 충돌 해결.
 4.  **Port Conflict**: 로컬 포트포워딩 좀비 프로세스 정리 후 재연결.
+5.  **Build Failure**: `resolution-too-deep` 에러 발생. `pandas-ta`와 `langchain`/`numpy` 간의 의존성 충돌.
+    -   **해결**: `src/common/indicators.py`가 직접 구현(Manual Calc) 방식을 쓰므로, `requirements.txt`에서 `pandas-ta` 삭제하여 빌드 성공.
+6.  **Ghost Containers**: "Bot Status not found"가 계속된 원인.
+    -   **원인**: 이전에 실행한 Docker Compose(Mode C) 컨테이너(`coinpilot-redis`, `coinpilot-db`)가 백그라운드에서 포트(6379, 5432)를 점유. 로컬 대시보드가 K8s가 아닌 빈 로컬 DB/Redis를 바라보고 있었음.
+    -   **해결**: `docker stop`으로 좀비 컨테이너 종료 후 `kubectl port-forward` 재수행.
 
 ---
 

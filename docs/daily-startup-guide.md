@@ -12,7 +12,7 @@
 | 모드 | 설명 | 추천 상황 |
 | :--- | :--- | :--- |
 | **Mode A: Kubernetes (K8s)** | **[권장]** 전체 시스템(Bot, DB, Web)을 Minikube 클러스터에 배포 | **실제 운영 리허설**, 24/7 자동매매 |
-| **Mode B: Hybrid (K8s DB + Local App)** | K8s의 DB를 사용하되, **대시보드(Streamlit)**는 로컬에서 실행 | **Test 브랜치 대시보드 개발**, UI 수정 |
+| **Mode B: Hybrid (K8s DB + Local App)** | K8s의 DB를 사용하되, **대시보드(Streamlit)**는 로컬에서 실행 | **대시보드 기능 개발 및 디버깅**, UI 수정 |
 | **Mode C: Docker Compose** | 기존 방식의 로컬 컨테이너 실행 | 간단한 DB/Redis 실행 필요 시 (Legacy) |
 
 ---
@@ -58,7 +58,7 @@ kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678
 ---
 
 ## 2. 🧪 Mode B: Hybrid (Local Dashboard + K8s DB)
-**"대시보드 코드는 Test 브랜치에, DB는 K8s에 있을 때"** 사용하는 방법입니다.
+**"K8s의 안정적인 DB/인프라를 사용하면서, 로컬에서 대시보드 기능을 빠르게 개발/테스트할 때"** 사용하는 방법입니다.
 
 ### 2.1 K8s 포트 포워딩 (Port Forwarding)
 로컬(Host)에서 K8s 내부 DB에 접속할 수 있도록 길을 뚫어줍니다.
