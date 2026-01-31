@@ -15,7 +15,7 @@
 | :--- | :--- | :--- |
 | **LLM (Dev)** | **Claude 3 Haiku (20240307)** | 개발 및 단순 쿼리 변환 시 비용 효율성 최적화 (PROJECT_CHARTER 준수, 3.5 Haiku는 API 미지원으로 3.0 사용) |
 | **LLM (Prod)** | **Claude 3.5 Sonnet** | 복잡한 의도 파악 및 정확한 SQL 생성을 위한 고성능 모델 |
-| **Embedding** | **HuggingFace (all-MiniLM-L6-v2)** | 로컬 실행 가능, 무료, 가벼우면서도 준수한 성능 (한국어 지원 고려 시 `ko-sbert` 검토 가능하나 일단 표준 모델 사용) |
+| **Embedding** | **OpenAI (text-embedding-3-small)** | **Minikube 리소스 절약 (메모리/CPU)** 및 다국어 성능 우수. 로컬 모델 대신 API 사용 결정. |
 | **Vector DB** | **pgvector** | 기존 PostgreSQL 인프라 재사용 (관리 포인트 최소화) |
 | **Framework** | **LangGraph** | 상태 관리(State)와 복잡한 분기 처리에 특화됨 |
 
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS document_embeddings (
     id SERIAL PRIMARY KEY,
     source_file TEXT NOT NULL, -- e.g., 'PROJECT_CHARTER.md'
     content TEXT NOT NULL,
-    embedding vector(384),     -- all-MiniLM-L6-v2 dimension
+    embedding vector(1536),    -- text-embedding-3-small dimension
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -102,7 +102,7 @@ CREATE INDEX ON document_embeddings USING ivfflat (embedding vector_cosine_ops);
 
 ## 6. User Review & Safety
 > [!WARNING]
-> **Cost Alert**: 임베딩 생성(OpenAI 사용 시) 및 LLM 호출 비용이 발생할 수 있습니다. 초기에는 무료 Embedding 모델(HuggingFace)을 사용합니다.
+> **Cost Alert**: `text-embedding-3-small` 모델은 **$0.02 / 1M tokens**로 매우 저렴합니다. (문서 전체 임베딩 시 예상 비용 < $0.01). 리소스 안정성을 위해 API 방식을 채택했습니다. (`OPENAI_API_KEY` 필수)
 
 ---
 
@@ -124,7 +124,7 @@ CREATE INDEX ON document_embeddings USING ivfflat (embedding vector_cosine_ops);
 | 권장 사항 | 반영 위치 | 상태 |
 |----------|----------|------|
 | LLM 모델 명시 | §2.2 Tech Stack Selection | ✅ Haiku(Dev)/Sonnet(Prod) |
-| Embedding 모델 선택 | §2.2 Tech Stack Selection | ✅ HuggingFace all-MiniLM-L6-v2 |
+| Embedding 모델 선택 | §2.2 Tech Stack Selection | ✅ OpenAI text-embedding-3-small |
 | Router 라우팅 기준 | §3.2 Router Logic | ✅ 하이브리드 (키워드 + LLM) |
 | pgvector DDL | §3.3 Database Schema | ✅ 전체 스크립트 포함 |
 | 에러 핸들링 | §4 Phase B Step 5 | ✅ Fallback 로직 명시 |
@@ -165,3 +165,123 @@ CREATE INDEX ON document_embeddings USING ivfflat (embedding vector_cosine_ops);
 ---
 
 **결론: 계획서 최종 승인. 코드 구현을 진행해주세요.**
+
+---
+
+### Review #3 (Embedding 변경 검토)
+**Reviewer**: Claude Code (Opus 4.5)
+**Date**: 2026-01-31
+**Status**: ⚠️ **수정 필요**
+
+#### 변경 사항
+sentence-transformer → OpenAI `text-embedding-3-small` 변경 결정에 따른 문서 정합성 검토
+
+#### 발견된 불일치
+
+| 위치 | 현재 값 | 수정 필요 값 | 심각도 |
+|------|--------|-------------|--------|
+| §3.3 DDL (line 62) | `vector(384)` | `vector(1536)` | 🔴 Critical |
+| Review #2 표 (line 127) | HuggingFace all-MiniLM-L6-v2 | OpenAI text-embedding-3-small | 🟡 Minor |
+
+#### Cost Alert 보완 권장
+
+현재 Cost Alert은 적절하나, 아래 정보 추가 권장:
+- `text-embedding-3-small`: **$0.02 / 1M tokens**
+- 문서 수십 개 임베딩 시 예상 비용: **< $0.01**
+
+#### 필수 수정 항목 (코드 구현 전)
+
+1. **DDL 수정**: `embedding vector(384)` → `embedding vector(1536)`
+2. **기존 마이그레이션 확인**: `migrations/004_add_pgvector.sql` 파일도 동일하게 수정 필요
+
+#### 결론
+DDL 벡터 차원 수정 후 코드 구현 진행 가능
+
+---
+
+### Review #4 (수정 검증)
+**Reviewer**: Claude Code (Opus 4.5)
+**Date**: 2026-02-01
+**Status**: ⚠️ **수정 필요**
+
+#### Review #3 피드백 반영 확인
+
+| 항목 | 상태 |
+|------|------|
+| `vector(1536)` 수정 | ✅ 완료 |
+| Cost Alert 비용 추정치 | ✅ 완료 |
+
+#### 새로 발견된 DDL 오류 (Critical)
+
+**위치**: §3.3 Database Schema (lines 60-63)
+
+```sql
+-- 현재 (오류)
+first_name TEXT,           -- 불필요한 컬럼
+embedding vector(1536),
+created_at TIMESTAMPTZ DEFAULT NOW()
+created_at TIMESTAMPTZ DEFAULT NOW()  -- 중복 + 쉼표 누락
+```
+
+```sql
+-- 수정 필요
+embedding vector(1536),
+created_at TIMESTAMPTZ DEFAULT NOW()
+```
+
+**문제점:**
+1. 🔴 `first_name TEXT` - 의도하지 않은 컬럼 (삭제 필요)
+2. 🔴 `created_at` 중복 선언 (1개 삭제 필요)
+3. 🔴 SQL 문법 오류 발생 가능
+
+#### Minor (선택)
+- Review #2 표 (line 129): "HuggingFace all-MiniLM-L6-v2" → "OpenAI text-embedding-3-small" 업데이트 권장
+
+#### 결론
+DDL 문법 오류 수정 후 최종 승인 가능
+
+---
+
+### Review #5 (최종 검증)
+**Reviewer**: Claude Code (Opus 4.5)
+**Date**: 2026-02-01
+**Status**: ✅ **APPROVED**
+
+#### Review #4 피드백 반영 확인
+
+| 항목 | 상태 |
+|------|------|
+| DDL `first_name` 컬럼 제거 | ✅ |
+| DDL `created_at` 중복 제거 | ✅ |
+| DDL SQL 문법 정상 | ✅ |
+| Review #2 표 임베딩 모델명 수정 | ✅ |
+
+#### 최종 DDL 확인
+
+```sql
+CREATE TABLE IF NOT EXISTS document_embeddings (
+    id SERIAL PRIMARY KEY,
+    source_file TEXT NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(1536),    -- text-embedding-3-small
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+✅ 문법 정상, OpenAI 임베딩 차원(1536) 일치
+
+#### 결론
+**계획서 최종 승인. 코드 구현을 진행해주세요.**
+
+---
+
+## 7. Implementation Status
+
+### Phase A: Architecture & Base Setup (Completed)
+*   **Date**: 2026-02-01
+*   **Status**: ✅ **Completed**
+*   **Changes**:
+    1.  **Config**: `src/agents/config.py` 생성 (LLM: Claude-3-Haiku, Embed: OpenAI-Small)
+    2.  **DB Schema**: `document_embeddings` 테이블 생성 (Vector 1536 차원)
+    3.  **Ingestion**: `scripts/ingest_docs.py` 구현 및 실행 완료 (36개 문서 임베딩 저장)
+    4.  **Refactor**: Embedding 모델을 계획 대비 OpenAI로 변경하여 리소스 최적화.
+

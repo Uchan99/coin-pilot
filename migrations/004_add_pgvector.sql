@@ -9,17 +9,15 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Removing manual creation of 'document_embeddings' as it was unused.
 -- Instead, we ensure the vector extension is enabled.
 
--- Optional: If we wanted to manually manage the schema, it looks like this:
--- CREATE TABLE IF NOT EXISTS langchain_pg_collection (
---     uuid UUID PRIMARY KEY,
---     name VARCHAR,
---     cmetadata JSON
--- );
--- CREATE TABLE IF NOT EXISTS langchain_pg_embedding (
---     uuid UUID PRIMARY KEY,
---     collection_id UUID REFERENCES langchain_pg_collection(uuid),
---     embedding vector(384),
---     document VARCHAR,
---     cmetadata JSON,
---     custom_id VARCHAR
--- );
+-- Approved DDL for OpenAI Embeddings
+CREATE TABLE IF NOT EXISTS document_embeddings (
+    id SERIAL PRIMARY KEY,
+    source_file TEXT NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector (1536), -- text-embedding-3-small dimension
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Note: The LangChain PGVector library may use its own tables (langchain_pg_embedding/collection).
+-- This table is created as per the project specification for direct SQL access or future custom implementation.
+CREATE INDEX ON document_embeddings USING ivfflat (embedding vector_cosine_ops);

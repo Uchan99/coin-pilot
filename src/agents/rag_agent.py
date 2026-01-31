@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.vectorstores import PGVector
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 from langchain.chains import create_retrieval_chain
@@ -41,7 +41,7 @@ def get_retriever():
     # PGVector는 psycopg2(동기 드라이버)를 사용하여 DB에 연결합니다.
     connection_string = get_sync_db_url()
     
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
     
     # PGVector 저장소 초기화: 기존에 inges_docs.py로 저장된 테이블('langchain_pg_embedding' 등)을 사용합니다.
     # collection_name 내부적으로 'langchain_pg_collection' 테이블의 name 컬럼과 매핑됩니다.

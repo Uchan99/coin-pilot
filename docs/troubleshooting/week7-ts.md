@@ -141,3 +141,42 @@ Week 7에서는 AI/LLM 생태계의 복잡한 의존성 관리와 비동기/동�
 | Streamlit Async Integration | 🟡 Medium | ✅ Resolved |
 | PGVector Table Schema | 🟢 Low | ✅ Documented |
 | Unused Import Error | 🟢 Low | ✅ Resolved |
+| Dependency & Path Error (Ingestion) | 🟡 Medium | ✅ Resolved |
+| Embedding Model Switch (Resource) | 🟡 Medium | ✅ Resolved |
+
+---
+
+## 7. ModuleNotFoundError in Ingestion Script
+
+### 🔴 Issue
+`scripts/ingest_docs.py` 실행 시 `ModuleNotFoundError: No module named 'src'` 에러 발생.
+*   원인: 스크립트가 프로젝트 루트(`src`가 있는 위치)를 `sys.path`에 포함하지 않아서 패키지를 찾을 수 없음.
+
+### 🟢 Resolution
+스크립트 상단에 현재 작업 디렉토리(`os.getcwd()`)를 `sys.path`에 추가하는 코드 삽입.
+
+**Code Change**:
+```python
+import sys
+# Add project root to path for imports to work
+sys.path.append(os.getcwd())
+```
+
+---
+
+## 8. Embedding Model Switch (HF -> OpenAI)
+
+### 🔴 Issue
+초기 계획은 `HuggingFace (sentence-transformers)` 로컬 모델을 사용하는 것이었으나, 다음 문제점이 식별됨:
+1.  **Minikube 리소스 부족**: 봇 컨테이너 메모리 사용량 급증 우려.
+2.  **의존성 충돌**: `langchain-huggingface`가 `requirements.txt`에 누락되어 있었고, 추가 시 이미지 크기가 커짐.
+3.  **Vector Dimension Mismatch**: 계획서에는 `vector(384)`로 되어 있었으나, OpenAI 변경 시 `1536`으로 수정 필요.
+
+### 🟢 Resolution
+리소스 효율성과 성능(다국어 지원)을 위해 **OpenAI Embedding (`text-embedding-3-small`)**으로 전격 교체.
+
+**Changes**:
+*   `src/agents/config.py`: `EMBEDDING_MODEL` 변경.
+*   `migrations/004_add_pgvector.sql`: `vector(1536)`으로 차원 수정.
+*   `requirements.txt`: `langchain-openai` 활용 (기존 의존성).
+

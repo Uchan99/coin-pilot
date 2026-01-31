@@ -1,9 +1,13 @@
 import os
+import sys
+# Add project root to path for imports to work
+sys.path.append(os.getcwd())
+
 import glob
 from typing import List
 from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import PGVector
 from src.agents.config import EMBEDDING_MODEL, VECTOR_TABLE_NAME
 from src.common.db import DATABASE_URL, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME
@@ -67,7 +71,7 @@ def ingest_docs():
 
     # 3. Initialize Embeddings
     print(f"Initializing Embeddings: {EMBEDDING_MODEL}")
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 
     # 4. Ingest to PGVector
     connection_string = get_connection_string()
