@@ -57,11 +57,16 @@
 watch kubectl get pods -n coin-pilot-ns
 ```
 
-### 1.4 접속 주소
-- **Dashboard**: [http://localhost:30000](http://localhost:30000)
-- **Grafana**: [http://localhost:30001](http://localhost:30001) (ID/PW: admin/admin)
-- **Prometheus**: [http://localhost:30090](http://localhost:30090)
-- **n8n Automation**: [http://localhost:5678](http://localhost:5678) ⚠️ 포트포워딩 필요 (아래 참조)
+### 1.4 접속 방법 (Port Forwarding)
+Minikube 네트워크 직접 접속이 안 될 경우, 포트 포워딩을 사용하세요.
+```bash
+# 새 터미널에서 실행 (대시보드 & 그라파나)
+kubectl port-forward -n coin-pilot-ns service/dashboard 8501:8501 &
+kubectl port-forward -n coin-pilot-ns service/grafana 3000:3000
+```
+- **Dashboard**: [http://localhost:8501](http://localhost:8501)
+- **Grafana**: [http://localhost:3000](http://localhost:3000) (ID/PW: admin/admin)
+- **Prometheus**: 포트포워딩 필요 (`kubectl port-forward svc/prometheus 9090:9090`)
 
 ### 1.5 n8n 워크플로우 접속 (Week 5)
 n8n은 내부 서비스(ClusterIP)로만 노출되어 있어, UI 접속 시 포트포워딩이 필요합니다.

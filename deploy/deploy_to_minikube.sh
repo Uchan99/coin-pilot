@@ -33,7 +33,12 @@ echo "[-] Applying Apps..."
 ./minikube kubectl -- apply -f k8s/apps/n8n-deployment.yaml
 
 # Monitoring
-echo "[-] Applying Monitoring..."
+echo "[-] Applying Monitoring ConfigMaps..."
+./minikube kubectl -- apply -f k8s/monitoring/prometheus-config-cm.yaml
+./minikube kubectl -- apply -f k8s/monitoring/grafana-datasources-cm.yaml
+./minikube kubectl -- apply -f k8s/monitoring/grafana-dashboards-cm.yaml
+
+echo "[-] Applying Monitoring Apps..."
 ./minikube kubectl -- apply -f k8s/monitoring/prometheus.yaml
 ./minikube kubectl -- apply -f k8s/monitoring/grafana.yaml
 

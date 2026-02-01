@@ -53,10 +53,11 @@
 *   `tests/analytics/*.py`: ✅ Passed
 *   `tests/agents/test_daily_reporter.py`: ✅ Passed (Updated logic verified)
 
-### 3.2 System Verification
-*   **Health Check**: `/health` endpoint implemented in Bot Service.
-*   **Observability**: Full Prometheus/Grafana stack with custom metrics.
-*   **Automation**: Daily Reporting + Volatility Retraining scheduled.
+### 3.3 Deployment Verification (Debugging)
+*   **Redis Connection**: `k8s/base/secret.yaml` hostname correction (`coinpilot-redis` → `redis`) verified.
+*   **Service Access**: Minikube IP timeout confirmed; `kubectl port-forward` verified for Dashboard (8501) and Grafana (3000).
+*   **Bot Startup**: ModuleNotFoundError (`prometheus-client`) resolved by rebuilding image.
+*   **Troubleshooting Log**: `docs/troubleshooting/week8-ts.md` created.
 
 ---
 

@@ -89,4 +89,29 @@ Minikube 클러스터 전체를 관리합니다.
 
 ## 4. 알림 시스템 (Notification)
 *   **Discord**: 매매 체결 및 중요 리스크 경고는 Discord 채널로 즉시 전송됩니다.
-*   **n8n**: 워크플로우 수정이 필요한 경우 `localhost:5678`에 접속하세요. (포트포워딩 필요)
+
+---
+
+## 5. 시스템 모니터링 (System Monitoring)
+Week 8 업데이트로 **Grafana** 기반의 상세 모니터링이 가능해졌습니다.
+
+### 5.1 접속 방법
+Minikube 환경에서는 포트 포워딩을 통해 접속합니다.
+```bash
+kubectl port-forward -n coin-pilot-ns service/grafana 3000:3000
+```
+- 주소: [http://localhost:3000](http://localhost:3000)
+- 계정: `admin` / `admin` (또는 설정된 비밀번호)
+
+### 5.2 대시보드 설명
+**1) CoinPilot Overview**
+- **System Metrics**: API 지연 시간(Latency), 에러율 등을 확인합니다.
+- **Volatility Index**: 현재 시장의 변동성 지수(GARCH 모델)를 시각화합니다.
+    - 변동성이 높으면 리스크 매니저가 거래 비중을 줄입니다.
+- **Active Positions**: 실시간 보유 포지션 현황.
+
+**2) CoinPilot Trades**
+- **PnL Analysis**: 일별/누적 손익 그래프.
+- **Win Rate**: 승률 및 익절/손절 횟수 통계.
+
+---
