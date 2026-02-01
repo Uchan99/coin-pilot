@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s # 15초마다 메트릭 수집
+
+scrape_configs:
+  - job_name: 'coinpilot-core'
+    static_configs:
+      - targets: ['coinpilot-service:8000'] # CoinPilot 서비스 (ClusterIP)
+    metrics_path: '/metrics'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

@@ -3,6 +3,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Tuple
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+import redis.asyncio as redis
+import os
+import json
 
 from src.common.models import DailyRiskState, AccountState, RiskAudit
 from src.common.notification import notifier
@@ -11,7 +14,7 @@ import asyncio
 class RiskManager:
     """
     리스크 관리자: 매매 주문의 유효성을 검증하고 일일 한도를 관리합니다.
-    - 단일 포지션 한도: 총 자산의 5%
+    - 단일 포지션 한도: 총 자산의 5% (변동성 높으면 50% 축소)
     - 일일 최대 손실: -5%
     - 쿨다운: 3연패 시 2시간 중단
     """
@@ -19,11 +22,34 @@ class RiskManager:
                  max_per_order: float = 0.05, 
                  max_daily_loss: float = 0.05,
                  max_daily_trades: int = 10,
-                 cooldown_hours: int = 2):
+                 cooldown_hours: int = 2,
+                 redis_url: str = "redis://localhost:6379/0"):
         self.max_per_order = Decimal(str(max_per_order))
         self.max_daily_loss = Decimal(str(max_daily_loss))
         self.max_daily_trades = max_daily_trades
         self.cooldown_hours = cooldown_hours
+        
+        # Redis 연결 (환경 변수 우선)
+        redis_url = os.getenv("REDIS_URL", redis_url)
+        self.redis_client = redis.from_url(redis_url, decode_responses=True)
+
+    async def get_volatility_multiplier(self) -> float:
+        """
+        Redis에서 변동성 상태를 조회하여 포지션 크기 배율을 반환합니다.
+        - High Volatility: 0.5 (50% 축소)
+        - Normal / Error: 1.0 (기본)
+        """
+        try:
+            data = await self.redis_client.get("coinpilot:volatility_state")
+            if data:
+                state = json.loads(data)
+                if state.get("is_high_volatility", False):
+                    # 로그는 너무 자주 찍히지 않도록 주의하거나 필요한 곳에서만 호출
+                    return 0.5
+            return 1.0
+        except Exception as e:
+            print(f"[RiskManager] Redis Error (Volatility): {e}")
+            return 1.0 # Fallback
 
     async def get_daily_state(self, session: AsyncSession) -> DailyRiskState:
         """
@@ -75,10 +101,17 @@ class RiskManager:
             state.is_trading_halted = True
             return False, f"일일 최대 손실 한도(-{self.max_daily_loss*100}%)에 도달하여 거래를 중단합니다."
 
-        # 6. 단일 주문 한도 확인 (자산의 5%)
-        max_order_amount = account.balance * self.max_per_order
+        # 6. 단일 주문 한도 확인 (자산의 5% * 변동성 배율)
+        vol_multiplier = await self.get_volatility_multiplier()
+        base_max_amount = account.balance * self.max_per_order
+        max_order_amount = base_max_amount * Decimal(str(vol_multiplier))
+        
         if amount > max_order_amount:
-            return False, f"단일 주문 한도({self.max_per_order*100}%)를 초과했습니다. (요청: {amount:.0f}, 한도: {max_order_amount:.0f})"
+            msg = f"단일 주문 한도({self.max_per_order*100}%)를 초과했습니다."
+            if vol_multiplier < 1.0:
+                msg += f" (고변동성으로 인해 비중 {vol_multiplier*100:.0f}% 축소 적용됨)"
+            msg += f" (요청: {amount:.0f}, 한도: {max_order_amount:.0f})"
+            return False, msg
 
         return True, ""
 

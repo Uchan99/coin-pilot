@@ -1,4 +1,8 @@
 import asyncio
+import sys
+import os
+sys.path.append(os.getcwd())
+
 from src.agents.router import process_chat
 
 async def test_agents():
