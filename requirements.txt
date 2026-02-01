@@ -11,7 +11,7 @@ httpx==0.27.0
 pytest==8.3.0
 pytest-asyncio==0.24.0
 pandas==2.2.0
-numpy<2.0.0
+numpy>=1.26.0,<2.0.0
 scipy>=1.11.0,<2.0.0
 aiosqlite==0.20.0
 langchain==0.3.0
@@ -24,12 +24,8 @@ tenacity==8.2.3
 streamlit==1.38.0
 plotly==5.24.0
 streamlit-autorefresh==1.0.1
-prometheus-client
-redis
-pandas-ta
-types-redis
-types-PyYAML
+prometheus-client==0.20.0
+types-redis==4.6.0
+types-PyYAML==6.0.12
 arch>=6.0
-fastapi
-uvicorn
-apscheduler
+apscheduler==3.10.4
