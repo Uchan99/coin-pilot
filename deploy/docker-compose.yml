@@ -55,6 +55,8 @@ services:
     image: bot:latest
     container_name: coinpilot-bot
     restart: always
+    ports:
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy

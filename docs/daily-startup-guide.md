@@ -15,6 +15,23 @@
 | **Mode B: Hybrid (K8s DB + Local App)** | K8s의 DB를 사용하되, **대시보드(Streamlit)**는 로컬에서 실행 | **대시보드 기능 개발 및 디버깅**, UI 수정 |
 | **Mode C: Docker Compose** | 기존 방식의 로컬 컨테이너 실행 | 간단한 DB/Redis 실행 필요 시 (Legacy) |
 
+
+---
+
+## 🆕 Week 8 Changes (System Update v3.0)
+
+### 1. Volatility Scheduler (All Modes)
+- **기능**: 매일 00:05 UTC에 Volatility Model을 재학습하여 Redis에 반영합니다.
+- **확인**: 봇 로그에서 `[Scheduler] Retraining Complete` 메시지를 확인하세요.
+
+### 2. Monitoring Updates (Mode A only)
+- **New Dashboards**:
+    - **CoinPilot Overview**: API Latency, Active Positions, Volatility Index 차트 추가
+    - **CoinPilot Trades**: Total PnL, Trade Count 통계
+- **K8s Deployment**:
+    - `bot-deployment.yaml`: Port 8000 노출 및 Service 추가
+    - `monitoring/`: Prometheus/Grafana에 ConfigMap(설정, 대시보드) 자동 마운트 적용
+
 ---
 
 ## 1. ☸️ Mode A: Kubernetes 실행 (Main)

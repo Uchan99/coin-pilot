@@ -18,6 +18,18 @@ spec:
           image: grafana/grafana:latest
           ports:
             - containerPort: 3000
+          volumeMounts:
+            - name: datasources-volume
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-volume
+              mountPath: /etc/grafana/provisioning/dashboards
+      volumes:
+        - name: datasources-volume
+          configMap:
+            name: grafana-datasources
+        - name: dashboards-volume
+          configMap:
+            name: grafana-dashboards
 ---
 apiVersion: v1
 kind: Service

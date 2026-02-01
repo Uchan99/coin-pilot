@@ -40,6 +40,12 @@
 *   [x] **DailyReporter**: Updated to query `TradingHistory` for today's trades.
 *   [x] **Volatility Scheduler**: Added `AsyncIOScheduler` to `main.py` for daily model retraining (00:05 UTC).
 
+### Phase 7: K8s Deployment Prep
+*   [x] `k8s/apps/bot-deployment.yaml`: Port 8000 노출 및 Service 추가
+*   [x] `k8s/monitoring/`: ConfigMap 3종 생성 (Prometheus config, Grafana datasources/dashboards)
+*   [x] `k8s/monitoring/*.yaml`: ConfigMap 마운트 설정 추가 (자동 프로비저닝)
+*   [x] `docs/daily-startup-guide.md`: 배포 및 모니터링 가이드 업데이트
+
 ## 3. 테스트 및 검증 결과
 
 ### 3.1 Unit Tests
@@ -305,5 +311,100 @@ Week 8의 모든 핵심 목표가 달성되었습니다:
 **Week 8 구현 종료. 프로덕션 배포 준비 완료.**
 
 ---
-*Verified by Claude Code (Operator Role)*
+
+---
+
+## 🚀 K8s Deployment Status (Phase 7)
+**배포 준비 완료 (Ready for Deployment)**
+- **Manifests**: 모든 매니페스트(`k8s/`)가 최신 설정(ConfigMap Mount, Service Exposure)을 반영하도록 수정되었습니다.
+- **Monitoring**: Prometheus와 Grafana가 Pod 시작 시 자동으로 설정 파일을 로드합니다.
+- **Action**: `kubectl apply -f k8s/` 실행 시 즉시 운영 환경이 구축됩니다.
+
+---
+
+## Claude Code Review (K8s Deployment Verification)
+
+**검토일**: 2026-02-02
+**검토 대상**: K8s 배포 설정 파일 (Phase 7)
+
+### ✅ K8s 배포 설정 검증 결과
+
+| 파일 | 검증 항목 | 상태 | 비고 |
+|------|-----------|------|------|
+| `k8s/apps/bot-deployment.yaml` | containerPort 8000 | ✅ | 메트릭 엔드포인트 노출 |
+| `k8s/apps/bot-deployment.yaml` | Service (ClusterIP) | ✅ | `bot:8000` 내부 통신 가능 |
+| `k8s/monitoring/prometheus.yaml` | ConfigMap Volume Mount | ✅ | `/etc/prometheus/prometheus.yml` |
+| `k8s/monitoring/prometheus.yaml` | NodePort 30090 | ✅ | 외부 접근 가능 |
+| `k8s/monitoring/grafana.yaml` | datasources Volume Mount | ✅ | `/etc/grafana/provisioning/datasources` |
+| `k8s/monitoring/grafana.yaml` | dashboards Volume Mount | ✅ | `/etc/grafana/provisioning/dashboards` |
+| `k8s/monitoring/grafana.yaml` | NodePort 30001 | ✅ | 외부 접근 가능 |
+| `k8s/monitoring/prometheus-config-cm.yaml` | scrape_configs | ✅ | `targets: ['bot:8000']` 정확히 설정 |
+
+### 📝 서비스 연결 다이어그램
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    coin-pilot-ns                        │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌─────────────┐       ┌─────────────────────────┐      │
+│  │ Bot Pod     │       │ Prometheus Pod          │      │
+│  │ :8000       │◄──────│ scrape: bot:8000/metrics│      │
+│  │ /metrics    │       │ :9090                   │      │
+│  │ /health     │       └─────────────────────────┘      │
+│  └─────────────┘                 ▲                      │
+│        │                         │                      │
+│        ▼                         │ datasource           │
+│  ┌─────────────┐       ┌─────────────────────────┐      │
+│  │ Bot Service │       │ Grafana Pod             │      │
+│  │ ClusterIP   │       │ :3000                   │      │
+│  │ bot:8000    │       │ ┌─ dashboards ──────┐   │      │
+│  └─────────────┘       │ │ coinpilot-overview│   │      │
+│                        │ │ coinpilot-trades  │   │      │
+│                        │ └───────────────────┘   │      │
+│                        └─────────────────────────┘      │
+└─────────────────────────────────────────────────────────┘
+       │                           │
+       │ :30090                    │ :30001
+       ▼                           ▼
+    External                    External
+    (Prometheus UI)             (Grafana UI)
+```
+
+### 📋 배포 순서 권장
+
+```bash
+# 1. Namespace 생성 (이미 존재하면 skip)
+kubectl create namespace coin-pilot-ns
+
+# 2. ConfigMaps 먼저 배포
+kubectl apply -f k8s/monitoring/prometheus-config-cm.yaml
+kubectl apply -f k8s/monitoring/grafana-datasources-cm.yaml
+kubectl apply -f k8s/monitoring/grafana-dashboards-cm.yaml
+
+# 3. Application 배포
+kubectl apply -f k8s/apps/
+
+# 4. Monitoring 배포
+kubectl apply -f k8s/monitoring/prometheus.yaml
+kubectl apply -f k8s/monitoring/grafana.yaml
+
+# 5. 상태 확인
+kubectl get pods -n coin-pilot-ns
+kubectl get svc -n coin-pilot-ns
+```
+
+### 📊 최종 평가
+
+| 항목 | 결과 |
+|------|------|
+| **ConfigMap 연결 정확성** | ✅ 완료 |
+| **Service Discovery** | ✅ `bot:8000` 정확히 참조 |
+| **Monitoring 자동 프로비저닝** | ✅ Volume Mount 설정 완료 |
+| **K8s 배포 준비 상태** | ✅ **Ready** |
+
+모든 K8s 배포 설정이 정확하게 구성되어 있습니다. 추가 수정 사항 없이 배포 진행 가능합니다.
+
+---
+*K8s Deployment Verified by Claude Code (Operator Role)*
 

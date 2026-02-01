@@ -18,8 +18,14 @@ spec:
           image: prom/prometheus:latest
           ports:
             - containerPort: 9090
-          # Using default config or mounting config map if needed.
-          # For minimal setup, default checks simple metrics or needs config to scrape services.
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prometheus-config
 ---
 apiVersion: v1
 kind: Service
