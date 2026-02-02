@@ -47,11 +47,34 @@ def build_status_reason(indicators: Dict, pos: Dict, risk_valid: bool = True, ri
     if not risk_valid:
         return f"진입 보류: {risk_reason}"
 
+    # 전략 조건 상세 분석
     rsi = indicators.get("rsi", 0)
+    ma_200 = indicators.get("ma_200", 0)
+    bb_lower = indicators.get("bb_lower", 0)
+    vol_ratio = indicators.get("vol_ratio", 0)
+    close = indicators.get("close", 0)
+
+    # 데이터 부족 체크
+    if ma_200 == 0 or bb_lower == 0:
+        return "데이터 수집 중: 지표 계산 대기 (200봉 필요)"
+
+    # 1. RSI Check
     if rsi > 30:
         return f"관망 중: RSI({rsi:.1f}) > 30 (과매도 아님)"
-    
-    return "진입 조건 충족! AI 검증 대기 중..."
+
+    # 2. Trend Check (MA 200)
+    if close <= ma_200:
+        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f})"
+
+    # 3. BB Check
+    if close > bb_lower:
+        return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f})"
+
+    # 4. Volume Check
+    if vol_ratio <= 1.5:
+        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ 1.5x)"
+
+    return "✅ 진입 조건 충족! AI 검증 대기 중..."
 
 
 async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataFrame:
