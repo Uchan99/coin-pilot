@@ -87,7 +87,8 @@ with st.expander(f"🤖 Bot Brain: {selected_symbol} (Live Status)", expanded=Tr
                 
                 st.metric("Last Update", f"{int(age)}s ago", delta="-Stale" if age > 120 else "Live", delta_color=status_color)
         
-        st.info(f"💭 **Reasoning**: {bot_status.get('reason', 'No reasoning available')}")
+        reason = bot_status.get('reason', 'No reasoning available').replace('\n', '  \n')
+        st.info(f"💭 **Reasoning**:\n\n{reason}")
         
     else:
         st.warning(f"⚠️ Bot Status not found for {selected_symbol}")
