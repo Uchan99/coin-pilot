@@ -72,26 +72,26 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
 
     # 2. Trend Check (MA 200)
     if close <= ma_200:
-        passed_str = " | ".join(passed) if passed else ""
-        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f}) | {passed_str}"
+        passed_str = "\n".join(passed) if passed else ""
+        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f})\n{passed_str}"
     passed.append(f"✓ 추세(Price > MA200)")
 
     # 3. Volume Check (config 기반) - BB보다 먼저 체크 (BB는 선택적이므로)
     vol_threshold = config.VOLUME_MULTIPLIER
     if vol_ratio <= vol_threshold:
-        passed_str = " | ".join(passed) if passed else ""
-        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ {vol_threshold}x) | {passed_str}"
+        passed_str = "\n".join(passed) if passed else ""
+        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ {vol_threshold}x)\n{passed_str}"
     passed.append(f"✓ 거래량({vol_ratio:.2f}x)")
 
     # 4. BB Check (선택적 - config.USE_BB_CONDITION이 True인 경우만)
     if config.USE_BB_CONDITION:
         if close > bb_lower:
-            passed_str = " | ".join(passed) if passed else ""
-            return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f}) | {passed_str}"
+            passed_str = "\n".join(passed) if passed else ""
+            return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f})\n{passed_str}"
         passed.append(f"✓ BB하단 터치")
 
-    passed_str = " | ".join(passed)
-    return f"✅ 진입 조건 충족! AI 검증 대기 중... | {passed_str}"
+    passed_str = "\n".join(passed)
+    return f"✅ 진입 조건 충족! AI 검증 대기 중...\n{passed_str}"
 
 
 async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataFrame:
