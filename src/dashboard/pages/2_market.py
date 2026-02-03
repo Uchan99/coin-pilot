@@ -41,14 +41,25 @@ def get_bot_status(symbol: str) -> dict:
 
 st.title("📈 Market Analysis")
 
+from src.config.strategy import get_config
+
 # 1. 사이드바 컨트롤
 st.sidebar.markdown("### Chart Settings")
 
-# models.py: MarketData table uses 'symbol' column
+# 설정 파일 및 DB에서 심볼 목록 로드
+config = get_config()
 symbols_df = get_data_as_dataframe("SELECT DISTINCT symbol FROM market_data ORDER BY symbol")
-symbol_list = symbols_df['symbol'].tolist() if not symbols_df.empty else ["BTC-KRW", "ETH-KRW", "XRP-KRW"]
+db_symbols = symbols_df['symbol'].tolist() if not symbols_df.empty else []
 
-selected_symbol = st.sidebar.selectbox("Select Symbol", symbol_list)
+# Config에 정의된 심볼을 우선으로 하고, DB에만 있는 심볼(과거 데이터 등)을 뒤에 추가
+symbol_list = config.SYMBOLS + [s for s in db_symbols if s not in config.SYMBOLS]
+
+# 기본값 설정 (KRW-BTC 우선, 없으면 첫 번째)
+default_index = 0
+if "KRW-BTC" in symbol_list:
+    default_index = symbol_list.index("KRW-BTC")
+
+selected_symbol = st.sidebar.selectbox("Select Symbol", symbol_list, index=default_index)
 interval_map = {"1m": 60, "5m": 300, "15m": 900, "1h": 3600, "4h": 14400, "1d": 86400}
 selected_interval = st.sidebar.selectbox("Interval", list(interval_map.keys()), index=2) # Default 15m
 limit = st.sidebar.slider("Candle Limit", 50, 500, 200)

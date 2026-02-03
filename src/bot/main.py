@@ -111,19 +111,26 @@ async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataF
         metrics.api_latency.observe(latency)
 
 
+from src.config.strategy import get_config
+
 async def bot_loop():
     """
-    CoinPilot Trading Bot Main Loop (Infinite Daemon)
+    CoinPilot Trading Bot Main Loop (Infinite Daemon) - 멀티 심볼 지원
+    
+    설정된 모든 코인 심볼에 대해 순차적으로 시장 데이터를 분석하고,
+    전략 및 리스크 관리 규칙에 따라 매매를 수행함.
     """
-    symbol = "KRW-BTC"
+    # 설정 로드 (롤백 모드 지원)
+    config = get_config()
     
-    # 컴포넌트 초기화
-    strategy = MeanReversionStrategy()   # 매매 전략 (평균 회귀)
-    executor = PaperTradingExecutor()    # 주문 실행기 (모의 투자)
-    risk_manager = RiskManager()         # 리스크 관리자 (자금 관리 및 보호)
+    # 컴포넌트 초기화 (설정 주입)
+    strategy = MeanReversionStrategy(config)   # 매매 전략 (평균 회귀 v2.0)
+    executor = PaperTradingExecutor()          # 주문 실행기 (모의 투자)
+    risk_manager = RiskManager(config)         # 리스크 관리자 (포트폴리오 리스크 포함)
     
-    print(f"[*] CoinPilot Trading Bot Started for {symbol}")
+    print(f"[*] CoinPilot Trading Bot Started for {len(config.SYMBOLS)} symbols")
     print(f"[*] Strategy: {strategy.name}")
+    print(f"[*] Target Symbols: {config.SYMBOLS}")
     
     while not SHUTDOWN:
         loop_start_time = time.time()
@@ -131,63 +138,58 @@ async def bot_loop():
         try:
             async with get_db_session() as session:
                 # -----------------------------------------------------------
-                # Step 0. Update Metrics (PnL, Position)
+                # Step 0. 전역 상태 및 메트릭 업데이트
                 # -----------------------------------------------------------
-                # 현재 PnL 상태 업데이트
+                # 일일 리스크 상태(PnL 등) 조회 및 메트릭 반영
                 risk_state = await risk_manager.get_daily_state(session)
                 metrics.total_pnl.set(float(risk_state.total_pnl))
                 
-                # 활성 포지션 확인
-                pos = await executor.get_position(session, symbol)
-                if pos:
-                    metrics.active_positions.set(1)
-                else:
-                    metrics.active_positions.set(0)
+                # 전체 활성 포지션 수 조회 (메트릭용)
+                open_positions_count = await risk_manager.count_open_positions(session)
+                metrics.active_positions.set(open_positions_count)
 
-                # Volatility Index (Redis에서 가져와서 업데이트)
-                vol_mult = await risk_manager.get_volatility_multiplier() # 0.5 or 1.0
-                # 역으로 추산하거나 Redis 직접 조회 필요하지만, 여기선 multiplier로 간접 유추
-                # 정확한 값은 VolatilityModel이 업데이트 해야 함.
-
-                # -----------------------------------------------------------
-                # Step 1. Market Data Fetching
-                # -----------------------------------------------------------
-                df = await get_recent_candles(session, symbol)
-                
-                # Redis 클라이언트 초기화
+                # Redis 클라이언트 초기화 (상태 전송용)
                 try:
                     redis_client = await get_redis_client()
                 except Exception as e:
                     print(f"[!] Redis Init Error: {e}")
                     redis_client = None
 
-                # 데이터 부족 시 대기
-                if len(df) < 200:
-                    msg = f"[-] Not enough data ({len(df)} < 200). Waiting for collector..."
-                    print(msg)
-                    if redis_client:
-                        try:
-                            status_data = {
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "symbol": symbol,
-                                "action": "WAITING",
-                                "reason": f"데이터 부족: {len(df)} lines",
-                                "indicators": {}
-                            }
-                            await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
-                        except Exception:
-                            pass
-                else:
-                    # 데이터 신선도 체크
-                    last_ts = df.iloc[-1]["timestamp"]
-                    now = datetime.now(timezone.utc)
-                    
-                    if (now - last_ts) > timedelta(minutes=2):
-                        msg = f"[!] Data stale. Last candle: {last_ts.isoformat()}."
-                        print(msg)
-                    else:
+                # ========== 멀티 심볼 반복 처리 ==========
+                for symbol in config.SYMBOLS:
+                    try:
+                        # -----------------------------------------------------------
+                        # Step 1. Market Data Fetching
+                        # -----------------------------------------------------------
+                        df = await get_recent_candles(session, symbol)
+                        
+                        # 데이터 부족 시 스킵
+                        if len(df) < 200:
+                            # 잦은 로그 방지를 위해 print는 생략하거나 조건부 출력
+                            # print(f"[-] {symbol}: Not enough data ({len(df)} < 200). Waiting...")
+                            if redis_client:
+                                try:
+                                    status_data = {
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                                        "symbol": symbol,
+                                        "action": "WAITING",
+                                        "reason": f"데이터 부족: {len(df)} lines",
+                                        "indicators": {}
+                                    }
+                                    await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                                except Exception:
+                                    pass
+                            continue
+
+                        # 데이터 신선도 체크 (2분 이상 지연되면 경고)
+                        last_ts = df.iloc[-1]["timestamp"]
+                        now = datetime.now(timezone.utc)
+                        if (now - last_ts) > timedelta(minutes=2):
+                            # print(f"[!] {symbol}: Data stale. Last candle: {last_ts.isoformat()}")
+                            continue
+
                         # -------------------------------------------------------
-                        # Step 2. Market Analysis
+                        # Step 2. Market Analysis (지표 계산)
                         # -------------------------------------------------------
                         indicators = get_all_indicators(df)
                         current_price = Decimal(str(indicators["close"]))
@@ -197,52 +199,18 @@ async def bot_loop():
                         # -------------------------------------------------------
                         pos = await executor.get_position(session, symbol)
                         
-                        # Redis Status Update
-                        if redis_client:
-                            bot_action = "HOLD"
-                            bot_reason = ""
-                            risk_valid_flag = True
-                            risk_reason_msg = None
-
-                            if not pos:
-                                balance = await executor.get_balance(session)
-                                invest_amount = balance * risk_manager.max_per_order
-                                is_valid, method_reason = await risk_manager.check_order_validity(session, symbol, invest_amount)
-                                if not is_valid:
-                                    risk_valid_flag = False
-                                    risk_reason_msg = method_reason
-                                    
-                            bot_reason = build_status_reason(indicators, pos, risk_valid_flag, risk_reason_msg)
-                            
-                            status_data = {
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                                "symbol": symbol,
-                                "current_price": float(current_price),
-                                "indicators": {
-                                    "rsi": float(indicators.get("rsi", 0)),
-                                    "bb_upper": float(indicators.get("bb_upper", 0)),
-                                    "bb_lower": float(indicators.get("bb_lower", 0)),
-                                    "ma_200": float(indicators.get("ma_200", 0))
-                                },
-                                "position": {
-                                    "has_position": bool(pos),
-                                    "avg_price": float(pos["avg_price"]) if pos else None,
-                                    "quantity": float(pos["quantity"]) if pos else None
-                                },
-                                "action": bot_action,
-                                "reason": bot_reason
-                            }
-                            try:
-                                await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
-                            except Exception:
-                                pass
+                        # [Redis Status Update 준비]
+                        bot_action = "HOLD"
+                        bot_reason = ""
                         
                         if pos:
-                            # [Case A] 포지션 보유 -> 청산 체크
+                            # [Case A] 포지션 보유 중 -> 청산(Exit) 체크
+                            bot_action = "HOLD (POS)"
                             should_exit, exit_reason = strategy.check_exit_signal(indicators, pos)
                             
                             if should_exit:
-                                print(f"[Signal] Exit Triggered: {exit_reason}")
+                                bot_action = "SELL"
+                                print(f"[{symbol}] Exit Triggered: {exit_reason}")
                                 success = await executor.execute_order(
                                     session, symbol, "SELL", 
                                     current_price, pos["quantity"], 
@@ -250,27 +218,30 @@ async def bot_loop():
                                     {"reason": exit_reason, "indicators": indicators}
                                 )
                                 if success:
-                                    avg_price = pos["avg_price"]
-                                    quantity = pos["quantity"]
-                                    pnl = (current_price - avg_price) * quantity
+                                    # 리스크 상태 업데이트 (PnL 반영)
+                                    pnl = (current_price - pos["avg_price"]) * pos["quantity"]
                                     await risk_manager.update_after_trade(session, pnl)
-                                    print(f"[+] Risk Manager Updated. PnL: {pnl:,.0f} KRW")
-                                    
-                                    # Trade Count Metric Increment
+                                    print(f"[+] {symbol} Trade Closed. PnL: {pnl:,.0f} KRW")
                                     metrics.trade_count.inc()
+                            
+                            bot_reason = build_status_reason(indicators, pos)
 
                         else:
-                            # [Case B] 미보유 -> 진입 체크
+                            # [Case B] 포지션 미보유 -> 진입(Entry) 체크
                             if strategy.check_entry_signal(indicators):
-                                print(f"[Signal] Entry Triggered!")
+                                print(f"[{symbol}] Entry Signal Detected!")
+                                
+                                # 리스크 관리 검증
                                 balance = await executor.get_balance(session)
                                 invest_amount = balance * risk_manager.max_per_order
                                 
-                                is_valid, risk_reason = await risk_manager.check_order_validity(session, symbol, invest_amount)
+                                is_valid, risk_reason = await risk_manager.check_order_validity(
+                                    session, symbol, invest_amount
+                                )
                                 
-                                if not is_valid:
-                                    print(f"[-] Order Skipped by Risk Manager: {risk_reason}")
-                                else:
+                                if is_valid:
+                                    bot_action = "BUY"
+                                    # 수량 계산 (투자금 / 현재가)
                                     quantity = invest_amount / current_price
                                     if quantity > 0:
                                         market_context = df.tail(10).to_dict(orient="records")
@@ -284,14 +255,50 @@ async def bot_loop():
                                             strategy.name, 
                                             signal_info
                                         )
-                                        # Trade execution is tracked by executor, but we can inc trade_count here if successful? 
-                                        # Actually execution might fail. Let's assume execute_order returns success/fail if updated to do so. 
-                                        # But currently it returns None or awaits.
-                                        # For BUY, we just trigger.
                                         metrics.trade_count.inc()
+                                else:
+                                    # 리스크 관리로 인한 거부
+                                    bot_action = "SKIP"
+                                    bot_reason = f"Risk Rejected: {risk_reason}"
+                                    print(f"[-] {symbol} Order Skipped: {risk_reason}")
+                            else:
+                                # 시그널 없음
+                                bot_reason = build_status_reason(indicators, None)
+
+                        # [Redis Status Update 실행]
+                        if redis_client:
+                            status_data = {
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "symbol": symbol,
+                                "current_price": float(current_price),
+                                "indicators": {
+                                    "rsi": float(indicators.get("rsi", 0)),
+                                    "bb_upper": float(indicators.get("bb_upper", 0)),
+                                    "bb_lower": float(indicators.get("bb_lower", 0)),
+                                    "ma_200": float(indicators.get("ma_200", 0))
+                                },
+                                "position": {
+                                    "has_position": bool(pos),
+                                    "avg_price": float(pos["avg_price"]) if pos else None,
+                                    "quantity": float(pos["quantity"]) if pos else None,
+                                    "pnl_pct": float((current_price - pos["avg_price"])/pos["avg_price"]*100) if pos else 0.0
+                                },
+                                "action": bot_action,
+                                "reason": bot_reason
+                            }
+                            try:
+                                await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                            except Exception:
+                                pass
+
+                    except Exception as e_sym:
+                        # 특정 심볼 처리 중 에러가 발생해도 다른 심볼은 계속 처리
+                        print(f"[!] Error processing {symbol}: {e_sym}")
+                        import traceback
+                        traceback.print_exc()
 
         except Exception as e:
-            print(f"[!] Critical Bot Error: {e}")
+            print(f"[!] Critical Bot Loop Error: {e}")
             import traceback
             traceback.print_exc()
         
@@ -299,7 +306,7 @@ async def bot_loop():
             break
             
         elapsed = time.time() - loop_start_time
-        sleep_time = max(0, 60 - elapsed)
+        sleep_time = max(10, 60 - elapsed) # 최소 10초는 대기 보장
         await asyncio.sleep(sleep_time)
 
     print("[*] Bot Loop Terminated Gracefully.")

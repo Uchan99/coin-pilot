@@ -164,27 +164,59 @@ class UpbitCollector:
                 
             # 세션은 get_db_session 컨텍스트 매니저에 의해 자동 커밋됨
 
+from src.config.strategy import get_config
+
 async def main():
     """
-    수집기 실행 메인 루프
+    수집기 실행 메인 루프 - 멀티 심볼 지원
+    
+    기존 단일 심볼 수집에서 설정 파일(src.config.strategy)에 정의된 
+    모든 심볼을 순차적으로 수집하도록 변경함.
     """
-    collector = UpbitCollector(symbol="KRW-BTC")
-    print(f"[*] Starting Upbit Collector for {collector.symbol}...")
+    # 롤백 모드 자동 반영을 위해 get_config() 사용
+    config = get_config()
+    print(f"[*] Starting Upbit Collector for {len(config.SYMBOLS)} symbols...")
+    print(f"[*] Target Symbols: {config.SYMBOLS}")
+
+    # 각 심볼별 수집기 인스턴스 생성
+    collectors = [UpbitCollector(symbol=symbol) for symbol in config.SYMBOLS]
     
-    # 시작 시 데이터 공백 채우기
-    await collector.backfill()
-    
-    while True:
+    # 1. 초기화: 모든 심볼에 대해 데이터 공백(Backfill) 채우기
+    # 서버 재시작 시 누락된 데이터를 보정하기 위함
+    for collector in collectors:
+        print(f"[*] Backfilling {collector.symbol}...")
         try:
-            print(f"[*] Fetching data at {datetime.now()}...")
-            candles = await collector.fetch_candles(count=1)
-            await collector.save_candles(candles)
-            print(f"[+] Saved {len(candles)} candle(s).")
+            await collector.backfill()
         except Exception as e:
-            print(f"[!] Error occurred: {e}")
+            print(f"[!] Backfill failed for {collector.symbol}: {e}")
+        # API Rate Limit 보호 (Upbit 초당 10회 제한)
+        await asyncio.sleep(0.2)
+    
+    print("[*] Backfill completed. Entering main loop...")
+
+    # 2. 메인 루프: 1분 간격으로 최신 데이터 수집
+    while True:
+        loop_start = datetime.now()
         
-        # 1분 간격 수집 (간단한 구현)
-        await asyncio.sleep(60)
+        try:
+            for collector in collectors:
+                # print(f"[*] Fetching {collector.symbol} at {datetime.now()}...")
+                
+                # 최신 캔들 1개 조회
+                candles = await collector.fetch_candles(count=1)
+                await collector.save_candles(candles)
+                
+                # print(f"[+] {collector.symbol}: Saved {len(candles)} candle(s).")
+
+                # API 호출 간격 제어 (Rate Limit 준수)
+                await asyncio.sleep(0.2)
+
+        except Exception as e:
+            print(f"[!] Critical Error in Collector Loop: {e}")
+        
+        # 다음 1분 봉 생성까지 대기
+        # 수집 시간(약 1~2초)을 고려하여 55초 대기
+        await asyncio.sleep(55)
 
 if __name__ == "__main__":
     asyncio.run(main())
