@@ -1,6 +1,6 @@
 # CoinPilot Daily Startup Guide 🚀
 
-**작성일**: 2026-01-30 (Updated for Week 6 Dashboard)
+**작성일**: 2026-02-04 (Updated for Week 8 Strategy Expansion)
 **목적**: 컴퓨터 부팅 후 개발/운영 환경을 빠르게 세팅하기 위한 체크리스트
 
 > 📖 **운영자 매뉴얼**: 대시보드 사용법 및 긴급 대응은 [USER_MANUAL.md](USER_MANUAL.md) 참조
@@ -20,11 +20,18 @@
 
 ## 🆕 Week 8 Changes (System Update v3.0)
 
-### 1. Volatility Scheduler (All Modes)
+### 1. 멀티 코인 전략 확장 (Strategy Expansion) ⭐ NEW
+- **대상 코인**: BTC → **BTC, ETH, XRP, SOL, DOGE (5개)**
+- **진입 조건 완화**: RSI 30→33, Volume 1.5x→1.3x, BB 조건 OFF
+- **포트폴리오 리스크**: 전체 노출 20%, 동시 3개, 중복 진입 금지
+- **롤백 모드**: `src/config/strategy.py`에서 `USE_CONSERVATIVE_MODE = True` 설정 시 즉시 BTC only로 복귀
+- **확인**: 봇/수집기 로그에서 `for 5 symbols` 메시지 확인
+
+### 2. Volatility Scheduler (All Modes)
 - **기능**: 매일 00:05 UTC에 Volatility Model을 재학습하여 Redis에 반영합니다.
 - **확인**: 봇 로그에서 `[Scheduler] Retraining Complete` 메시지를 확인하세요.
 
-### 2. Monitoring Updates (Mode A only)
+### 3. Monitoring Updates (Mode A only)
 - **New Dashboards**:
     - **CoinPilot Overview**: API Latency, Active Positions, Volatility Index 차트 추가
     - **CoinPilot Trades**: Total PnL, Trade Count 통계
@@ -111,14 +118,16 @@ PYTHONPATH=. streamlit run src/dashboard/app.py
 ```
 * 접속: [http://localhost:8501](http://localhost:8501)
 
-### 2.3 대시보드 기능 (Week 6)
+### 2.3 대시보드 기능 (Week 8 Updated)
 | 페이지 | 기능 |
 |--------|------|
 | **Overview** | 총 자산, PnL, 보유 포지션 |
-| **Market** | Plotly 캔들차트, TimescaleDB 연동 |
+| **Market** | Plotly 캔들차트, **멀티 코인 선택 드롭다운**, Bot Brain(Reasoning) |
 | **Risk** | 일일 손실 한도, 거래 횟수 제한, 쿨다운 |
 | **History** | 거래 내역 필터링, 매수/매도 비율 |
 | **System** | DB/Redis/n8n 연결 상태 |
+
+> 💡 **Week 8**: Market 페이지에서 BTC/ETH/XRP/SOL/DOGE 중 선택 가능 (기본값: BTC)
 
 ---
 
@@ -192,3 +201,4 @@ docker-compose -f deploy/docker-compose.yml stop
 | [USER_MANUAL.md](USER_MANUAL.md) | 대시보드 사용법 및 긴급 대응 |
 | [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md) | 장애 유형별 대응 플레이북 |
 | [troubleshooting/week6-ts.md](troubleshooting/week6-ts.md) | 대시보드 개발 트러블슈팅 |
+| [work-result/week8-deployment-guide.md](work-result/week8-deployment-guide.md) | Week 8 배포 및 롤백 가이드 |

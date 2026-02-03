@@ -38,12 +38,15 @@ def handle_sigterm(signum, frame):
 signal.signal(signal.SIGTERM, handle_sigterm)
 signal.signal(signal.SIGINT, handle_sigterm)
 
-def build_status_reason(indicators: Dict, pos: Dict, risk_valid: bool = True, risk_reason: str = None) -> str:
-    """봇의 판단 근거를 사람이 읽기 쉬운 문장으로 생성합니다."""
+def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = True, risk_reason: str = None) -> str:
+    """
+    봇의 판단 근거를 사람이 읽기 쉬운 문장으로 생성합니다.
+    통과된 조건도 함께 표시하여 현재 상태를 명확히 파악할 수 있도록 합니다.
+    """
     if pos:
         pnl_pct = (indicators["close"] - pos["avg_price"]) / pos["avg_price"] * 100
         return f"포지션 보유 중 (수익률: {pnl_pct:.2f}%) - 매도 조건 감시 중"
-    
+
     if not risk_valid:
         return f"진입 보류: {risk_reason}"
 
@@ -58,23 +61,37 @@ def build_status_reason(indicators: Dict, pos: Dict, risk_valid: bool = True, ri
     if ma_200 == 0 or bb_lower == 0:
         return "데이터 수집 중: 지표 계산 대기 (200봉 필요)"
 
-    # 1. RSI Check
-    if rsi > 30:
-        return f"관망 중: RSI({rsi:.1f}) > 30 (과매도 아님)"
+    # 통과된 조건들을 누적
+    passed = []
+
+    # 1. RSI Check (config 기반)
+    rsi_threshold = config.RSI_OVERSOLD
+    if rsi > rsi_threshold:
+        return f"관망 중: RSI({rsi:.1f}) > {rsi_threshold} (과매도 아님)"
+    passed.append(f"✓ RSI({rsi:.1f}) < {rsi_threshold}")
 
     # 2. Trend Check (MA 200)
     if close <= ma_200:
-        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f})"
+        passed_str = " | ".join(passed) if passed else ""
+        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f}) | {passed_str}"
+    passed.append(f"✓ 추세(Price > MA200)")
 
-    # 3. BB Check
-    if close > bb_lower:
-        return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f})"
+    # 3. Volume Check (config 기반) - BB보다 먼저 체크 (BB는 선택적이므로)
+    vol_threshold = config.VOLUME_MULTIPLIER
+    if vol_ratio <= vol_threshold:
+        passed_str = " | ".join(passed) if passed else ""
+        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ {vol_threshold}x) | {passed_str}"
+    passed.append(f"✓ 거래량({vol_ratio:.2f}x)")
 
-    # 4. Volume Check
-    if vol_ratio <= 1.5:
-        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ 1.5x)"
+    # 4. BB Check (선택적 - config.USE_BB_CONDITION이 True인 경우만)
+    if config.USE_BB_CONDITION:
+        if close > bb_lower:
+            passed_str = " | ".join(passed) if passed else ""
+            return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f}) | {passed_str}"
+        passed.append(f"✓ BB하단 터치")
 
-    return "✅ 진입 조건 충족! AI 검증 대기 중..."
+    passed_str = " | ".join(passed)
+    return f"✅ 진입 조건 충족! AI 검증 대기 중... | {passed_str}"
 
 
 async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataFrame:
@@ -224,7 +241,7 @@ async def bot_loop():
                                     print(f"[+] {symbol} Trade Closed. PnL: {pnl:,.0f} KRW")
                                     metrics.trade_count.inc()
                             
-                            bot_reason = build_status_reason(indicators, pos)
+                            bot_reason = build_status_reason(indicators, pos, config)
 
                         else:
                             # [Case B] 포지션 미보유 -> 진입(Entry) 체크
@@ -263,7 +280,7 @@ async def bot_loop():
                                     print(f"[-] {symbol} Order Skipped: {risk_reason}")
                             else:
                                 # 시그널 없음
-                                bot_reason = build_status_reason(indicators, None)
+                                bot_reason = build_status_reason(indicators, None, config)
 
                         # [Redis Status Update 실행]
                         if redis_client:

@@ -41,7 +41,7 @@ watch kubectl get pods -n coin-pilot-ns
 ## 3. 검증 (Verification)
 
 ### 3.1 로그 확인
-봇이 5개 코인(BTC, ETH, XRP, SOL, DOGE)에 대해 시작되었는지 로그를 확인합니다.
+봇과 수집기가 5개 코인(BTC, ETH, XRP, SOL, DOGE)에 대해 시작되었는지 로그를 확인합니다.
 
 ```bash
 # Bot 로그 확인
@@ -54,9 +54,29 @@ kubectl logs -f deployment/bot -n coin-pilot-ns
 [*] Target Symbols: ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL', 'KRW-DOGE']
 ```
 
+```bash
+# Collector 로그 확인
+kubectl logs -f deployment/collector -n coin-pilot-ns
+```
+**예상 출력**:
+```text
+[*] Starting Upbit Collector for 5 symbols...
+[*] Target Symbols: ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL', 'KRW-DOGE']
+[*] Backfill completed. Entering main loop...
+```
+
 ### 3.2 대시보드 확인
 대시보드 사이드바의 "Select Symbol" 드롭다운에 5개 코인이 모두 표시되는지 확인합니다.
-- 접속: http://localhost:8501 (포트포워딩 필요)
+
+**포트포워딩 (필수)**:
+```bash
+# 대시보드 접속용
+kubectl port-forward -n coin-pilot-ns service/dashboard 8501:8501 &
+
+# Bot Brain(Redis) 작동용
+kubectl port-forward -n coin-pilot-ns service/redis 6379:6379
+```
+- 접속: http://localhost:8501
 
 ---
 
@@ -77,11 +97,47 @@ kubectl rollout restart statefulset/db -n coin-pilot-ns
 
 ---
 
+## 5. 롤백 (Rollback)
+
+문제 발생 시 보수적 모드(BTC only, 엄격한 조건)로 즉시 전환할 수 있습니다.
+
+### 5.1 롤백 트리거 조건
+- 24시간 내 -10% 이상 손실
+- API Rate Limit 지속 초과
+- 시스템 에러 연속 발생
+
+### 5.2 롤백 방법
+
+**Step 1.** `src/config/strategy.py` 수정:
+```python
+# 이 값만 True로 변경
+USE_CONSERVATIVE_MODE = True  # False → True
+```
+
+**Step 2.** 재배포:
+```bash
+./deploy/deploy_to_minikube.sh
+kubectl rollout restart deployment/bot -n coin-pilot-ns
+kubectl rollout restart deployment/collector -n coin-pilot-ns
+```
+
+**Step 3.** 로그 확인:
+```bash
+kubectl logs -f deployment/bot -n coin-pilot-ns
+```
+**예상 출력** (롤백 모드):
+```text
+[*] CoinPilot Trading Bot Started for 1 symbols
+[*] Target Symbols: ['KRW-BTC']
+```
+
+---
+
 ## Claude Code Review
 
 > **검토일**: 2026-02-04
 > **검토자**: Claude Code (Operator & Reviewer)
-> **상태**: ✅ 승인 (보완 권장 사항 포함)
+> **상태**: ✅ 승인 (모든 보완 사항 반영 완료)
 
 ### ✅ 잘 작성된 부분
 
@@ -95,62 +151,20 @@ kubectl rollout restart statefulset/db -n coin-pilot-ns
 
 ---
 
-### 📝 보완 권장 사항
+### ✅ 반영 완료 사항
 
-#### 1. Collector 로그 확인 추가
-멀티 코인 수집이 정상 동작하는지 확인하는 명령어가 없습니다.
-
-```bash
-# 섹션 3.1에 추가 권장
-kubectl logs -f deployment/collector -n coin-pilot-ns
-```
-**예상 출력**:
-```text
-[*] Starting Upbit Collector for 5 symbols...
-[*] Target Symbols: ['KRW-BTC', 'KRW-ETH', 'KRW-XRP', 'KRW-SOL', 'KRW-DOGE']
-```
-
-#### 2. 대시보드 포트포워딩 명령어 명시
-섹션 3.2에서 "포트포워딩 필요"라고 언급만 하고 명령어가 없습니다.
-
-```bash
-# 추가 권장
-kubectl port-forward -n coin-pilot-ns service/dashboard 8501:8501
-```
-
-#### 3. Redis 포트포워딩 (Bot Brain용)
-대시보드의 Bot Brain 기능이 Redis를 사용하므로 포트포워딩이 필요합니다.
-
-```bash
-# 추가 권장
-kubectl port-forward -n coin-pilot-ns service/redis 6379:6379
-```
-
-#### 4. 롤백 절차 섹션 추가
-문제 발생 시 즉시 롤백할 수 있는 방법이 없습니다.
-
-```markdown
-## 5. 롤백 (Rollback)
-문제 발생 시 보수적 모드로 즉시 전환:
-
-1. `src/config/strategy.py` 수정:
-   ```python
-   USE_CONSERVATIVE_MODE = True  # False → True
-   ```
-
-2. 재배포:
-   ```bash
-   ./deploy/deploy_to_minikube.sh
-   kubectl rollout restart deployment/bot -n coin-pilot-ns
-   kubectl rollout restart deployment/collector -n coin-pilot-ns
-   ```
-```
+| 항목 | 상태 |
+|------|------|
+| Collector 로그 확인 추가 | ✅ 섹션 3.1에 반영 |
+| 대시보드 포트포워딩 명령어 | ✅ 섹션 3.2에 반영 |
+| Redis 포트포워딩 (Bot Brain용) | ✅ 섹션 3.2에 반영 |
+| 롤백 절차 섹션 | ✅ 섹션 5에 신규 추가 |
 
 ---
 
 ### ✅ 결론
 
-**승인** - 기본 배포 절차가 명확하게 문서화되어 있습니다. 위 보완 사항은 선택적으로 추가하면 더 완성도 높은 가이드가 됩니다.
+**승인** - 모든 보완 사항이 반영되어 완성도 높은 배포 가이드가 되었습니다.
 
 ---
 
