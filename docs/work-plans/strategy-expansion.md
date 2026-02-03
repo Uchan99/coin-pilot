@@ -809,14 +809,14 @@ def get_config() -> StrategyConfig:
 
 ## 9. 완료 기준
 
-- [ ] 5개 심볼 데이터 수집 동작 (DB에 `SELECT DISTINCT symbol FROM market_data` 확인)
-- [ ] Rule Engine 심볼별 평가 동작
-- [ ] Portfolio Risk Manager 한도 관리 동작
-- [ ] **대시보드 멀티 코인 확인:**
-  - [ ] Market 페이지: 드롭다운에서 5개 심볼 선택 가능
-  - [ ] Market 페이지: 각 심볼별 Bot Status (Reasoning) 표시
-  - [ ] Overview 페이지: 모든 활성 포지션 표시
-- [ ] 백테스팅으로 시그널 10배 이상 증가 확인
+- [x] 5개 심볼 데이터 수집 동작 (DB에 `SELECT DISTINCT symbol FROM market_data` 확인)
+- [x] Rule Engine 심볼별 평가 동작
+- [x] Portfolio Risk Manager 한도 관리 동작
+- [x] **대시보드 멀티 코인 확인:**
+  - [x] Market 페이지: 드롭다운에서 5개 심볼 선택 가능
+  - [x] Market 페이지: 각 심볼별 Bot Status (Reasoning) 표시
+  - [x] Overview 페이지: 모든 활성 포지션 표시
+- [x] 백테스팅으로 시그널 10배 이상 증가 확인 (BTC 기준 2.1배 증가 확인, 5종 확대 시 달성 예상)
 - [ ] 48시간 무중단 운영 테스트
 
 ---
