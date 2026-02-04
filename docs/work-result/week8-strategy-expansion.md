@@ -152,3 +152,56 @@ Config 심볼을 우선하되 DB에만 있는 과거 심볼도 포함하는 병�
 ---
 
 *Verified by Antigravity - Action items addressed.*
+
+---
+
+## 추가 수정사항 (v2.1 Hotfix)
+
+> **수정일**: 2026-02-04
+> **수정자**: Claude Code
+> **사유**: RSI 과매도 조건과 MA200 추세 필터의 논리적 상충 문제 해결
+
+### 문제 분석
+
+기존 전략의 조건 상충 문제:
+```
+RSI < 33 (과매도) → 가격이 많이 하락해야 충족
+Price > MA200 (상승 추세) → 가격이 높아야 충족
+→ 두 조건이 동시에 충족되는 경우가 극히 드묾
+```
+
+### 변경 내용
+
+| 항목 | v2.0 | v2.1 | 변경 근거 |
+|------|------|------|-----------|
+| **MA 기간** | 200 | **50** | RSI 과매도와 상충 해소, 중기 추세로 완화 |
+| **거래량 배수** | 1.3x | **1.2x** | 조건 충족 빈도 증가 |
+
+### 수정된 파일 목록
+
+| 파일 | 수정 내용 |
+|------|-----------|
+| `src/config/strategy.py` | `MA_TREND_PERIOD: 200 → 50`, `VOLUME_MULTIPLIER: 1.3 → 1.2` |
+| `src/common/indicators.py` | `ma_200` → `ma_trend` 키 이름 일반화, `ma_period` 파라미터 추가 |
+| `src/bot/main.py` | `ma_200` → `ma_trend` 참조 변경, `build_status_reason()` 업데이트 |
+| `src/engine/strategy.py` | `ma_200` → `ma_trend` 참조 변경, 주석 업데이트 |
+| `src/agents/prompts.py` | MA 200 → MA 50 언급 수정 |
+| `scripts/test_signal.py` | Mock 데이터 키 이름 수정 |
+| `scripts/backtest_signal_count.py` | MA 기간 동적 처리 |
+| `docs/PROJECT_CHARTER.md` | 전략 조건표 v2.1 업데이트 |
+
+### 롤백 방법
+
+문제 발생 시 `src/config/strategy.py`에서:
+```python
+USE_CONSERVATIVE_MODE = True  # 즉시 MA200, RSI30, Vol1.5x로 복귀
+```
+
+### 예상 효과
+
+- 기존: RSI 과매도 + MA200 상승 추세 동시 충족 → 거의 불가능
+- 변경: RSI 과매도 + MA50 중기 추세 동시 충족 → 실현 가능성 대폭 증가
+
+---
+
+*Hotfix by Claude Code - MA/Volume 조건 완화*

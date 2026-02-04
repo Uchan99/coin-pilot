@@ -17,21 +17,21 @@ async def test():
     # Mock Indicators for testing logic
     mock_indicators = {
         "rsi": 32.0,                  # < 33 (Pass)
-        "ma_200": 50000000,
-        "close": 55000000,            # > MA200 (Pass)
-        "vol_ratio": 1.4,             # > 1.3 (Pass)
+        "ma_trend": 50000000,         # ma_200 -> ma_trend
+        "close": 55000000,            # > MA50 (Pass)
+        "vol_ratio": 1.3,             # > 1.2 (Pass)
         "bb_lower": 54000000
     }
-    
-    print(f'\n[Case 1] RSI 32, Vol 1.4 (All Pass)')
+
+    print(f'\n[Case 1] RSI 32, Vol 1.3 (All Pass)')
     result = strategy.check_entry_signal(mock_indicators)
     print(f'Result: {result} (Expected: True)')
 
     mock_indicators_fail = {
         "rsi": 35.0,                  # > 33 (Fail)
-        "ma_200": 50000000,
+        "ma_trend": 50000000,         # ma_200 -> ma_trend
         "close": 55000000,
-        "vol_ratio": 1.4,
+        "vol_ratio": 1.3,
         "bb_lower": 54000000
     }
     print(f'\n[Case 2] RSI 35 (Fail)')

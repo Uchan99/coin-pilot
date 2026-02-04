@@ -121,12 +121,13 @@ def calculate_volume_ratio(volume_series: pd.Series, period: int = 20) -> float:
     current_volume = volume_series.iloc[-1]
     return float(current_volume / avg_volume)
 
-def get_all_indicators(df: pd.DataFrame) -> Dict:
+def get_all_indicators(df: pd.DataFrame, ma_period: int = 50) -> Dict:
     """
     전략 수행에 필요한 모든 보조 지표를 한 번에 계산하여 마지막 행의 값을 반환합니다.
 
     Args:
         df: 'open', 'high', 'low', 'close', 'volume' 컬럼을 가진 DataFrame
+        ma_period: 추세 필터용 이동평균 기간 (기본값: 50, config.MA_TREND_PERIOD 권장)
 
     Returns:
         Dict: 계산된 지표 값들이 담긴 딕셔너리
@@ -134,8 +135,8 @@ def get_all_indicators(df: pd.DataFrame) -> Dict:
     # 1. RSI (14)
     rsi_series = calculate_rsi(df['close'], period=14)
 
-    # 2. MA (200) - 추세 필터용
-    ma_200_series = calculate_ma(df['close'], period=200)
+    # 2. MA (추세 필터용) - 기간은 파라미터로 받음 (기본 50)
+    ma_trend_series = calculate_ma(df['close'], period=ma_period)
 
     # 3. Bollinger Bands (20, 2.0)
     bb_df = calculate_bb(df['close'], period=20, std_dev=2.0)
@@ -146,7 +147,8 @@ def get_all_indicators(df: pd.DataFrame) -> Dict:
     # 마지막 시점의 데이터를 딕셔너리로 구성
     return {
         "rsi": float(rsi_series.iloc[-1]),
-        "ma_200": float(ma_200_series.iloc[-1]),
+        "ma_trend": float(ma_trend_series.iloc[-1]),  # ma_200 -> ma_trend로 일반화
+        "ma_period": ma_period,  # 사용된 MA 기간 정보 포함
         "bb_lower": float(bb_df['BBL'].iloc[-1]),
         "bb_mid": float(bb_df['BBM'].iloc[-1]),
         "bb_upper": float(bb_df['BBU'].iloc[-1]),

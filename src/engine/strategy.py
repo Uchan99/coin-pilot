@@ -51,33 +51,33 @@ class MeanReversionStrategy(BaseStrategy):
     def check_entry_signal(self, indicators: Dict) -> bool:
         """
         진입(매수) 신호 확인
-        
+
         [판단 로직]
         1. RSI < RSI_OVERSOLD (기본 33): 과매도 구간 여부
-        2. Price > MA_TREND (기본 200): 장기 상승 추세 중 일시적 하락인지 확인 (역추세 매매 방지)
-        3. Volume > Avg * Multiplier (기본 1.3배): 거래량을 동반한 하락(패닉 셀)인지 확인
+        2. Price > MA_TREND (기본 50): 중기 상승 추세 중 일시적 하락인지 확인 (역추세 매매 방지)
+        3. Volume > Avg * Multiplier (기본 1.2배): 거래량을 동반한 하락(패닉 셀)인지 확인
         4. (Optional) Price <= BB Lower: 볼린저 밴드 하단 터치 여부 (설정에 따라 활성/비활성)
         """
         rsi = indicators.get("rsi")
-        ma_200 = indicators.get("ma_200")
+        ma_trend = indicators.get("ma_trend")  # ma_200 -> ma_trend
         bb_lower = indicators.get("bb_lower")
         vol_ratio = indicators.get("vol_ratio")
         close = indicators.get("close")
 
         # 필수 데이터 누락 시 판단 보류
-        if None in [rsi, ma_200, vol_ratio, close]:
+        if None in [rsi, ma_trend, vol_ratio, close]:
             return False
 
         # --- 조건 평가 ---
-        
+
         # 1. RSI 과매도 조건 (기존 30 -> 33으로 완화됨)
         is_rsi_low = rsi < self.config.RSI_OVERSOLD
-        
-        # 2. 장기 추세 필터 (200일선 위에서만 매수)
-        # 하락장에서의 저점 매수는 매우 위험하므로 상승 추세일 때만 진입
-        is_above_trend = close > ma_200
-        
-        # 3. 거래량 급증 조건 (기존 1.5배 -> 1.3배로 완화됨)
+
+        # 2. 추세 필터 (MA 위에서만 매수, 기존 200 -> 50으로 완화)
+        # RSI 과매도와 MA200 조건이 상충하는 문제 해결을 위해 중기 추세(MA50)로 변경
+        is_above_trend = close > ma_trend
+
+        # 3. 거래량 급증 조건 (기존 1.5배 -> 1.2배로 완화됨)
         # 거래량 없는 하락은 질질 흐르는 것일 수 있으므로, 투매가 나온 시점을 포착
         is_vol_surge = vol_ratio > self.config.VOLUME_MULTIPLIER
         

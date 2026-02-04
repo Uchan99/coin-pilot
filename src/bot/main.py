@@ -52,14 +52,15 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
 
     # 전략 조건 상세 분석
     rsi = indicators.get("rsi", 0)
-    ma_200 = indicators.get("ma_200", 0)
+    ma_trend = indicators.get("ma_trend", 0)  # ma_200 -> ma_trend
     bb_lower = indicators.get("bb_lower", 0)
     vol_ratio = indicators.get("vol_ratio", 0)
     close = indicators.get("close", 0)
+    ma_period = config.MA_TREND_PERIOD  # config에서 MA 기간 가져오기
 
     # 데이터 부족 체크
-    if ma_200 == 0 or bb_lower == 0:
-        return "데이터 수집 중: 지표 계산 대기 (200봉 필요)"
+    if ma_trend == 0 or bb_lower == 0:
+        return f"데이터 수집 중: 지표 계산 대기 ({ma_period}봉 필요)"
 
     # 통과된 조건들을 누적
     passed = []
@@ -70,11 +71,11 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
         return f"관망 중: RSI({rsi:.1f}) > {rsi_threshold} (과매도 아님)"
     passed.append(f"✓ RSI({rsi:.1f}) < {rsi_threshold}")
 
-    # 2. Trend Check (MA 200)
-    if close <= ma_200:
+    # 2. Trend Check (MA - config 기반)
+    if close <= ma_trend:
         passed_str = "\n".join(passed) if passed else ""
-        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA200 {ma_200:,.0f})\n{passed_str}"
-    passed.append(f"✓ 추세(Price > MA200)")
+        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA{ma_period} {ma_trend:,.0f})\n{passed_str}"
+    passed.append(f"✓ 추세(Price > MA{ma_period})")
 
     # 3. Volume Check (config 기반) - BB보다 먼저 체크 (BB는 선택적이므로)
     vol_threshold = config.VOLUME_MULTIPLIER
@@ -180,10 +181,11 @@ async def bot_loop():
                         # -----------------------------------------------------------
                         df = await get_recent_candles(session, symbol)
                         
-                        # 데이터 부족 시 스킵
-                        if len(df) < 200:
+                        # 데이터 부족 시 스킵 (MA 기간 + 여유분)
+                        min_data_required = config.MA_TREND_PERIOD + 20  # MA 기간 + BB/RSI 여유분
+                        if len(df) < min_data_required:
                             # 잦은 로그 방지를 위해 print는 생략하거나 조건부 출력
-                            # print(f"[-] {symbol}: Not enough data ({len(df)} < 200). Waiting...")
+                            # print(f"[-] {symbol}: Not enough data ({len(df)} < {min_data_required}). Waiting...")
                             if redis_client:
                                 try:
                                     status_data = {
@@ -208,7 +210,7 @@ async def bot_loop():
                         # -------------------------------------------------------
                         # Step 2. Market Analysis (지표 계산)
                         # -------------------------------------------------------
-                        indicators = get_all_indicators(df)
+                        indicators = get_all_indicators(df, ma_period=config.MA_TREND_PERIOD)
                         current_price = Decimal(str(indicators["close"]))
                         
                         # -------------------------------------------------------
@@ -292,7 +294,7 @@ async def bot_loop():
                                     "rsi": float(indicators.get("rsi", 0)),
                                     "bb_upper": float(indicators.get("bb_upper", 0)),
                                     "bb_lower": float(indicators.get("bb_lower", 0)),
-                                    "ma_200": float(indicators.get("ma_200", 0))
+                                    "ma_trend": float(indicators.get("ma_trend", 0))
                                 },
                                 "position": {
                                     "has_position": bool(pos),
