@@ -21,8 +21,8 @@ class StrategyConfig:
     ])
     
     # ========== 진입 조건 (Entry Conditions - Relaxed) ==========
-    # 기존 RSI 30 기준은 너무 엄격하여 기회가 적었으므로 소폭 완화
-    RSI_OVERSOLD: int = 33              # 기존 30 -> 33 (과매도 기준 완화)
+    # 기존 RSI 30 기준은 너무 엄격하여 기회가 적었으므로 완화
+    RSI_OVERSOLD: int = 35              # 기존 30 -> 33 -> 35 (과매도 기준 완화)
     RSI_PERIOD: int = 14
     
     # 추세 필터 완화 (역추세 매매 방지, MA200/50은 RSI 과매도와 상충하여 MA20으로 변경)

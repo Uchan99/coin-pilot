@@ -33,6 +33,26 @@ spec:
               value: "redis"
             - name: REDIS_PORT
               value: "6379"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: ANTHROPIC_API_KEY
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: OPENAI_API_KEY
+            - name: UPBIT_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: UPBIT_ACCESS_KEY
+            - name: UPBIT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: UPBIT_SECRET_KEY
           # Dashboard needs access to DB to visualize data.
           resources:
             requests:
