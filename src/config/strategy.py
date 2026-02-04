@@ -25,8 +25,8 @@ class StrategyConfig:
     RSI_OVERSOLD: int = 33              # 기존 30 -> 33 (과매도 기준 완화)
     RSI_PERIOD: int = 14
     
-    # 추세 필터 완화 (역추세 매매 방지, 단 MA200은 RSI 과매도와 상충하여 MA50으로 변경)
-    MA_TREND_PERIOD: int = 50           # 기존 200 -> 50 (중기 추세로 완화)
+    # 추세 필터 완화 (역추세 매매 방지, MA200/50은 RSI 과매도와 상충하여 MA20으로 변경)
+    MA_TREND_PERIOD: int = 20           # 기존 200 -> 50 -> 20 (단기 추세, BB 중앙선과 동일)
 
     # 거래량 급증 기준 완화 (1.5배 -> 1.2배)
     VOLUME_MULTIPLIER: float = 1.2      # 기존 1.5 -> 1.3 -> 1.2

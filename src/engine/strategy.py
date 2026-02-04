@@ -54,7 +54,7 @@ class MeanReversionStrategy(BaseStrategy):
 
         [판단 로직]
         1. RSI < RSI_OVERSOLD (기본 33): 과매도 구간 여부
-        2. Price > MA_TREND (기본 50): 중기 상승 추세 중 일시적 하락인지 확인 (역추세 매매 방지)
+        2. Price > MA_TREND (기본 20): 단기 상승 추세 중 일시적 하락인지 확인 (BB 중앙선과 동일)
         3. Volume > Avg * Multiplier (기본 1.2배): 거래량을 동반한 하락(패닉 셀)인지 확인
         4. (Optional) Price <= BB Lower: 볼린저 밴드 하단 터치 여부 (설정에 따라 활성/비활성)
         """
@@ -73,8 +73,8 @@ class MeanReversionStrategy(BaseStrategy):
         # 1. RSI 과매도 조건 (기존 30 -> 33으로 완화됨)
         is_rsi_low = rsi < self.config.RSI_OVERSOLD
 
-        # 2. 추세 필터 (MA 위에서만 매수, 기존 200 -> 50으로 완화)
-        # RSI 과매도와 MA200 조건이 상충하는 문제 해결을 위해 중기 추세(MA50)로 변경
+        # 2. 추세 필터 (MA 위에서만 매수, 기존 200 -> 20으로 완화)
+        # RSI 과매도와 MA200/50 조건이 상충하는 문제 해결을 위해 단기 추세(MA20, BB중앙선)로 변경
         is_above_trend = close > ma_trend
 
         # 3. 거래량 급증 조건 (기존 1.5배 -> 1.2배로 완화됨)
