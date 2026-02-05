@@ -20,10 +20,10 @@
 
 ## 🆕 Week 8 Changes (System Update v3.0)
 
-### 1. 멀티 코인 전략 확장 (Strategy Expansion v2.3) ⭐ NEW
+### 1. 멀티 코인 전략 확장 (Strategy Expansion v2.4) ⭐ NEW
 - **대상 코인**: BTC → **BTC, ETH, XRP, SOL, DOGE (5개)**
-- **진입 조건 완화 (v2.3)**:
-  - RSI: 30 → **35** (과매도 기준 완화)
+- **진입 조건 완화 (v2.4)**:
+  - RSI: 30 → 35 → **40** (과매도 기준 추가 완화)
   - MA: 200 → **20** (단기 추세, RSI와 상충 해소)
   - Volume: 1.5x → **1.2x** (거래량 조건 완화)
   - BB 조건: **OFF** (선택적 사용)

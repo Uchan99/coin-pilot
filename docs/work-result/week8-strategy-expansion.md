@@ -206,3 +206,43 @@ USE_CONSERVATIVE_MODE = True  # 즉시 MA200, RSI30, Vol1.5x로 복귀
 ---
 
 *Hotfix by Claude Code - MA/Volume 조건 완화*
+
+---
+
+## 추가 수정사항 (v2.4 Hotfix)
+
+> **수정일**: 2026-02-06
+> **수정자**: Claude Code
+> **사유**: RSI 35 조건에서도 매수 시그널이 발생하지 않아 추가 완화
+
+### 변경 내용
+
+| 항목 | v2.3 | v2.4 | 변경 근거 |
+|------|------|------|-----------|
+| **RSI 기준** | 35 | **40** | RSI 35 이하 조건이 여전히 까다로움, 40 이하로 추가 완화 |
+
+### 수정된 파일
+
+| 파일 | 수정 내용 |
+|------|-----------|
+| `src/config/strategy.py` | `RSI_OVERSOLD: 35 → 40` |
+
+### 현재 전략 조건 요약 (v2.4)
+
+| 조건 | 값 | 설명 |
+|------|-----|------|
+| RSI | < **40** | 과매도 진입 (추가 완화) |
+| MA | Price > MA**20** | 단기 상승 추세 |
+| Volume | > **1.2x** 평균 | 거래량 급증 |
+| BB | **OFF** | 비활성 |
+
+### 롤백 방법
+
+```python
+# src/config/strategy.py
+USE_CONSERVATIVE_MODE = True  # 즉시 RSI30, MA200, Vol1.5x로 복귀
+```
+
+---
+
+*Hotfix by Claude Code - RSI 40으로 추가 완화*
