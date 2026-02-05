@@ -18,6 +18,11 @@ Week 8 전략 확장(멀티 코인 + 리스크 관리) 코드가 구현되었습
 ./deploy/deploy_to_minikube.sh
 ```
 
+> **💡 Secret 관리**: 스크립트가 `.env` 파일에서 API 키(ANTHROPIC, OPENAI, UPBIT 등)를 읽어 K8s Secret을 자동 생성합니다.
+> - `.env` 파일이 프로젝트 루트에 존재해야 함
+> - `.env`는 `.gitignore`에 포함되어 git에 업로드되지 않음
+> - `k8s/base/secret.yaml`은 플레이스홀더만 포함 (실제 키 없음)
+
 ### Step 2. 파드 재시작 (Rollout Restart)
 `latest` 태그를 사용하는 경우, 이미지가 갱신되어도 파드가 즉시 재시작되지 않을 수 있습니다.
 확실한 적용을 위해 강제 재시작을 수행합니다.

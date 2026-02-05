@@ -409,3 +409,22 @@ kubectl get svc -n coin-pilot-ns
 ---
 *K8s Deployment Verified by Claude Code (Operator Role)*
 
+---
+
+### ✅ K8s Deployment Final Verification (Hotfix Applied)
+**검증일**: 2026-02-06
+**상태**: **Stable (Production Ready)**
+
+| 수정 항목 | 내용 | 비고 |
+|-----------|------|------|
+| **DNS Resolution** | FQDN 적용 (`db.coin-pilot-ns.svc.cluster.local`) | DB 연결 안정화 |
+| **API Security** | `.env` 기반 Dynamic Secret 생성 스크립트 적용 | Git 유출 방지 |
+| **Chatbot** | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 주입 추가 | RAG Agent 정상화 |
+| **Strategy v2.3** | MA20, RSI35, Vol1.2x 완화 조건 적용 | 매매 기회 확대 |
+| **n8n Health Check** | `N8N_SERVICE_HOST/PORT` 사용으로 K8s 환경변수 충돌 해결 | System 탭 정상화 |
+| **Discord Webhook** | `.env`에서 동적 로딩하도록 배포 스크립트 수정 | 알림 정상화 |
+| **System Logs** | AI Agent Decisions + Risk Audit 섹션으로 개선 | 실제 데이터 표시 |
+
+모든 이슈가 해결되었으며, 현재 Minikube 상에서 시스템이 정상 가동 중입니다.
+수고하셨습니다! 🚀
+

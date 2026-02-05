@@ -20,11 +20,15 @@
 
 ## 🆕 Week 8 Changes (System Update v3.0)
 
-### 1. 멀티 코인 전략 확장 (Strategy Expansion) ⭐ NEW
+### 1. 멀티 코인 전략 확장 (Strategy Expansion v2.3) ⭐ NEW
 - **대상 코인**: BTC → **BTC, ETH, XRP, SOL, DOGE (5개)**
-- **진입 조건 완화**: RSI 30→33, Volume 1.5x→1.3x, BB 조건 OFF
+- **진입 조건 완화 (v2.3)**:
+  - RSI: 30 → **35** (과매도 기준 완화)
+  - MA: 200 → **20** (단기 추세, RSI와 상충 해소)
+  - Volume: 1.5x → **1.2x** (거래량 조건 완화)
+  - BB 조건: **OFF** (선택적 사용)
 - **포트폴리오 리스크**: 전체 노출 20%, 동시 3개, 중복 진입 금지
-- **롤백 모드**: `src/config/strategy.py`에서 `USE_CONSERVATIVE_MODE = True` 설정 시 즉시 BTC only로 복귀
+- **롤백 모드**: `src/config/strategy.py`에서 `USE_CONSERVATIVE_MODE = True` 설정 시 즉시 BTC only + 보수적 조건으로 복귀
 - **확인**: 봇/수집기 로그에서 `for 5 symbols` 메시지 확인
 
 ### 2. Volatility Scheduler (All Modes)
@@ -51,11 +55,13 @@
 ```
 
 ### 1.2 배포 스크립트 실행
-자동으로 이미지를 빌드하고 K8s 매니페스트를 적용합니다.
+자동으로 `.env`에서 시크릿을 읽고, 이미지를 빌드하고 K8s 매니페스트를 적용합니다.
 ```bash
 # 프로젝트 루트에서 실행
 ./deploy/deploy_to_minikube.sh
 ```
+> 💡 **Secret 관리**: 스크립트가 `.env` 파일에서 API 키를 읽어 K8s Secret을 자동 생성합니다.
+> `.env`는 `.gitignore`에 포함되어 git에 업로드되지 않습니다.
 
 ### 1.3 상태 확인
 모든 파드(Pod)가 `Running` 상태인지 확인합니다.

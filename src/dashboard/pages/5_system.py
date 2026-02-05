@@ -45,9 +45,12 @@ with col2:
 # 1-3. n8n Check
 n8n_status = False
 try:
-    # n8n 헬스체크 (내부 서비스 URL 또는 로컬 포트포워딩 URL)
-    # 로컬 개발 환경이므로 localhost:5678 사용
-    resp = requests.get("http://localhost:5678/healthz", timeout=1)
+    # n8n 헬스체크
+    # K8s 환경: N8N_SERVICE_HOST/PORT 자동 주입됨, 로컬 환경: localhost 사용
+    # 주의: N8N_PORT는 K8s가 "tcp://IP:PORT" 형식으로 주입하므로 사용 불가
+    N8N_HOST = os.getenv("N8N_SERVICE_HOST", "localhost")  # K8s 자동 주입 변수
+    N8N_PORT = os.getenv("N8N_SERVICE_PORT", "5678")       # K8s 자동 주입 변수
+    resp = requests.get(f"http://{N8N_HOST}:{N8N_PORT}/healthz", timeout=2)
     if resp.status_code == 200:
         n8n_status = True
 except:
@@ -59,35 +62,37 @@ with col3:
 
 st.markdown("---")
 
-# 2. Notification Logs (System Logs)
-st.subheader("Recent System Logs")
+# 2. Recent AI Agent Decisions
+st.subheader("Recent AI Agent Decisions")
 
-# system_logs 테이블이 없으면 생성되었는지 확인 필요. 
-# 없으면 trading_history에서 에러 로그를 찾거나 제외.
-# 여기서는 'system_logs'가 있다고 가정 (Week 6 Plan 2.2.D)
-# models.py에는 system_logs가 안 보였음 -> (수정) risk_audit 사용 또는 직접 생성 필요.
-# models.py에 SystemLogs 없음. -> 'system_logs' 테이블이 실제 DB에 있는지 확인 필요하나, 
-# 안전하게 RiskAudit 테이블을 보여주거나, 구현되지 않았다면 안내 메시지.
-# Notification Log를 보여주고 싶다면 notification_logs 테이블이 있어야 함.
+decisions_df = get_data_as_dataframe("""
+    SELECT created_at, symbol, decision, reasoning, confidence, model_used
+    FROM agent_decisions
+    ORDER BY created_at DESC
+    LIMIT 10
+""")
 
-# 대안: Notification 내역을 DB에 저장하지 않고 Discord로만 쏘는 경우 로그가 없을 수 있음.
-# 현재 Week 5 결과물에 Notification Log DB 저장 로직이 있었는지 확인 -> Notification.py는 DB 저장 안 함.
-# 따라서 여기서는 'Risk Audit' 로그를 다시 보여주거나, 추후 구현 안내.
+if not decisions_df.empty:
+    st.dataframe(decisions_df, use_container_width=True)
+else:
+    st.write("No agent decisions recorded yet.")
 
-st.info("Notification Log 저장은 Phase 3+에서 구현 예정입니다. 현재는 최근 Risk Audit 로그를 표시합니다.")
+st.markdown("---")
+
+# 3. Risk Audit Logs
+st.subheader("Risk Audit Logs")
 
 audit_df = get_data_as_dataframe("""
-    SELECT timestamp, violation_type, description 
-    FROM risk_audit 
-    ORDER BY timestamp DESC 
+    SELECT timestamp, violation_type, description
+    FROM risk_audit
+    ORDER BY timestamp DESC
     LIMIT 10
 """)
 
 if not audit_df.empty:
-    st.dataframe(audit_df, width="stretch")
-
+    st.dataframe(audit_df, use_container_width=True)
 else:
-    st.write("No critical system events found.")
+    st.info("No risk violations recorded. This is good!")
 
 # 3. Manual Refresh
 if st.button("Refresh Status"):

@@ -101,13 +101,125 @@ model.update_volatility_state(vol, threshold=2.0)
 
 ## Summary
 
-| 이슈 | 카테고리 | 심각도 |
-|------|----------|--------|
-| APScheduler Runtime Error | Runtime | Medium |
-| Bot Pod Crash (ModuleNotFoundError) | K8s/Docker | High |
-| Redis Connection Error | K8s Config | High |
-| Minikube Service Access | K8s/Network | Low |
-| Scipy Build Failure | CI/CD | High |
-| Dependency Resolution Loop | CI/CD | High |
-| Test Collection Import Error | CI/CD | Medium |
-| Volatility Method Mismatch | Code Review | Critical |
+| # | 이슈 | 카테고리 | 심각도 |
+|---|------|----------|--------|
+| 1 | APScheduler Runtime Error | Runtime | Medium |
+| 2 | Bot Pod Crash (ModuleNotFoundError) | K8s/Docker | High |
+| 3 | Redis Connection Error | K8s Config | High |
+| 4 | Minikube Service Access | K8s/Network | Low |
+| 5 | Scipy Build Failure | CI/CD | High |
+| 6 | Dependency Resolution Loop | CI/CD | High |
+| 7 | Test Collection Import Error | CI/CD | Medium |
+| 8 | Volatility Method Mismatch | Code Review | Critical |
+| 9 | DNS Resolution Error | K8s/Network | High |
+| 10 | Dashboard Line Break Issue | UX/UI | Low |
+| 11 | Chatbot API Key Error | K8s Config | High |
+| 12 | DB Authentication Error | K8s/DB | Critical |
+| 13 | Port Forwarding Zombie | Local Env | Low |
+| 14 | Git Security Risk (Secret Leak) | Security | Critical |
+| 15 | n8n Health Check Error | K8s/Env | Medium |
+| 16 | Discord Webhook Placeholder | K8s Config | High |
+
+---
+
+## 9. DNS Resolution Error (Temporary failure in name resolution)
+**증상**:
+Bot 및 Collector가 DB에 연결할 때 `Temporary failure in name resolution` 에러 발생.
+
+**원인**:
+Minikube 내부 DNS가 간헐적으로 단축 도메인(`db`)을 해석하지 못함.
+
+**해결**:
+- `k8s/apps/bot-deployment.yaml`, `collector-deployment.yaml` 내 `DATABASE_URL`을 FQDN(`db.coin-pilot-ns.svc.cluster.local`)으로 변경.
+
+## 10. Dashboard Line Break Rendering Issue
+**증상**:
+Streamlit 대시보드에서 Bot Reasoning(사유)이 한 줄로 뭉쳐서 출력됨.
+
+**원인**:
+`st.info()`는 기본적으로 공백을 축소(collapse)함. 또한, Bot에서 `|`로 구분하던 메시지 포맷이 가독성이 떨어짐.
+
+**해결**:
+- `src/bot/main.py`: 구분자를 `\n` 개행 문자로 변경.
+- `src/dashboard/pages/2_market.py`: `st.info` 대신 `st.markdown` 사용 및 `\n`을 마크다운 줄바꿈(`  \n`)으로 변환 처리.
+
+## 11. Chatbot API Key Error (Validation Error)
+**증상**:
+Dashboard 로그에 `1 validation error for ChatAnthropic anthropic_api_key Input should be a valid string` 발생.
+
+**원인**:
+`k8s/apps/dashboard-deployment.yaml`에 `ANTHROPIC_API_KEY` 환경 변수 주입 설정이 누락됨. (RAG Agent는 OpenAI 임베딩을 쓰므로 `OPENAI_API_KEY`도 누락 확인)
+
+**해결**:
+- `dashboard-deployment.yaml`에 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `UPBIT` 키들을 Secret으로부터 주입하도록 추가.
+
+## 12. DB Authentication Error (InvalidPasswordError)
+**증상**:
+`InvalidPasswordError: password authentication failed for user "postgres"` 발생하며 모든 앱이 DB 연결 실패.
+
+**원인**:
+DB Pod(`db-0`)는 8일 전 생성되어 옛날 비밀번호(`postgres`)를 유지하고 있었으나, 최근 배포된 앱들은 `k8s/base/secret.yaml`의 플레이스홀더 값(`PLACEHOLDER...`)을 비밀번호로 사용함.
+
+**해결**:
+- `k8s/base/secret.yaml`을 실제 비밀번호(`postgres`)가 담긴 값으로 수정하여 재적용.
+- `kubectl exec`를 통해 DB 내부 사용자 비밀번호를 `postgres`로 강제 재설정(`ALTER USER`).
+
+## 13. Port Forwarding Zombie Process
+**증상**:
+`kubectl port-forward` 시 `bind: address already in use` 에러 발생하며 포트(8501, 5432 등) 사용 불가.
+
+**원인**:
+이전 세션의 `kubectl` 프로세스가 종료되지 않고 백그라운드에서 포트를 점유 중.
+
+**해결**:
+- `lsof -i :8501` 등으로 PID 식별 후 `kill -9`로 좀비 프로세스 강제 종료.
+
+## 14. Git Security Risk (Secret Leakage Prevention)
+**증상**:
+긴급 수정 과정에서 `k8s/base/secret.yaml`에 실제 API 키가 평문으로 기재됨. Git 업로드 시 유출 위험.
+
+**원인**:
+배포 편의를 위해 파일을 직접 수정했으나, 보안 원칙 위배.
+
+**해결**:
+- `k8s/base/secret.yaml` 내용을 다시 `PLACEHOLDER`로 원복.
+- `deploy/deploy_to_minikube.sh` 스크립트를 수정하여, 배포 시점에 로컬 `.env` 파일을 읽어 동적으로 K8s Secret을 생성하도록 변경 (Git에는 껍데기만 올라감).
+
+## 15. n8n System Health Check Error (K8s Env Variable Conflict)
+**증상**:
+Dashboard System 탭에서 n8n Workflow가 🔴 Error로 표시됨. 실제 n8n은 정상 작동 중.
+
+**원인**:
+`5_system.py`에서 `N8N_HOST`, `N8N_PORT` 환경변수를 사용했으나, K8s가 서비스에 대해 자동 주입하는 환경변수와 이름 충돌 발생.
+```
+N8N_PORT=tcp://10.101.53.39:5678  # K8s 자동 주입 (원치 않는 형식)
+N8N_SERVICE_PORT=5678              # K8s 자동 주입 (올바른 형식)
+```
+
+**해결**:
+- `src/dashboard/pages/5_system.py`에서 K8s 자동 주입 변수 사용으로 변경:
+```python
+# 변경 전
+N8N_HOST = os.getenv("N8N_HOST", "n8n")
+N8N_PORT = os.getenv("N8N_PORT", "5678")
+
+# 변경 후
+N8N_HOST = os.getenv("N8N_SERVICE_HOST", "localhost")
+N8N_PORT = os.getenv("N8N_SERVICE_PORT", "5678")
+```
+
+## 16. Discord Webhook Not Working (Placeholder in Secret)
+**증상**:
+n8n Execute 시 `Invalid URL: PLACEHOLDER_USE_DEPLOY_SCRIPT` 에러 발생. Discord 알림 미전송.
+
+**원인**:
+`deploy/deploy_to_minikube.sh`가 `N8N_WEBHOOK_SECRET`과 `DISCORD_WEBHOOK_URL`을 `.env`에서 읽지 않고 플레이스홀더로 하드코딩함.
+
+**해결**:
+- `.env`에 `N8N_WEBHOOK_SECRET`, `DISCORD_WEBHOOK_URL` 추가.
+- `deploy/deploy_to_minikube.sh` 수정하여 해당 값을 `.env`에서 동적 로딩:
+```bash
+--from-literal=N8N_WEBHOOK_SECRET="${N8N_WEBHOOK_SECRET:-coinpilot-n8n-secret}" \
+--from-literal=DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+```
+- n8n Pod 재시작: `kubectl rollout restart deployment/n8n -n coin-pilot-ns`
