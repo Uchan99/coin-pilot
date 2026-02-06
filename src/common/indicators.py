@@ -154,7 +154,7 @@ def resample_to_hourly(df_1m: pd.DataFrame) -> pd.DataFrame:
             'volume': 'sum'
         }
 
-    resampled = df.resample('1H').agg(agg_dict).dropna()
+    resampled = df.resample('1h').agg(agg_dict).dropna()
 
     # 컬럼명 통일
     resampled.columns = ['open', 'high', 'low', 'close', 'volume']
@@ -205,6 +205,24 @@ def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3) -> bool:
     recovered = recent['close'].iloc[-1] > recent['bb_lower'].iloc[-1]
     return touched and recovered
 
+def calculate_volume_ratios(volume_series: pd.Series, period: int = 20) -> pd.Series:
+    """
+    각 시점의 거래량이 과거 N일 평균 거래량 대비 몇 배인지 시리즈로 계산합니다.
+    (v3.1 거래량 급증 체크용)
+
+    Args:
+        volume_series: 거래량 데이터 시리즈
+        period: 평균을 구할 기간 (기본값: 20)
+
+    Returns:
+        pd.Series: 각 시점의 거래량 비율
+    """
+    # 각 시점에서 직전 N개의 평균 거래량 대비 비율 계산
+    avg_volume = volume_series.rolling(window=period).mean().shift(1)
+    vol_ratios = volume_series / avg_volume
+    return vol_ratios.fillna(0.0)
+
+
 def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
                        rsi_period: int = 14, rsi_short_period: int = 7) -> Dict:
     """
@@ -231,8 +249,13 @@ def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
     # 4. Bollinger Bands (20, 2.0)
     bb_df = calculate_bb(df['close'], period=20, std_dev=2.0)
 
-    # 5. Volume Ratio (20)
+    # 5. Volume Ratio (20) - 현재 시점
     vol_ratio = calculate_volume_ratio(df['volume'], period=20)
+
+    # 6. Volume Ratios (v3.1) - 시리즈 (거래량 급증 체크용)
+    vol_ratios_series = calculate_volume_ratios(df['volume'], period=20)
+    # 최근 5캔들의 거래량 비율 리스트 (volume_surge_check에서 사용)
+    recent_vol_ratios = vol_ratios_series.tail(5).tolist()
 
     # 마지막 시점의 데이터를 딕셔너리로 구성
     return {
@@ -252,6 +275,7 @@ def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
 
         # 거래량
         "vol_ratio": vol_ratio,
+        "recent_vol_ratios": recent_vol_ratios,  # v3.1: 최근 5캔들 거래량 비율
 
         # 가격
         "close": float(df['close'].iloc[-1]),

@@ -161,3 +161,23 @@ pkill -f "while true"
 SELECT created_at + interval '9 hours' as created_at, ...
 ```
 - 적용 파일: `pages/3_risk.py`, `pages/4_history.py`, `pages/5_system.py`
+
+---
+
+## 9. v3.1 DB 마이그레이션 필요
+
+### 증상
+- v3.1 업데이트 후 봇 실행 시 DB 에러 발생 가능성 있음.
+- `ProgrammingError: column "price_at_decision" of relation "agent_decisions" does not exist`
+
+### 원인
+- AI 거절 사유 분석을 위해 `agent_decisions` 테이블에 새로운 컬럼(`price_at_decision`, `regime`)이 추가되었으나, DB에 반영되지 않음.
+
+### 해결
+- 새로 추가된 마이그레이션 SQL 파일을 실행해야 함.
+
+```bash
+kubectl exec -it -n coin-pilot-ns db-0 -- psql -U postgres -d coinpilot -f - < migrations/v3_1_reject_tracking.sql
+```
+
+**참조**: [11_notification_and_timezone_improvements.md](../work-result/11_notification_and_timezone_improvements.md) - v3.1 전략 정교화 상세 내용

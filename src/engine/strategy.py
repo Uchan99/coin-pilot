@@ -76,7 +76,14 @@ class MeanReversionStrategy(BaseStrategy):
 
     def check_entry_signal(self, indicators: Dict) -> bool:
         """
-        레짐별 진입 신호 확인
+        레짐별 진입 신호 확인 (v3.1)
+
+        v3.1 추가 조건:
+        - proximity_above: MA20 아래에 있되 97% 이내 (BEAR 전용)
+        - min_rsi_7_bounce_pct: RSI(7) 최소 반등 폭 체크
+        - require_price_above_bb_lower: BB 하단 아래 진입 금지 (Falling Knife 방지)
+        - volume_min_ratio: 거래량 하한 조건
+        - volume_surge_check: 거래량 급증 체크 (BEAR 전용)
         """
         regime = indicators.get("regime", "UNKNOWN")
         if regime == "UNKNOWN":
@@ -86,49 +93,81 @@ class MeanReversionStrategy(BaseStrategy):
         regime_config = self.config.REGIMES.get(regime)
         if not regime_config:
             return False
-            
+
         entry_config = regime_config["entry"]
-        
+
         rsi_14 = indicators.get("rsi")
         rsi_7 = indicators.get("rsi_short")
         rsi_7_prev = indicators.get("rsi_short_prev")
         ma_20 = indicators.get("ma_trend")
         vol_ratio = indicators.get("vol_ratio")
         close = indicators.get("close")
-        
+        bb_lower = indicators.get("bb_lower")
+
         # 기본 공통 조건 (RSI 14)
         if rsi_14 is None or rsi_14 > entry_config["rsi_14_max"]:
             return False
-            
+
         # RSI 7 반등 조건 (trigger -> recover)
         if None in [rsi_7, rsi_7_prev]:
             return False
         is_rsi_short_recovery = (rsi_7_prev < entry_config["rsi_7_trigger"]) and (rsi_7 >= entry_config["rsi_7_recover"])
         if not is_rsi_short_recovery:
             return False
-            
-        # MA 조건 (crossover | proximity)
+
+        # v3.1: RSI(7) 최소 반등 폭 체크
+        min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
+        if min_bounce_pct is not None:
+            rsi_bounce = rsi_7 - rsi_7_prev
+            if rsi_bounce < min_bounce_pct:
+                return False
+
+        # MA 조건 (crossover | proximity | proximity_above)
         if ma_20 is None:
             return False
-            
+
         if entry_config["ma_condition"] == "crossover":
+            # 상승장: MA20 상향 돌파
             if close <= ma_20:
                 return False
         elif entry_config["ma_condition"] == "proximity":
+            # 횡보장: MA20 근처 (proximity_pct 이상)
             proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
             if close < ma_20 * proximity_pct:
                 return False
-                
-        # 거래량 조건
+        elif entry_config["ma_condition"] == "proximity_or_above":
+            # 하락장: MA20 위 돌파 OR MA20 아래 3% 이내
+            # - MA20 위에 있으면 → 통과 (강한 반등 신호)
+            # - MA20 아래에 있으면 → 97% 이내여야 통과 (너무 멀리 이탈하면 Falling Knife)
+            proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
+            if close < ma_20 * proximity_pct:
+                return False
+
+        # v3.1: BB 하단 체크 (Falling Knife 방지)
+        if entry_config.get("require_price_above_bb_lower") and bb_lower is not None:
+            if close < bb_lower:
+                return False
+
+        # 거래량 상한 조건 (volume_ratio: 이 이상이어야 함)
         if entry_config.get("volume_ratio") is not None:
             if vol_ratio is None or vol_ratio < entry_config["volume_ratio"]:
                 return False
-                
-        # 횡보장 전용 BB 조건
+
+        # v3.1: 거래량 하한 조건 (volume_min_ratio: 이 미만이면 진입 금지)
+        if entry_config.get("volume_min_ratio") is not None:
+            if vol_ratio is None or vol_ratio < entry_config["volume_min_ratio"]:
+                return False
+
+        # v3.1: 거래량 급증 체크 (하락장 전용 - 패닉 셀링 감지)
+        if entry_config.get("volume_surge_check"):
+            vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
+            recent_vol_ratios = indicators.get("recent_vol_ratios", [])
+            # 직전 3캔들 중 평균 대비 surge_ratio 이상 급증한 캔들이 있으면 진입 보류
+            if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
+                return False
+
+        # 횡보장 전용 BB 터치 회복 조건
         if regime == "SIDEWAYS" and entry_config.get("bb_enabled"):
-            from src.common.indicators import check_bb_touch_recovery
-            # indicators에 리샘플링된 df가 포함되어 있다고 가정하거나 
-            # 별도의 bb_touch_recovery 지표가 계산되어 넘어와야 함
             if not indicators.get("bb_touch_recovery", False):
                 return False
 

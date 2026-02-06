@@ -128,6 +128,10 @@ class AgentRunner:
                             indicators: Dict[str, Any] = None, market_context: Dict[str, Any] = None):
         """AI 판단 결과를 DB에 저장하고, REJECT 시 Discord 알림 전송"""
         try:
+            # 결정 시점 가격 및 레짐 추출
+            price_at_decision = indicators.get("close") if indicators else None
+            regime = market_context.get("regime") if market_context else None
+
             async with get_db_session() as session:
                 log = AgentDecision(
                     symbol=symbol,
@@ -135,7 +139,9 @@ class AgentRunner:
                     decision=decision,
                     reasoning=reasoning,
                     confidence=confidence,
-                    model_used=get_analyst_llm().model
+                    model_used=get_analyst_llm().model,
+                    price_at_decision=price_at_decision,
+                    regime=regime
                 )
                 session.add(log)
                 await session.commit()

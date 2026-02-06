@@ -150,4 +150,7 @@ class AgentDecision(Base):
     reasoning = Column(Text, nullable=True)        # AI의 분석 근거
     confidence = Column(Integer, nullable=True)     # 확신도 (0-100)
     model_used = Column(String(50), nullable=True) # 사용된 LLM 모델명
+    # v3.0 추가: REJECT 검증용 필드
+    price_at_decision = Column(Numeric(20, 8), nullable=True)  # 결정 시점 가격
+    regime = Column(String(10), nullable=True)     # 결정 시점 레짐
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)

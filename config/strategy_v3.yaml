@@ -1,4 +1,5 @@
 # config/strategy_v3.yaml
+# v3.1 업데이트: 거래량 조건 분리, RSI 반등 강도, BB 하단 체크, 거래량 급증 체크
 
 regime_detection:
   ma_fast_period: 50
@@ -20,9 +21,11 @@ regimes:
       rsi_14_max: 45
       rsi_7_trigger: 40
       rsi_7_recover: 40
-      ma_condition: "crossover"
+      min_rsi_7_bounce_pct: 3.0        # RSI(7) 최소 반등 폭 (포인트)
+      ma_condition: "crossover"         # MA20 상향 돌파
       ma_period: 20
-      volume_ratio: 1.2
+      volume_ratio: 1.2                 # 상한 조건: 평균 대비 1.2배 이상 필요
+      volume_min_ratio: null            # 하한 조건: 상승장에서는 미적용
     exit:
       take_profit_pct: 0.05
       stop_loss_pct: 0.03
@@ -38,6 +41,7 @@ regimes:
       rsi_14_max: 40
       rsi_7_trigger: 35
       rsi_7_recover: 35
+      min_rsi_7_bounce_pct: 3.0        # RSI(7) 최소 반등 폭
       ma_condition: "proximity"
       ma_period: 20
       ma_proximity_pct: 0.97
@@ -45,7 +49,9 @@ regimes:
       bb_period: 20
       bb_std: 2.0
       bb_touch_lookback: 3
-      volume_ratio: 1.0
+      require_price_above_bb_lower: true  # BB 하단 아래에서는 진입 금지
+      volume_ratio: null                  # 상한 조건: 횡보장에서는 미적용
+      volume_min_ratio: 0.5               # 하한 조건: 최소 50% 이상 필요
     exit:
       take_profit_pct: 0.03
       stop_loss_pct: 0.04
@@ -61,10 +67,15 @@ regimes:
       rsi_14_max: 40
       rsi_7_trigger: 30
       rsi_7_recover: 30
-      ma_condition: "proximity"
+      min_rsi_7_bounce_pct: 3.0           # RSI(7) 최소 반등 폭
+      ma_condition: "proximity_or_above"   # MA20 위 돌파 OR MA20 아래 3% 이내
       ma_period: 20
       ma_proximity_pct: 0.97
-      volume_ratio: null
+      require_price_above_bb_lower: true   # BB 하단 아래에서는 진입 금지 (Falling Knife 방지)
+      volume_ratio: null                   # 상한 조건: 하락장에서는 미적용
+      volume_min_ratio: 0.5                # 하한 조건: 최소 50% 이상 필요
+      volume_surge_check: true             # 직전 급락 시 거래량 급증 여부 체크
+      volume_surge_ratio: 2.0              # 직전 3캔들 중 평균 대비 2배 이상 급증 있으면 진입 보류
     exit:
       take_profit_pct: 0.03
       stop_loss_pct: 0.05

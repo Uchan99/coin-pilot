@@ -123,3 +123,45 @@ SELECT timestamp + interval '9 hours' as timestamp, ...
 | 가시성 | AI 의사결정 과정 실시간 모니터링 |
 | 편의성 | 대시보드 시간 확인 시 KST 바로 확인 |
 | 배포 자동화 | 첫 배포 시 과거 데이터 자동 수집 |
+
+---
+
+## 5. 추가 업데이트 (2026-02-07): v3.1 전략 정교화 및 AI Reject 추적
+
+Claude Code를 통해 전략의 안정성을 높이고 AI 거절 사유 분석을 강화하는 추가 기능이 구현되었습니다.
+
+### 5.1 전략 정교화 (v3.1)
+**파일**: `src/config/strategy.py`, `src/engine/strategy.py`, `src/common/indicators.py`, `config/strategy_v3.yaml`
+
+기존 v3.0 전략에서 발견된 약점(하락장에서의 섣부른 진입, 횡보장에서의 잦은 손절)을 보완하기 위해 진입 조건을 강화했습니다.
+
+1. **RSI(7) 최소 반등 폭 (`min_rsi_7_bounce_pct`)**
+    - 단순히 과매도에서 벗어났다고 진입하는 것이 아니라, 바닥 대비 최소 3% 이상 반등해야 진입.
+    - V자 반등 확인용.
+
+2. **BEAR 레짐 진입 조건 개선 ("proximity_or_above")**
+    - 기존: MA20 아래 97% 지점 근처일 때만 진입 (너무 엄격)
+    - 개선: MA20을 돌파했거나(강한 반등), MA20 아래 3% 이내에 있을 때 진입 허용.
+
+3. **Falling Knife 방지 (`require_price_above_bb_lower`)**
+    - 볼린저 밴드 하단을 뚫고 내려간 상태(급락 중)에서는 진입 금지.
+    - 밴드 안으로 복귀했을 때만 진입.
+
+4. **거래량 필터 추가**
+    - `volume_min_ratio`: 거래량이 평소의 50% 미만이면 진입 금지 (유동성 부족 방지).
+    - `volume_surge_check` (BEAR 전용): 거래량이 평소 대비 2배 이상 폭증하면 패닉 셀링으로 간주하여 진입 보류.
+    - `indicators.py`에 `calculate_volume_ratios()` 함수 및 `recent_vol_ratios` 지표 추가.
+
+### 5.2 AI Reject 추적 및 DB 확장
+**파일**: `src/common/models.py`, `migrations/v3_1_reject_tracking.sql`
+
+AI가 왜 매수를 거절했는지 사후 분석하기 위해 데이터를 추가로 저장합니다.
+
+- **DB 스키마 변경**: `agent_decisions` 테이블에 컬럼 추가
+    - `price_at_decision`: 거절/승인 당시 가격
+    - `regime`: 당시 마켓 레짐
+
+이 데이터는 추후 대시보드에서 "어떤 레짐에서 거절이 많은지", "거절 후 가격이 어떻게 움직였는지" 분석하는 데 사용됩니다.
+
+### 5.3 기타 수정
+- `indicators.py`: pandas FutureWarning 수정 (`'1H'` → `'1h'`)
