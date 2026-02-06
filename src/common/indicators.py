@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Dict
+from typing import Dict, Optional
 import numpy as np
 
 class InsufficientDataError(Exception):
@@ -121,38 +121,139 @@ def calculate_volume_ratio(volume_series: pd.Series, period: int = 20) -> float:
     current_volume = volume_series.iloc[-1]
     return float(current_volume / avg_volume)
 
-def get_all_indicators(df: pd.DataFrame, ma_period: int = 50) -> Dict:
+def resample_to_hourly(df_1m: pd.DataFrame) -> pd.DataFrame:
+    """
+    1분봉 데이터를 1시간봉으로 리샘플링
+
+    Args:
+        df_1m: 1분봉 DataFrame (columns: timestamp, open, high, low, close, volume)
+               또는 (columns: timestamp, open_price, high_price, low_price, close_price, volume)
+
+    Returns:
+        1시간봉 DataFrame (columns: open, high, low, close, volume)
+    """
+    df = df_1m.copy()
+    if 'timestamp' in df.columns:
+        df = df.set_index('timestamp')
+
+    # 컬럼명 감지 (open vs open_price)
+    if 'open_price' in df.columns:
+        agg_dict = {
+            'open_price': 'first',
+            'high_price': 'max',
+            'low_price': 'min',
+            'close_price': 'last',
+            'volume': 'sum'
+        }
+    else:
+        agg_dict = {
+            'open': 'first',
+            'high': 'max',
+            'low': 'min',
+            'close': 'last',
+            'volume': 'sum'
+        }
+
+    resampled = df.resample('1H').agg(agg_dict).dropna()
+
+    # 컬럼명 통일
+    resampled.columns = ['open', 'high', 'low', 'close', 'volume']
+    return resampled
+
+def detect_regime(ma50: Optional[float], ma200: Optional[float]) -> str:
+    """
+    마켓 레짐 감지
+
+    Args:
+        ma50: 50기간(1시간봉) 이동평균선 값 (None이면 데이터 부족)
+        ma200: 200기간(1시간봉) 이동평균선 값 (None이면 데이터 부족)
+
+    Returns:
+        "BULL" | "SIDEWAYS" | "BEAR" | "UNKNOWN"
+    """
+    # Fallback: 데이터 부족 시 UNKNOWN 반환
+    if ma50 is None or ma200 is None or np.isnan(ma50) or np.isnan(ma200):
+        return "UNKNOWN"
+
+    diff_pct = (ma50 - ma200) / ma200 * 100
+
+    if diff_pct > 2.0:
+        return "BULL"       # 상승장: MA50이 MA200보다 2% 이상 위
+    elif diff_pct < -2.0:
+        return "BEAR"       # 하락장: MA50이 MA200보다 2% 이상 아래
+    else:
+        return "SIDEWAYS"   # 횡보장: MA50과 MA200 차이 ±2% 이내
+
+def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3) -> bool:
+    """
+    최근 N캔들 내 볼린저밴드 하단 터치 후 현재 복귀 여부 판정
+
+    Args:
+        df: DataFrame (columns: close, bb_lower)
+        lookback: 터치 확인 캔들 수 (기본 3)
+
+    Returns:
+        True이면 BB 하단 터치 후 복귀 확인
+    """
+    if len(df) < lookback + 1:
+        return False
+
+    recent = df.tail(lookback + 1)
+    # 직전 N캔들 중 BB 하단 이하 터치가 있었는지
+    touched = any(recent['close'].iloc[:-1] <= recent['bb_lower'].iloc[:-1])
+    # 현재 캔들은 BB 하단 위에 있는지
+    recovered = recent['close'].iloc[-1] > recent['bb_lower'].iloc[-1]
+    return touched and recovered
+
+def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
+                       rsi_period: int = 14, rsi_short_period: int = 7) -> Dict:
     """
     전략 수행에 필요한 모든 보조 지표를 한 번에 계산하여 마지막 행의 값을 반환합니다.
 
     Args:
         df: 'open', 'high', 'low', 'close', 'volume' 컬럼을 가진 DataFrame
-        ma_period: 추세 필터용 이동평균 기간 (기본값: 50, config.MA_TREND_PERIOD 권장)
+        ma_period: 추세 필터용 이동평균 기간 (기본값: 20)
+        rsi_period: 중기 RSI 기간 (기본값: 14)
+        rsi_short_period: 단기 RSI 기간 (기본값: 7, 모멘텀 반전 감지용)
 
     Returns:
         Dict: 계산된 지표 값들이 담긴 딕셔너리
     """
-    # 1. RSI (14)
-    rsi_series = calculate_rsi(df['close'], period=14)
+    # 1. RSI (14) - 중기 과매도 판단용
+    rsi_series = calculate_rsi(df['close'], period=rsi_period)
 
-    # 2. MA (추세 필터용) - 기간은 파라미터로 받음 (기본 50)
+    # 2. RSI (7) - 단기 모멘텀 반전 감지용 (현재 + 이전값 필요)
+    rsi_short_series = calculate_rsi(df['close'], period=rsi_short_period)
+
+    # 3. MA (추세 필터용)
     ma_trend_series = calculate_ma(df['close'], period=ma_period)
 
-    # 3. Bollinger Bands (20, 2.0)
+    # 4. Bollinger Bands (20, 2.0)
     bb_df = calculate_bb(df['close'], period=20, std_dev=2.0)
 
-    # 4. Volume Ratio (20)
+    # 5. Volume Ratio (20)
     vol_ratio = calculate_volume_ratio(df['volume'], period=20)
 
     # 마지막 시점의 데이터를 딕셔너리로 구성
     return {
-        "rsi": float(rsi_series.iloc[-1]),
-        "ma_trend": float(ma_trend_series.iloc[-1]),  # ma_200 -> ma_trend로 일반화
-        "ma_period": ma_period,  # 사용된 MA 기간 정보 포함
+        # RSI 듀얼 타임프레임
+        "rsi": float(rsi_series.iloc[-1]),              # RSI(14) 현재
+        "rsi_short": float(rsi_short_series.iloc[-1]),  # RSI(7) 현재
+        "rsi_short_prev": float(rsi_short_series.iloc[-2]) if len(rsi_short_series) >= 2 else None,  # RSI(7) 이전 (상향돌파 감지용)
+
+        # MA 추세
+        "ma_trend": float(ma_trend_series.iloc[-1]),
+        "ma_period": ma_period,
+
+        # 볼린저 밴드
         "bb_lower": float(bb_df['BBL'].iloc[-1]),
         "bb_mid": float(bb_df['BBM'].iloc[-1]),
         "bb_upper": float(bb_df['BBU'].iloc[-1]),
+
+        # 거래량
         "vol_ratio": vol_ratio,
+
+        # 가격
         "close": float(df['close'].iloc[-1]),
         "volume": float(df['volume'].iloc[-1])
     }

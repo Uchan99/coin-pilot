@@ -1,7 +1,7 @@
 # CoinPilot v3.0 User Manual
 
-**Last Updated**: 2026-01-30
-**Version**: v1.0 (Week 6 Complete)
+**Last Updated**: 2026-02-06
+**Version**: v3.0 (Market Regime Strategy)
 
 ---
 
@@ -47,7 +47,9 @@ pkill -f "kubectl port-forward"
     -   **Key Metrics**: 총 거래 횟수, 승률, 누적 손익(PnL)을 확인합니다.
     -   **Active Positions**: 현재 봇이 보유 중인 코인과 수익률을 봅니다.
 -   **📈 Market Analysis**:
+    -   **Market Regime**: 현재 마켓 레짐(🟢BULL/🟡SIDEWAYS/🔴BEAR)과 설명을 확인합니다.
     -   **Chart**: 비트코인 등 주요 코인의 캔들차트를 확인합니다.
+    -   **Bot Brain**: 현재 Action, RSI, HWM(트레일링 스탑 최고가), Reasoning을 확인합니다.
     -   **Controls**: 사이드바에서 종목(Symbol)과 시간 봉(Interval)을 변경할 수 있습니다.
 -   **🛡️ Risk Monitor**:
     -   **Daily Limits**: 오늘의 손익이 허용 범위(-5%) 내에 있는지 게이지로 확인합니다.

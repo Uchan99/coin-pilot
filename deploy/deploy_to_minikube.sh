@@ -76,5 +76,22 @@ echo "[-] Applying Monitoring Apps..."
 ./minikube kubectl -- apply -f k8s/monitoring/prometheus.yaml
 ./minikube kubectl -- apply -f k8s/monitoring/grafana.yaml
 
+# Jobs (Backfill) - Optional, run with --backfill flag
+if [[ "$*" == *"--backfill"* ]]; then
+  echo "[-] Applying Backfill Job for Regime Detection..."
+  # Delete existing job first (job names are immutable)
+  ./minikube kubectl -- delete job backfill-regime -n coin-pilot-ns --ignore-not-found
+  # Wait for DB to be ready before running backfill
+  echo "[-] Waiting for DB to be ready..."
+  ./minikube kubectl -- -n coin-pilot-ns wait --for=condition=ready pod -l app=db --timeout=120s || true
+  # Apply backfill job
+  ./minikube kubectl -- apply -f k8s/jobs/backfill-regime-job.yaml
+  echo "[*] Backfill job started. Check progress with:"
+  echo "    ./minikube kubectl -- logs -f job/backfill-regime -n coin-pilot-ns"
+fi
+
 echo "[*] Deployment Complete!"
 echo "[*] Use './minikube dashboard' or './minikube service list -n coin-pilot-ns' to check services."
+echo ""
+echo "[TIP] To run backfill for regime detection (first deploy only):"
+echo "    ./deploy/deploy_to_minikube.sh --backfill"

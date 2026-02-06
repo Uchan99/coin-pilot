@@ -10,6 +10,7 @@ from src.agents.guardian import risk_guardian_node
 from src.common.db import get_db_session
 from src.common.models import AgentDecision
 from src.agents.factory import get_analyst_llm
+from src.common.notification import notifier
 
 def create_agent_graph():
     """AI 에이전트 워크플로우 그래프 생성"""
@@ -98,8 +99,9 @@ class AgentRunner:
 
             # DB 로깅 (섹션 3.A)
             await self._log_decision(
-                symbol, strategy_name, decision_str, reasoning, 
-                analyst.get("confidence") if analyst else None
+                symbol, strategy_name, decision_str, reasoning,
+                analyst.get("confidence") if analyst else None,
+                indicators=indicators, market_context=market_context
             )
             
             return is_approved, reasoning
@@ -107,21 +109,24 @@ class AgentRunner:
         except asyncio.TimeoutError:
             print(f"[!] AI Agent Timeout (20s) for {symbol}. Falling back to REJECT.")
             await self._log_decision(
-                symbol, strategy_name, "REJECT", 
-                "AI Analysis Timed Out (Conservative Fallback)", None
+                symbol, strategy_name, "REJECT",
+                "AI Analysis Timed Out (Conservative Fallback)", None,
+                indicators=indicators, market_context=market_context
             )
             return False, "AI Analysis Timed Out (Conservative Fallback: REJECT)"
         except Exception as e:
             print(f"[!] AI Agent Error for {symbol}: {e}. Falling back to REJECT.")
             # 에러 상황도 DB에 기록 (대시보드 노출 위해)
             await self._log_decision(
-                symbol, strategy_name, "REJECT", 
-                f"AI Error: {str(e)}", None
+                symbol, strategy_name, "REJECT",
+                f"AI Error: {str(e)}", None,
+                indicators=indicators, market_context=market_context
             )
             return False, f"AI Analysis Error: {str(e)}"
 
-    async def _log_decision(self, symbol, strategy, decision, reasoning, confidence):
-        """AI 판단 결과를 DB에 저장"""
+    async def _log_decision(self, symbol, strategy, decision, reasoning, confidence,
+                            indicators: Dict[str, Any] = None, market_context: Dict[str, Any] = None):
+        """AI 판단 결과를 DB에 저장하고, REJECT 시 Discord 알림 전송"""
         try:
             async with get_db_session() as session:
                 log = AgentDecision(
@@ -134,6 +139,16 @@ class AgentRunner:
                 )
                 session.add(log)
                 await session.commit()
+
+            # REJECT 시 Discord 알림 전송
+            if decision == "REJECT":
+                asyncio.create_task(notifier.send_webhook("/webhook/ai-reject", {
+                    "symbol": symbol,
+                    "regime": market_context.get("regime", "UNKNOWN") if market_context else "UNKNOWN",
+                    "rsi": round(indicators.get("rsi", 0), 1) if indicators else 0,
+                    "reason": reasoning[:500] if reasoning else "No reason provided",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }))
         except Exception as e:
             print(f"[!] Failed to log agent decision: {e}")
 

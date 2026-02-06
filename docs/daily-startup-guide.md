@@ -1,6 +1,6 @@
 # CoinPilot Daily Startup Guide 🚀
 
-**작성일**: 2026-02-04 (Updated for Week 8 Strategy Expansion)
+**작성일**: 2026-02-06 (Updated for v3.0 Market Regime Strategy)
 **목적**: 컴퓨터 부팅 후 개발/운영 환경을 빠르게 세팅하기 위한 체크리스트
 
 > 📖 **운영자 매뉴얼**: 대시보드 사용법 및 긴급 대응은 [USER_MANUAL.md](USER_MANUAL.md) 참조
@@ -18,30 +18,49 @@
 
 ---
 
-## 🆕 Week 8 Changes (System Update v3.0)
+## 🆕 Week 8+ Changes (Strategy v3.0 - 마켓 레짐 기반 적응형 전략)
 
-### 1. 멀티 코인 전략 확장 (Strategy Expansion v2.4) ⭐ NEW
-- **대상 코인**: BTC → **BTC, ETH, XRP, SOL, DOGE (5개)**
-- **진입 조건 완화 (v2.4)**:
-  - RSI: 30 → 35 → **40** (과매도 기준 추가 완화)
-  - MA: 200 → **20** (단기 추세, RSI와 상충 해소)
-  - Volume: 1.5x → **1.2x** (거래량 조건 완화)
-  - BB 조건: **OFF** (선택적 사용)
-- **포트폴리오 리스크**: 전체 노출 20%, 동시 3개, 중복 진입 금지
-- **롤백 모드**: `src/config/strategy.py`에서 `USE_CONSERVATIVE_MODE = True` 설정 시 즉시 BTC only + 보수적 조건으로 복귀
-- **확인**: 봇/수집기 로그에서 `for 5 symbols` 메시지 확인
+### 1. 마켓 레짐 감지 (Market Regime Detection) ⭐ NEW
+- **레짐 종류**: BULL(상승장) / SIDEWAYS(횡보장) / BEAR(하락장) / UNKNOWN(데이터 부족)
+- **판단 기준**: MA50과 MA200의 이격도 (1시간봉 기준)
+  - BULL: 이격도 > +2%
+  - BEAR: 이격도 < -2%
+  - SIDEWAYS: ±2% 이내
+- **갱신 주기**: 1시간마다 (Redis 캐싱, TTL 65분)
+- **확인**: 대시보드 Market 페이지에서 레짐 아이콘(🟢/🟡/🔴) 확인
 
-### 2. Volatility Scheduler (All Modes)
-- **기능**: 매일 00:05 UTC에 Volatility Model을 재학습하여 Redis에 반영합니다.
-- **확인**: 봇 로그에서 `[Scheduler] Retraining Complete` 메시지를 확인하세요.
+### 2. 레짐별 적응형 전략 ⭐ NEW
+| 레짐 | 진입 조건 | TP | SL | 투자 비중 |
+|------|----------|:--:|:--:|:--------:|
+| BULL | MA20 돌파 + 거래량 1.2x | +5% | -3% | 100% |
+| SIDEWAYS | BB 하단 터치 후 복귀 | +3% | -4% | 80% |
+| BEAR | 강한 과매도 반등 (RSI7↑30) | +3% | -5% | 50% |
 
-### 3. Monitoring Updates (Mode A only)
-- **New Dashboards**:
-    - **CoinPilot Overview**: API Latency, Active Positions, Volatility Index 차트 추가
-    - **CoinPilot Trades**: Total PnL, Trade Count 통계
-- **K8s Deployment**:
-    - `bot-deployment.yaml`: Port 8000 노출 및 Service 추가
-    - `monitoring/`: Prometheus/Grafana에 ConfigMap(설정, 대시보드) 자동 마운트 적용
+### 3. 트레일링 스탑 (Trailing Stop) ⭐ NEW
+- **활성화**: 수익률 +1% 도달 시
+- **청산**: 최고점(HWM) 대비 2~3%(레짐별) 하락 시
+- **HWM 저장**: Redis(실시간) + DB(영구)
+
+### 4. 조건부 RSI 청산
+- RSI 과매수(70/75)에서 **최소 수익률(0.5~1%)** 확보해야 청산
+- 조기 청산 방지
+
+### 5. DB 마이그레이션 (최초 1회 필요)
+```bash
+kubectl exec -it -n coin-pilot-ns db-0 -- psql -U postgres -d coinpilot -f - << 'EOF'
+BEGIN;
+CREATE TABLE IF NOT EXISTS regime_history (...);
+ALTER TABLE trading_history ADD COLUMN IF NOT EXISTS regime VARCHAR(10);
+ALTER TABLE positions ADD COLUMN IF NOT EXISTS high_water_mark DECIMAL(20,8);
+COMMIT;
+EOF
+```
+> 상세 SQL은 `migrations/v3_0_regime_trading.sql` 참조
+
+### 6. 기존 기능 유지
+- **멀티 코인**: BTC, ETH, XRP, SOL, DOGE (5개)
+- **Volatility Scheduler**: 매일 00:05 UTC 재학습
+- **Monitoring**: Grafana 대시보드 (CoinPilot Overview, Trades)
 
 ---
 
@@ -124,16 +143,16 @@ PYTHONPATH=. streamlit run src/dashboard/app.py
 ```
 * 접속: [http://localhost:8501](http://localhost:8501)
 
-### 2.3 대시보드 기능 (Week 8 Updated)
+### 2.3 대시보드 기능 (v3.0 Updated)
 | 페이지 | 기능 |
 |--------|------|
 | **Overview** | 총 자산, PnL, 보유 포지션 |
-| **Market** | Plotly 캔들차트, **멀티 코인 선택 드롭다운**, Bot Brain(Reasoning) |
+| **Market** | 캔들차트, **마켓 레짐 표시(🟢/🟡/🔴)**, HWM, Bot Brain |
 | **Risk** | 일일 손실 한도, 거래 횟수 제한, 쿨다운 |
 | **History** | 거래 내역 필터링, 매수/매도 비율 |
 | **System** | DB/Redis/n8n 연결 상태 |
 
-> 💡 **Week 8**: Market 페이지에서 BTC/ETH/XRP/SOL/DOGE 중 선택 가능 (기본값: BTC)
+> 💡 **v3.0**: Market 페이지에서 현재 마켓 레짐(BULL/SIDEWAYS/BEAR)과 트레일링 스탑 HWM 확인 가능
 
 ---
 
@@ -206,5 +225,6 @@ docker-compose -f deploy/docker-compose.yml stop
 |------|------|
 | [USER_MANUAL.md](USER_MANUAL.md) | 대시보드 사용법 및 긴급 대응 |
 | [FAILURE_ANALYSIS.md](FAILURE_ANALYSIS.md) | 장애 유형별 대응 플레이북 |
+| [work-plans/coinpilot_v3_strategy.md](work-plans/coinpilot_v3_strategy.md) | v3.0 전략 설계 문서 |
+| [work-result/coinpilot_v3_implementation_report.md](work-result/coinpilot_v3_implementation_report.md) | v3.0 구현 결과 보고서 |
 | [troubleshooting/week6-ts.md](troubleshooting/week6-ts.md) | 대시보드 개발 트러블슈팅 |
-| [work-result/week8-deployment-guide.md](work-result/week8-deployment-guide.md) | Week 8 배포 및 롤백 가이드 |

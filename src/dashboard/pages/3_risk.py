@@ -97,9 +97,9 @@ st.markdown("---")
 # 3. Risk Audit Logs (최근 리스크 이벤트)
 st.subheader("📜 Risk Log History")
 audit_df = get_data_as_dataframe("""
-    SELECT timestamp, violation_type, description 
-    FROM risk_audit 
-    ORDER BY timestamp DESC 
+    SELECT timestamp + interval '9 hours' as timestamp, violation_type, description
+    FROM risk_audit
+    ORDER BY timestamp DESC
     LIMIT 20
 """)
 

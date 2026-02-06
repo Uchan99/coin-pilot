@@ -96,14 +96,26 @@ class PaperTradingExecutor:
                 res = await session.execute(stmt)
                 existing_pos = res.scalar_one_or_none()
                 
+                # 레짐 정보 및 초기 HWM 설정
+                regime = signal_info.get("regime")
+                
                 if existing_pos:
                     # 평균 단가 계산 및 수량 업데이트
                     new_qty = existing_pos.quantity + quantity
                     new_avg_price = (existing_pos.avg_price * existing_pos.quantity + price * quantity) / new_qty
                     existing_pos.quantity = new_qty
                     existing_pos.avg_price = new_avg_price
+                    existing_pos.regime = regime
+                    # 추가 매수 시 HWM은 합산 후 가격 또는 현재가 중 높은 것으로 갱신 가능하나 일단 현재가로 갱신
+                    existing_pos.high_water_mark = price if price > existing_pos.high_water_mark else existing_pos.high_water_mark
                 else:
-                    new_pos = Position(symbol=symbol, quantity=quantity, avg_price=price)
+                    new_pos = Position(
+                        symbol=symbol, 
+                        quantity=quantity, 
+                        avg_price=price,
+                        regime=regime,
+                        high_water_mark=price
+                    )
                     session.add(new_pos)
                     
             elif side == "SELL":
@@ -137,6 +149,9 @@ class PaperTradingExecutor:
                 status="FILLED",
                 strategy_name=strategy_name,
                 signal_info=signal_info,
+                regime=signal_info.get("regime"),
+                high_water_mark=signal_info.get("new_hwm") or price,
+                exit_reason=signal_info.get("exit_reason") if side == "SELL" else None,
                 executed_at=datetime.now(timezone.utc)
             )
             session.add(history)

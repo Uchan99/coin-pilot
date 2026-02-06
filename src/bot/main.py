@@ -7,13 +7,14 @@ from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 import pandas as pd
+import numpy as np
 import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 import uvicorn
 
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, update
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -41,58 +42,59 @@ signal.signal(signal.SIGINT, handle_sigterm)
 def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = True, risk_reason: str = None) -> str:
     """
     봇의 판단 근거를 사람이 읽기 쉬운 문장으로 생성합니다.
-    통과된 조건도 함께 표시하여 현재 상태를 명확히 파악할 수 있도록 합니다.
+    v3.0 마켓 레짐 기반 전략에 맞게 업데이트됨.
     """
+    regime = indicators.get("regime", "UNKNOWN")
+    
     if pos:
         pnl_pct = (indicators["close"] - pos["avg_price"]) / pos["avg_price"] * 100
-        return f"포지션 보유 중 (수익률: {pnl_pct:.2f}%) - 매도 조건 감시 중"
+        hwm = pos.get("high_water_mark", pos["avg_price"])
+        return f"[{regime}] 포지션 보유 중 (수익률: {pnl_pct:.2f}%, HWM 대비: {(indicators['close']-hwm)/hwm*100:.2f}%)"
 
     if not risk_valid:
-        return f"진입 보류: {risk_reason}"
+        return f"[{regime}] 진입 보류: {risk_reason}"
 
-    # 전략 조건 상세 분석
+    if regime == "UNKNOWN":
+        return "데이터 수집 중: 레짐 판단 대기 (약 8.3일치 데이터 필요)"
+
+    # 전략 조건 상세 분석 (v3.0)
     rsi = indicators.get("rsi", 0)
-    ma_trend = indicators.get("ma_trend", 0)  # ma_200 -> ma_trend
-    bb_lower = indicators.get("bb_lower", 0)
+    rsi_short = indicators.get("rsi_short", 0)
+    rsi_short_prev = indicators.get("rsi_short_prev", 0)
+    ma_trend = indicators.get("ma_trend", 0)
     vol_ratio = indicators.get("vol_ratio", 0)
     close = indicators.get("close", 0)
-    ma_period = config.MA_TREND_PERIOD  # config에서 MA 기간 가져오기
+    
+    regime_config = config.REGIMES.get(regime)
+    if not regime_config:
+        return f"[{regime}] 설정 로드 실패"
+        
+    entry_config = regime_config["entry"]
+    passed = [f"Market Regime: {regime}"]
 
-    # 데이터 부족 체크
-    if ma_trend == 0 or bb_lower == 0:
-        return f"데이터 수집 중: 지표 계산 대기 ({ma_period}봉 필요)"
+    # 1. RSI(14) 체크
+    if rsi > entry_config["rsi_14_max"]:
+        return f"[{regime}] 관망 중: RSI14({rsi:.1f}) > {entry_config['rsi_14_max']}"
+    passed.append(f"✓ RSI14({rsi:.1f}) ≤ {entry_config['rsi_14_max']}")
 
-    # 통과된 조건들을 누적
-    passed = []
+    # 2. RSI(7) 체크
+    is_rsi_short_recovery = (rsi_short_prev < entry_config["rsi_7_trigger"]) and (rsi_short >= entry_config["rsi_7_recover"])
+    if not is_rsi_short_recovery:
+        return f"[{regime}] 반등 대기: RSI7({rsi_short:.1f}) (이전: {rsi_short_prev:.1f}, 목표: ↑{entry_config['rsi_7_recover']})"
+    passed.append(f"✓ RSI7({rsi_short:.1f}) ↑{entry_config['rsi_7_recover']} 돌파")
 
-    # 1. RSI Check (config 기반)
-    rsi_threshold = config.RSI_OVERSOLD
-    if rsi > rsi_threshold:
-        return f"관망 중: RSI({rsi:.1f}) > {rsi_threshold} (과매도 아님)"
-    passed.append(f"✓ RSI({rsi:.1f}) < {rsi_threshold}")
-
-    # 2. Trend Check (MA - config 기반)
-    if close <= ma_trend:
-        passed_str = "\n".join(passed) if passed else ""
-        return f"진입 대기: 하락 추세 (현재가 {close:,.0f} ≤ MA{ma_period} {ma_trend:,.0f})\n{passed_str}"
-    passed.append(f"✓ 추세(Price > MA{ma_period})")
-
-    # 3. Volume Check (config 기반) - BB보다 먼저 체크 (BB는 선택적이므로)
-    vol_threshold = config.VOLUME_MULTIPLIER
-    if vol_ratio <= vol_threshold:
-        passed_str = "\n".join(passed) if passed else ""
-        return f"진입 대기: 거래량 부족 (Vol/Avg: {vol_ratio:.2f}x ≤ {vol_threshold}x)\n{passed_str}"
-    passed.append(f"✓ 거래량({vol_ratio:.2f}x)")
-
-    # 4. BB Check (선택적 - config.USE_BB_CONDITION이 True인 경우만)
-    if config.USE_BB_CONDITION:
-        if close > bb_lower:
-            passed_str = "\n".join(passed) if passed else ""
-            return f"진입 대기: 아직 저점 아님 (현재가 {close:,.0f} > BB하단 {bb_lower:,.0f})\n{passed_str}"
-        passed.append(f"✓ BB하단 터치")
+    # 3. MA 체크
+    if entry_config["ma_condition"] == "crossover":
+        if close <= ma_trend:
+            return f"[{regime}] 추세 대기: 현재가({close:,.0f}) ≤ MA20({ma_trend:,.0f})"
+    elif entry_config["ma_condition"] == "proximity":
+        prox = entry_config.get("ma_proximity_pct", 0.97)
+        if close < ma_trend * prox:
+            return f"[{regime}] 추세 대기: 현재가({close:,.0f}) < MA20x{prox}({ma_trend*prox:,.0f})"
+    passed.append(f"✓ {entry_config['ma_condition']} 필터 통과")
 
     passed_str = "\n".join(passed)
-    return f"✅ 진입 조건 충족! AI 검증 대기 중...\n{passed_str}"
+    return f"✅ [{regime}] 진입 조건 충족! AI 검증 대기 중...\n{passed_str}"
 
 
 async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataFrame:
@@ -181,8 +183,8 @@ async def bot_loop():
                         # -----------------------------------------------------------
                         df = await get_recent_candles(session, symbol)
                         
-                        # 데이터 부족 시 스킵 (MA 기간 + 여유분)
-                        min_data_required = config.MA_TREND_PERIOD + 20  # MA 기간 + BB/RSI 여유분
+                        # 데이터 부족 시 스킵 (MA20 기간 + BB/RSI 여유분)
+                        min_data_required = 20 + 20  # MA(20) + 여유분
                         if len(df) < min_data_required:
                             # 잦은 로그 방지를 위해 print는 생략하거나 조건부 출력
                             # print(f"[-] {symbol}: Not enough data ({len(df)} < {min_data_required}). Waiting...")
@@ -208,10 +210,25 @@ async def bot_loop():
                             continue
 
                         # -------------------------------------------------------
-                        # Step 2. Market Analysis (지표 계산)
+                        # Step 2. Market Analysis (지표 계산 & 레짐 조회)
                         # -------------------------------------------------------
-                        indicators = get_all_indicators(df, ma_period=config.MA_TREND_PERIOD)
+                        # Redis에서 현재 레짐 조회 (없으면 UNKNOWN)
+                        regime = "UNKNOWN"
+                        if redis_client:
+                            regime = await redis_client.get(f"market:regime:{symbol}") or "UNKNOWN"
+                        
+                        indicators = get_all_indicators(df)
+                        indicators["regime"] = regime
                         current_price = Decimal(str(indicators["close"]))
+                        
+                        # 횡보장일 경우 BB 터치 리커버리 별도 계산 (v3.0 계획)
+                        if regime == "SIDEWAYS":
+                            from src.common.indicators import resample_to_hourly, calculate_bb, check_bb_touch_recovery
+                            hourly_df = resample_to_hourly(df)
+                            if len(hourly_df) >= 20:
+                                bb = calculate_bb(hourly_df['close'], period=20)
+                                hourly_df['bb_lower'] = bb['BBL']
+                                indicators["bb_touch_recovery"] = check_bb_touch_recovery(hourly_df)
                         
                         # -------------------------------------------------------
                         # Step 3. Position & Signal Check
@@ -230,18 +247,40 @@ async def bot_loop():
                             if should_exit:
                                 bot_action = "SELL"
                                 print(f"[{symbol}] Exit Triggered: {exit_reason}")
+                                
+                                # signal_info에 청산 사유 및 최종 HWM 추가
+                                signal_info = {
+                                    **indicators,
+                                    "exit_reason": exit_reason,
+                                    "regime": pos["regime"]
+                                }
+                                
                                 success = await executor.execute_order(
                                     session, symbol, "SELL", 
                                     current_price, pos["quantity"], 
                                     strategy.name, 
-                                    {"reason": exit_reason, "indicators": indicators}
+                                    signal_info
                                 )
                                 if success:
                                     # 리스크 상태 업데이트 (PnL 반영)
                                     pnl = (current_price - pos["avg_price"]) * pos["quantity"]
                                     await risk_manager.update_after_trade(session, pnl)
-                                    print(f"[+] {symbol} Trade Closed. PnL: {pnl:,.0f} KRW")
+                                    # Redis의 HWM 삭제
+                                    if redis_client:
+                                        await redis_client.delete(f"position:{symbol}:hwm")
+                                    print(f"[+] {symbol} Trade Closed. Reason: {exit_reason}, PnL: {pnl:,.0f} KRW")
                                     metrics.trade_count.inc()
+                            else:
+                                # 청산 안 됐을 때 HWM 업데이트 (Redis)
+                                if redis_client and indicators.get("new_hwm"):
+                                    await redis_client.set(f"position:{symbol}:hwm", str(indicators["new_hwm"]))
+                                    # DB 업데이트 (주기적으로 하거나 청산 시 최종 기록)
+                                    await session.execute(
+                                        update(Position).where(Position.symbol == symbol).values(
+                                            high_water_mark=indicators["new_hwm"],
+                                            updated_at=datetime.now(timezone.utc)
+                                        )
+                                    )
                             
                             bot_reason = build_status_reason(indicators, pos, config)
 
@@ -260,13 +299,18 @@ async def bot_loop():
                                 
                                 if is_valid:
                                     bot_action = "BUY"
+                                    # 레짐별 포지션 사이징 적용 (v3.0)
+                                    regime_ratio = config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
+                                    actual_invest_amount = invest_amount * Decimal(str(regime_ratio))
+                                    
                                     # 수량 계산 (투자금 / 현재가)
-                                    quantity = invest_amount / current_price
+                                    quantity = actual_invest_amount / current_price
                                     if quantity > 0:
                                         market_context = df.tail(10).to_dict(orient="records")
                                         signal_info = {
                                             **indicators,
-                                            "market_context": market_context
+                                            "market_context": market_context,
+                                            "regime": regime
                                         }
                                         await executor.execute_order(
                                             session, symbol, "BUY", 
@@ -290,17 +334,18 @@ async def bot_loop():
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                                 "symbol": symbol,
                                 "current_price": float(current_price),
+                                "regime": regime,
                                 "indicators": {
                                     "rsi": float(indicators.get("rsi", 0)),
-                                    "bb_upper": float(indicators.get("bb_upper", 0)),
-                                    "bb_lower": float(indicators.get("bb_lower", 0)),
-                                    "ma_trend": float(indicators.get("ma_trend", 0))
+                                    "ma_trend": float(indicators.get("ma_trend", 0)),
+                                    "hwm": float(indicators.get("new_hwm", 0))
                                 },
                                 "position": {
                                     "has_position": bool(pos),
                                     "avg_price": float(pos["avg_price"]) if pos else None,
                                     "quantity": float(pos["quantity"]) if pos else None,
-                                    "pnl_pct": float((current_price - pos["avg_price"])/pos["avg_price"]*100) if pos else 0.0
+                                    "pnl_pct": float((current_price - pos["avg_price"])/pos["avg_price"]*100) if pos else 0.0,
+                                    "regime": pos.get("regime") if pos else None
                                 },
                                 "action": bot_action,
                                 "reason": bot_reason
@@ -334,6 +379,50 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.analytics.volatility_model import VolatilityModel
 
 # ... existing code ...
+
+async def update_regime_job():
+    """
+    1시간마다 마켓 레짐 업데이트 (v3.0)
+    """
+    print("[Scheduler] Updating Market Regime...")
+    config = get_config()
+    try:
+        async with get_db_session() as session:
+            redis_client = await get_redis_client()
+            for symbol in config.SYMBOLS:
+                # 1. 1시간봉 계산을 위해 충분한 1분봉 데이터 조회
+                df_1m = await get_recent_candles(session, symbol, limit=200 * 60) # 200시간어치
+                if len(df_1m) < config.MIN_HOURLY_CANDLES_FOR_REGIME:
+                    await redis_client.set(f"market:regime:{symbol}", "UNKNOWN", ex=3900)
+                    continue
+                
+                # 2. 리샘플링 및 MA 계산
+                from src.common.indicators import resample_to_hourly, calculate_ma, detect_regime
+                df_1h = resample_to_hourly(df_1m)
+                ma50 = calculate_ma(df_1h['close'], period=50).iloc[-1]
+                ma200 = calculate_ma(df_1h['close'], period=200).iloc[-1]
+                
+                # 3. 레짐 판단
+                regime = detect_regime(ma50, ma200)
+                
+                # 4. Redis 캐싱
+                await redis_client.set(f"market:regime:{symbol}", regime, ex=3900)
+                
+                # 5. DB 기록 (레짐 변경 시 또는 주기적)
+                from src.common.models import RegimeHistory
+                diff_pct = float((ma50 - ma200) / ma200 * 100) if ma200 else 0
+                history = RegimeHistory(
+                    regime=regime,
+                    ma50=Decimal(str(ma50)) if not np.isnan(ma50) else None,
+                    ma200=Decimal(str(ma200)) if not np.isnan(ma200) else None,
+                    diff_pct=Decimal(str(diff_pct)),
+                    coin_symbol=symbol
+                )
+                session.add(history)
+                print(f"[Scheduler] {symbol} Regime: {regime} (diff: {diff_pct:.2f}%)")
+                
+    except Exception as e:
+        print(f"[Scheduler] Regime Update Failed: {e}")
 
 async def retrain_volatility_job():
     """
@@ -369,9 +458,19 @@ async def lifespan(app: FastAPI):
     # Scheduler Setup
     scheduler = AsyncIOScheduler()
     # 매일 00:05 UTC에 실행
-    scheduler.add_job(retrain_volatility_job, 'cron', hour=0, minute=5, timezone=timezone.utc)
+    scheduler.add_job(retrain_volatility_job, 'cron', hour=0, minute=5, timezone=timezone.utc,
+                      misfire_grace_time=3600, coalesce=True)
+    # 1시간마다 레짐 업데이트 (v3.0)
+    # misfire_grace_time: 작업이 지연되어도 이 시간(초) 내면 실행 (기본 1초 -> 300초로 변경)
+    # coalesce: 놓친 작업들을 하나로 합쳐서 실행
+    scheduler.add_job(update_regime_job, 'interval', hours=1,
+                      misfire_grace_time=300, coalesce=True)
     scheduler.start()
-    print("[*] Scheduler started.")
+    
+    # 서버 기동 직후 즉시 레짐 업데이트 1회 실행
+    asyncio.create_task(update_regime_job())
+    
+    print("[*] Scheduler started (Regime job added).")
     
     # Startup Bot Loop
     task = asyncio.create_task(bot_loop())

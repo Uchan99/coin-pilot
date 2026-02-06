@@ -25,8 +25,8 @@
                 "bodyParameters": {
                     "parameters": [
                         {
-                            "name": "content",
-                            "value": "={{ \"⚠️ Risk Alert!\\n\" + \"Type: \" + $json[\"type\"] + \"\\n\" + \"Level: \" + $json[\"level\"] + \"\\n\" + \"Message: \" + $json[\"message\"] }}"
+                            "name": "embeds",
+                            "value": "={{ [ { \"title\": \"⚠️ Risk Alert: \" + $json[\"type\"], \"color\": ($json[\"level\"] === \"CRITICAL\" ? 15158332 : 16776960), \"fields\": [ { \"name\": \"🚨 Level\", \"value\": $json[\"level\"], \"inline\": true }, { \"name\": \"📋 Type\", \"value\": $json[\"type\"], \"inline\": true } ], \"description\": $json[\"message\"], \"footer\": { \"text\": \"CoinPilot Risk Manager\" }, \"timestamp\": new Date().toISOString() } ] }}"
                         }
                     ]
                 },

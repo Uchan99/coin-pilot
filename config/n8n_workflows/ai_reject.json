@@ -1,10 +1,10 @@
 {
-    "name": "Trade Notification",
+    "name": "AI Reject Notification",
     "nodes": [
         {
             "parameters": {
                 "httpMethod": "POST",
-                "path": "trade",
+                "path": "ai-reject",
                 "responseMode": "onReceived",
                 "options": {}
             },
@@ -26,7 +26,7 @@
                     "parameters": [
                         {
                             "name": "embeds",
-                            "value": "={{ [ { \"title\": ($json[\"side\"] === \"BUY\" ? \"🟢\" : \"🔴\") + \" Trade Executed: \" + $json[\"side\"], \"color\": ($json[\"side\"] === \"BUY\" ? 5763719 : 15548997), \"fields\": [ { \"name\": \"🪙 Symbol\", \"value\": $json[\"symbol\"], \"inline\": true }, { \"name\": \"💰 Price\", \"value\": String($json[\"price\"]).replace(/\\B(?=(\\d{3})+(?!\\d))/g, \",\") + \" KRW\", \"inline\": true }, { \"name\": \"📊 Quantity\", \"value\": String($json[\"quantity\"]), \"inline\": true } ], \"footer\": { \"text\": \"CoinPilot v3.0\" }, \"timestamp\": new Date().toISOString() } ] }}"
+                            "value": "={{ [ { \"title\": \"🤖 AI Decision: REJECT\", \"color\": 15158332, \"fields\": [ { \"name\": \"🪙 Symbol\", \"value\": $json[\"symbol\"], \"inline\": true }, { \"name\": \"📊 Regime\", \"value\": $json[\"regime\"], \"inline\": true }, { \"name\": \"📈 RSI\", \"value\": String($json[\"rsi\"]), \"inline\": true } ], \"description\": $json[\"reason\"].substring(0, 500), \"footer\": { \"text\": \"CoinPilot AI Agent\" }, \"timestamp\": $json[\"timestamp\"] } ] }}"
                         }
                     ]
                 },

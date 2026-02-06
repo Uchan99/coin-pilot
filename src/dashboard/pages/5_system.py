@@ -66,7 +66,7 @@ st.markdown("---")
 st.subheader("Recent AI Agent Decisions")
 
 decisions_df = get_data_as_dataframe("""
-    SELECT created_at, symbol, decision, reasoning, confidence, model_used
+    SELECT created_at + interval '9 hours' as created_at, symbol, decision, reasoning, confidence, model_used
     FROM agent_decisions
     ORDER BY created_at DESC
     LIMIT 10
@@ -83,7 +83,7 @@ st.markdown("---")
 st.subheader("Risk Audit Logs")
 
 audit_df = get_data_as_dataframe("""
-    SELECT timestamp, violation_type, description
+    SELECT timestamp + interval '9 hours' as timestamp, violation_type, description
     FROM risk_audit
     ORDER BY timestamp DESC
     LIMIT 10

@@ -44,6 +44,9 @@ class TradingHistory(Base):
     status = Column(String(20), nullable=False)  # FILLED, CANCELLED, PENDING
     strategy_name = Column(String(50), nullable=True, index=True)  # 전략 이름
     signal_info = Column(JSONB, nullable=True)  # 진입 당시 지표 정보 (RSI, BB 등)
+    regime = Column(String(10), nullable=True)  # 진입 시 레짐
+    high_water_mark = Column(Numeric(20, 8), nullable=True)  # 청산 시점 최고가
+    exit_reason = Column(String(30), nullable=True)  # 청산 사유
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -115,8 +118,24 @@ class Position(Base):
     symbol = Column(String(20), primary_key=True)
     quantity = Column(Numeric(20, 8), nullable=False)
     avg_price = Column(Numeric(20, 8), nullable=False)
+    regime = Column(String(10), nullable=True)  # 진입 시 레짐
+    high_water_mark = Column(Numeric(20, 8), nullable=True)  # 보유 중 최고가 (실시간 갱신)
     opened_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class RegimeHistory(Base):
+    """
+    마켓 레짐 감지 이력 테이블
+    """
+    __tablename__ = "regime_history"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    detected_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+    regime = Column(String(10), nullable=False)  # BULL, SIDEWAYS, BEAR, UNKNOWN
+    ma50 = Column(Numeric(20, 8), nullable=True)
+    ma200 = Column(Numeric(20, 8), nullable=True)
+    diff_pct = Column(Numeric(10, 4), nullable=True)
+    coin_symbol = Column(String(10), nullable=False, default='BTC', index=True)
 
 class AgentDecision(Base):
     """

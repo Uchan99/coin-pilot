@@ -3,17 +3,13 @@
     "nodes": [
         {
             "parameters": {
-                "triggerTimes": {
-                    "item": [
-                        {
-                            "mode": "everyDay",
-                            "hour": 9
-                        }
-                    ]
-                }
+                "httpMethod": "POST",
+                "path": "daily-report",
+                "responseMode": "onReceived",
+                "options": {}
             },
-            "name": "Cron",
-            "type": "n8n-nodes-base.cron",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
             "typeVersion": 1,
             "position": [
                 250,
@@ -29,8 +25,8 @@
                 "bodyParameters": {
                     "parameters": [
                         {
-                            "name": "content",
-                            "value": "={{ \"📅 Daily Report\\nStatus: Operating Normal\\nDate: \" + $today.format(\"YYYY-MM-DD\") }}"
+                            "name": "embeds",
+                            "value": "={{ [ { \"title\": $json[\"title\"], \"color\": 3447003, \"fields\": [ { \"name\": \"💰 Total PnL\", \"value\": $json[\"pnl\"], \"inline\": true }, { \"name\": \"📊 Trades\", \"value\": String($json[\"trades\"]) + \"건\", \"inline\": true }, { \"name\": \"🎯 Win Rate\", \"value\": $json[\"win_rate\"], \"inline\": true }, { \"name\": \"📉 MDD\", \"value\": $json[\"mdd\"], \"inline\": true } ], \"description\": $json[\"summary\"], \"footer\": { \"text\": \"CoinPilot v3.0\" }, \"timestamp\": $json[\"timestamp\"] } ] }}"
                         }
                     ]
                 },
@@ -46,7 +42,7 @@
         }
     ],
     "connections": {
-        "Cron": {
+        "Webhook": {
             "main": [
                 [
                     {

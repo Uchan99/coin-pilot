@@ -1,10 +1,13 @@
 """
-변경 전후 시그널 발생 횟수 비교
+변경 전후 시그널 발생 횟수 비교 (v2.5 듀얼 RSI 전략)
 파일: scripts/backtest_signal_count.py
 실행: PYTHONPATH=. python scripts/backtest_signal_count.py
 
-참고: get_all_indicators()는 마지막 행의 Dict만 반환하므로,
-      시그널 카운팅을 위해 지표를 직접 계산합니다.
+v2.5 전략:
+- RSI(14) < 40: 중기 과매도 확인
+- RSI(7) 30 상향 돌파: 반등 모멘텀 확인
+- Price >= MA(20) × 0.97: MA 근처 진입 허용
+- Volume > 1.2x: 거래량 동반
 """
 import asyncio
 import pandas as pd
@@ -14,27 +17,38 @@ from src.common.db import get_db_session
 from src.common.models import MarketData
 from src.common.indicators import calculate_rsi, calculate_ma, calculate_bb
 
-def add_indicators_to_df(df: pd.DataFrame, ma_period: int = 50) -> pd.DataFrame:
+def add_indicators_to_df(df: pd.DataFrame, config: StrategyConfig) -> pd.DataFrame:
     """DataFrame에 지표 컬럼 추가 (전체 행에 대해)"""
     df = df.copy()
-    df['rsi'] = calculate_rsi(df['close'], period=14)
-    df['ma_trend'] = calculate_ma(df['close'], period=ma_period)  # config 기반 MA 기간
+
+    # RSI(14) 중기
+    df['rsi'] = calculate_rsi(df['close'], period=config.RSI_PERIOD)
+
+    # RSI(7) 단기 + 이전값
+    rsi_short_period = getattr(config, 'RSI_SHORT_PERIOD', 7)
+    df['rsi_short'] = calculate_rsi(df['close'], period=rsi_short_period)
+    df['rsi_short_prev'] = df['rsi_short'].shift(1)
+
+    # MA
+    df['ma_trend'] = calculate_ma(df['close'], period=config.MA_TREND_PERIOD)
+
+    # Bollinger Bands
     bb = calculate_bb(df['close'], period=20, std_dev=2.0)
     df['bb_lower'] = bb['BBL']
 
-    # vol_ratio는 rolling 계산 (indicators.py의 함수는 단일 시점용이라 여기서 직접 계산)
+    # Volume Ratio
     vol_ma_20 = df['volume'].rolling(window=20).mean()
     df['vol_ratio'] = df['volume'] / vol_ma_20
 
     return df
 
-def count_signals(df: pd.DataFrame, config: StrategyConfig) -> int:
-    """시그널 발생 횟수 계산"""
+def count_signals_old(df: pd.DataFrame, config: StrategyConfig) -> int:
+    """기존 단일 RSI 전략 시그널 카운트 (v2.4)"""
     signals = 0
     for _, row in df.dropna().iterrows():
         conditions = [
             row['rsi'] < config.RSI_OVERSOLD,
-            row['close'] > row['ma_trend'],  # ma_200 -> ma_trend
+            row['close'] > row['ma_trend'],
             row['vol_ratio'] > config.VOLUME_MULTIPLIER,
         ]
         if config.USE_BB_CONDITION:
@@ -44,8 +58,51 @@ def count_signals(df: pd.DataFrame, config: StrategyConfig) -> int:
             signals += 1
     return signals
 
-async def load_market_data(symbol: str, ma_period: int = 50, limit: int = 90*24*60) -> pd.DataFrame:
-    """DB에서 시장 데이터 로드 (limit: 분 단위)"""
+def count_signals_new(df: pd.DataFrame, config: StrategyConfig) -> tuple:
+    """v2.5 듀얼 RSI 전략 시그널 카운트"""
+    signals = 0
+    signal_details = []
+
+    ma_tolerance = getattr(config, 'MA_TOLERANCE', 0.97)
+    rsi_crossover = getattr(config, 'RSI_SHORT_CROSSOVER', 30)
+
+    for idx, row in df.dropna().iterrows():
+        # 조건 1: RSI(14) < 40
+        cond_rsi14 = row['rsi'] < config.RSI_OVERSOLD
+
+        # 조건 2: RSI(7) 30 상향 돌파
+        cond_rsi7_crossover = (row['rsi_short_prev'] < rsi_crossover) and (row['rsi_short'] >= rsi_crossover)
+
+        # 조건 3: Price >= MA(20) * 0.97
+        ma_threshold = row['ma_trend'] * ma_tolerance
+        cond_ma = row['close'] >= ma_threshold
+
+        # 조건 4: Volume > 1.2x
+        cond_vol = row['vol_ratio'] > config.VOLUME_MULTIPLIER
+
+        # BB 조건 (선택적)
+        if config.USE_BB_CONDITION:
+            cond_bb = row['close'] <= row['bb_lower']
+            all_conditions = cond_rsi14 and cond_rsi7_crossover and cond_ma and cond_vol and cond_bb
+        else:
+            all_conditions = cond_rsi14 and cond_rsi7_crossover and cond_ma and cond_vol
+
+        if all_conditions:
+            signals += 1
+            signal_details.append({
+                'timestamp': row.get('timestamp', idx),
+                'rsi14': row['rsi'],
+                'rsi7': row['rsi_short'],
+                'rsi7_prev': row['rsi_short_prev'],
+                'close': row['close'],
+                'ma_trend': row['ma_trend'],
+                'vol_ratio': row['vol_ratio']
+            })
+
+    return signals, signal_details
+
+async def load_market_data(symbol: str, config: StrategyConfig, limit: int = 90*24*60) -> pd.DataFrame:
+    """DB에서 시장 데이터 로드 (limit: 분 단위, 기본 3개월)"""
     async with get_db_session() as session:
         stmt = select(MarketData).where(
             MarketData.symbol == symbol
@@ -66,40 +123,78 @@ async def load_market_data(symbol: str, ma_period: int = 50, limit: int = 90*24*
         } for r in reversed(rows)]
 
         df = pd.DataFrame(data)
-        return add_indicators_to_df(df, ma_period=ma_period)
+        return add_indicators_to_df(df, config)
 
 async def main():
-    old_config = CONSERVATIVE_CONFIG
+    # 기존 조건 (v2.4 단순 RSI)
+    old_config = StrategyConfig(
+        RSI_OVERSOLD=40,
+        MA_TREND_PERIOD=20,
+        VOLUME_MULTIPLIER=1.2,
+        USE_BB_CONDITION=False
+    )
+
+    # 새 조건 (v2.5 듀얼 RSI)
     new_config = get_config()
 
-    print("=== 시그널 발생 비교 (최근 3개월) ===\n")
-    print(f"기존 조건: RSI<{old_config.RSI_OVERSOLD}, MA{old_config.MA_TREND_PERIOD}, Vol>{old_config.VOLUME_MULTIPLIER}x, BB={old_config.USE_BB_CONDITION}")
-    print(f"변경 조건: RSI<{new_config.RSI_OVERSOLD}, MA{new_config.MA_TREND_PERIOD}, Vol>{new_config.VOLUME_MULTIPLIER}x, BB={new_config.USE_BB_CONDITION}\n")
+    print("=" * 60)
+    print("시그널 발생 비교: v2.4 vs v2.5 듀얼 RSI 전략")
+    print("=" * 60)
+    print()
+    print("v2.4 조건 (단순 RSI):")
+    print(f"  - RSI(14) < {old_config.RSI_OVERSOLD}")
+    print(f"  - Price > MA({old_config.MA_TREND_PERIOD})")
+    print(f"  - Volume > {old_config.VOLUME_MULTIPLIER}x")
+    print()
+    print("v2.5 조건 (듀얼 RSI):")
+    print(f"  - RSI(14) < {new_config.RSI_OVERSOLD}")
+    print(f"  - RSI(7) {getattr(new_config, 'RSI_SHORT_CROSSOVER', 30)} 상향 돌파")
+    print(f"  - Price >= MA({new_config.MA_TREND_PERIOD}) × {getattr(new_config, 'MA_TOLERANCE', 0.97)}")
+    print(f"  - Volume > {new_config.VOLUME_MULTIPLIER}x")
+    print()
+    print("-" * 60)
 
     total_old, total_new = 0, 0
+    all_signal_details = []
+
     for symbol in new_config.SYMBOLS:
-        # 새 조건용 데이터 로드 (MA50)
-        df_new = await load_market_data(symbol, ma_period=new_config.MA_TREND_PERIOD)
-        if df_new.empty:
+        df = await load_market_data(symbol, new_config)
+        if df.empty:
             print(f"{symbol}: 데이터 없음")
             continue
 
-        if symbol == "KRW-BTC":
-            # 기존 조건용 데이터 로드 (MA200)
-            df_old = await load_market_data(symbol, ma_period=old_config.MA_TREND_PERIOD)
-            old_signals = count_signals(df_old, old_config)
-            total_old += old_signals
-            print(f"{symbol} (기존 MA{old_config.MA_TREND_PERIOD}): {old_signals}건")
+        data_days = len(df) / (24 * 60)  # 분 데이터 → 일 환산
 
-        new_signals = count_signals(df_new, new_config)
+        old_signals = count_signals_old(df, old_config)
+        new_signals, details = count_signals_new(df, new_config)
+
+        total_old += old_signals
         total_new += new_signals
-        print(f"{symbol} (변경 MA{new_config.MA_TREND_PERIOD}): {new_signals}건")
+        all_signal_details.extend([(symbol, d) for d in details])
 
-    print(f"\n총계: {total_old}건 → {total_new}건")
+        print(f"{symbol} ({data_days:.1f}일치 데이터):")
+        print(f"  v2.4 시그널: {old_signals}건")
+        print(f"  v2.5 시그널: {new_signals}건")
+        if old_signals > 0:
+            change = ((new_signals - old_signals) / old_signals) * 100
+            print(f"  변화: {change:+.1f}%")
+        print()
+
+    print("-" * 60)
+    print(f"총계: v2.4 {total_old}건 → v2.5 {total_new}건")
     if total_old > 0:
-        print(f"증가율: {total_new / total_old:.1f}배")
-    else:
-        print(f"증가율: ∞배 (기존 0건)")
+        print(f"변화율: {((total_new - total_old) / total_old) * 100:+.1f}%")
+
+    # 최근 시그널 상세 출력 (최대 5건)
+    if all_signal_details:
+        print()
+        print("-" * 60)
+        print("v2.5 시그널 상세 (최근 5건):")
+        for symbol, detail in all_signal_details[-5:]:
+            print(f"  [{symbol}] {detail['timestamp']}")
+            print(f"    RSI14: {detail['rsi14']:.1f}, RSI7: {detail['rsi7_prev']:.1f}→{detail['rsi7']:.1f}")
+            print(f"    Price: {detail['close']:,.0f}, MA×0.97: {detail['ma_trend']*0.97:,.0f}")
+            print(f"    Vol: {detail['vol_ratio']:.2f}x")
 
 if __name__ == "__main__":
     asyncio.run(main())

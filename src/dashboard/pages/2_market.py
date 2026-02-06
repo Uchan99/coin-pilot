@@ -68,25 +68,53 @@ limit = st.sidebar.slider("Candle Limit", 50, 500, 200)
 bot_status = get_bot_status(selected_symbol)
 with st.expander(f"🤖 Bot Brain: {selected_symbol} (Live Status)", expanded=True):
     if bot_status:
-        col1, col2, col3 = st.columns(3)
+        # 레짐 표시 (v3.0)
+        regime = bot_status.get("regime", "UNKNOWN")
+        regime_colors = {
+            "BULL": "🟢",
+            "SIDEWAYS": "🟡",
+            "BEAR": "🔴",
+            "UNKNOWN": "⚪"
+        }
+        regime_descriptions = {
+            "BULL": "상승장 - 풀백 매수 전략",
+            "SIDEWAYS": "횡보장 - Mean Reversion 전략",
+            "BEAR": "하락장 - 보수적 진입",
+            "UNKNOWN": "데이터 수집 중"
+        }
+        regime_icon = regime_colors.get(regime, "⚪")
+        regime_desc = regime_descriptions.get(regime, "")
+
+        st.markdown(f"### {regime_icon} Market Regime: **{regime}**")
+        st.caption(regime_desc)
+        st.divider()
+
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Action", bot_status.get("action", "UNKNOWN"))
         with col2:
             indicators = bot_status.get("indicators", {})
             st.metric("RSI (14)", f"{indicators.get('rsi', 0):.1f}")
         with col3:
+            # HWM 표시 (트레일링 스탑용)
+            hwm = indicators.get('hwm', 0)
+            if hwm > 0:
+                st.metric("HWM", f"{hwm:,.0f}")
+            else:
+                st.metric("HWM", "N/A")
+        with col4:
             # Freshness
             ts_str = bot_status.get("timestamp")
             if ts_str:
                 updated_at = datetime.datetime.fromisoformat(ts_str)
                 now = datetime.datetime.now(datetime.timezone.utc)
                 age = (now - updated_at).total_seconds()
-                
+
                 status_color = "normal"
                 if age > 120: status_color = "off" # 회색 (stale)
-                
+
                 st.metric("Last Update", f"{int(age)}s ago", delta="-Stale" if age > 120 else "Live", delta_color=status_color)
-        
+
         reason = bot_status.get('reason', 'No reasoning available').replace('\n', '  \n')
         st.info(f"💭 **Reasoning**:\n\n{reason}")
         
