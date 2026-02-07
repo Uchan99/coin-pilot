@@ -181,3 +181,25 @@ kubectl exec -it -n coin-pilot-ns db-0 -- psql -U postgres -d coinpilot -f - < m
 ```
 
 **참조**: [11_notification_and_timezone_improvements.md](../work-result/11_notification_and_timezone_improvements.md) - v3.1 전략 정교화 상세 내용
+
+---
+
+## 10. 레짐 데이터 소실 (TTL 이슈)
+
+### 증상
+- 스케줄러가 정상 동작함에도 불구하고, 간헐적으로 레짐이 `UNKNOWN`으로 바뀌거나 사라지는 현상 발생.
+- 로그상 에러는 없으나 Redis 키가 조회되지 않음.
+
+### 원인
+- 기존 TTL 설정이 `3900초`(1시간 5분)로 설정됨.
+- 레짐 업데이트 주기는 `1시간`(3600초).
+- 만약 스케줄러가 5분 이상 지연되거나(Grace Time), 실행 시간이 오래 걸리면 **다음 업데이트 전에 키가 만료(Expire)**되어버림.
+
+### 해결
+- TTL을 `7200초`(2시간)로 대폭 상향.
+- 한 번의 업데이트가 누락되더라도 이전 레짐 데이터가 유지되도록 안전장치 마련.
+
+```python
+# src/bot/main.py
+await redis_client.set(f"market:regime:{symbol}", regime, ex=7200)  # 기존 3900 -> 7200
+```

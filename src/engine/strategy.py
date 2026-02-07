@@ -74,18 +74,20 @@ class MeanReversionStrategy(BaseStrategy):
         super().__init__("AdaptiveMeanReversion")
         self.config = config or StrategyConfig()
 
-    def check_entry_signal(self, indicators: Dict) -> bool:
+    def check_entry_signal(self, indicators: Dict, debug: bool = False) -> bool:
         """
         레짐별 진입 신호 확인 (v3.1)
 
         v3.1 추가 조건:
-        - proximity_above: MA20 아래에 있되 97% 이내 (BEAR 전용)
+        - proximity_or_above: MA20 위 돌파 OR MA20 아래 3% 이내
         - min_rsi_7_bounce_pct: RSI(7) 최소 반등 폭 체크
         - require_price_above_bb_lower: BB 하단 아래 진입 금지 (Falling Knife 방지)
         - volume_min_ratio: 거래량 하한 조건
         - volume_surge_check: 거래량 급증 체크 (BEAR 전용)
         """
+        symbol = indicators.get("symbol", "UNKNOWN")
         regime = indicators.get("regime", "UNKNOWN")
+
         if regime == "UNKNOWN":
             return False
 
@@ -104,73 +106,91 @@ class MeanReversionStrategy(BaseStrategy):
         close = indicators.get("close")
         bb_lower = indicators.get("bb_lower")
 
-        # 기본 공통 조건 (RSI 14)
+        # 1. 기본 공통 조건 (RSI 14)
         if rsi_14 is None or rsi_14 > entry_config["rsi_14_max"]:
+            if debug:
+                print(f"[{symbol}] ❌ RSI14 조건 실패: {rsi_14:.1f} > {entry_config['rsi_14_max']}")
             return False
 
-        # RSI 7 반등 조건 (trigger -> recover)
+        # 2. RSI 7 반등 조건 (trigger -> recover)
         if None in [rsi_7, rsi_7_prev]:
             return False
         is_rsi_short_recovery = (rsi_7_prev < entry_config["rsi_7_trigger"]) and (rsi_7 >= entry_config["rsi_7_recover"])
         if not is_rsi_short_recovery:
+            if debug:
+                print(f"[{symbol}] ❌ RSI7 반등 조건 실패: prev={rsi_7_prev:.1f}, curr={rsi_7:.1f}, trigger<{entry_config['rsi_7_trigger']}, recover>={entry_config['rsi_7_recover']}")
             return False
 
-        # v3.1: RSI(7) 최소 반등 폭 체크
+        # 3. v3.1: RSI(7) 최소 반등 폭 체크
         min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
         if min_bounce_pct is not None:
             rsi_bounce = rsi_7 - rsi_7_prev
             if rsi_bounce < min_bounce_pct:
+                if debug:
+                    print(f"[{symbol}] ❌ RSI7 반등폭 부족: {rsi_bounce:.1f} < {min_bounce_pct}")
                 return False
 
-        # MA 조건 (crossover | proximity | proximity_above)
+        # 4. MA 조건 (crossover | proximity | proximity_or_above)
         if ma_20 is None:
             return False
 
         if entry_config["ma_condition"] == "crossover":
-            # 상승장: MA20 상향 돌파
             if close <= ma_20:
+                if debug:
+                    print(f"[{symbol}] ❌ MA20 crossover 실패: {close:,.0f} <= {ma_20:,.0f}")
                 return False
         elif entry_config["ma_condition"] == "proximity":
-            # 횡보장: MA20 근처 (proximity_pct 이상)
             proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
             if close < ma_20 * proximity_pct:
+                if debug:
+                    print(f"[{symbol}] ❌ MA20 proximity 실패: {close:,.0f} < {ma_20*proximity_pct:,.0f} ({proximity_pct*100:.0f}%)")
                 return False
         elif entry_config["ma_condition"] == "proximity_or_above":
-            # 하락장: MA20 위 돌파 OR MA20 아래 3% 이내
-            # - MA20 위에 있으면 → 통과 (강한 반등 신호)
-            # - MA20 아래에 있으면 → 97% 이내여야 통과 (너무 멀리 이탈하면 Falling Knife)
             proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
             if close < ma_20 * proximity_pct:
+                if debug:
+                    print(f"[{symbol}] ❌ MA20 proximity_or_above 실패: {close:,.0f} < {ma_20*proximity_pct:,.0f} ({proximity_pct*100:.0f}%)")
                 return False
 
-        # v3.1: BB 하단 체크 (Falling Knife 방지)
+        # 5. v3.1: BB 하단 체크 (Falling Knife 방지)
         if entry_config.get("require_price_above_bb_lower") and bb_lower is not None:
             if close < bb_lower:
+                if debug:
+                    print(f"[{symbol}] ❌ BB 하단 아래: {close:,.0f} < {bb_lower:,.0f}")
                 return False
 
-        # 거래량 상한 조건 (volume_ratio: 이 이상이어야 함)
+        # 6. 거래량 상한 조건 (volume_ratio: 이 이상이어야 함)
         if entry_config.get("volume_ratio") is not None:
             if vol_ratio is None or vol_ratio < entry_config["volume_ratio"]:
+                if debug:
+                    print(f"[{symbol}] ❌ 거래량 상한 미달: {vol_ratio:.2f} < {entry_config['volume_ratio']}")
                 return False
 
-        # v3.1: 거래량 하한 조건 (volume_min_ratio: 이 미만이면 진입 금지)
+        # 7. v3.1: 거래량 하한 조건 (volume_min_ratio: 이 미만이면 진입 금지)
         if entry_config.get("volume_min_ratio") is not None:
             if vol_ratio is None or vol_ratio < entry_config["volume_min_ratio"]:
+                if debug:
+                    print(f"[{symbol}] ❌ 거래량 하한 미달: {vol_ratio:.2f} < {entry_config['volume_min_ratio']}")
                 return False
 
-        # v3.1: 거래량 급증 체크 (하락장 전용 - 패닉 셀링 감지)
+        # 8. v3.1: 거래량 급증 체크 (하락장 전용 - 패닉 셀링 감지)
         if entry_config.get("volume_surge_check"):
             vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
             recent_vol_ratios = indicators.get("recent_vol_ratios", [])
-            # 직전 3캔들 중 평균 대비 surge_ratio 이상 급증한 캔들이 있으면 진입 보류
             if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
+                if debug:
+                    print(f"[{symbol}] ❌ 거래량 급증 감지: {recent_vol_ratios[-3:]} (threshold: {vol_surge_ratio})")
                 return False
 
-        # 횡보장 전용 BB 터치 회복 조건
+        # 9. 횡보장 전용 BB 터치 회복 조건
         if regime == "SIDEWAYS" and entry_config.get("bb_enabled"):
             if not indicators.get("bb_touch_recovery", False):
+                if debug:
+                    print(f"[{symbol}] ❌ BB 터치 회복 미확인")
                 return False
 
+        if debug:
+            print(f"[{symbol}] ✅ 모든 진입 조건 충족!")
         return True
 
     def get_adjusted_exit_config(self, entry_regime: str, current_regime: str) -> Dict:

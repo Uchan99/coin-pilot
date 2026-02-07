@@ -77,11 +77,18 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
         return f"[{regime}] 관망 중: RSI14({rsi:.1f}) > {entry_config['rsi_14_max']}"
     passed.append(f"✓ RSI14({rsi:.1f}) ≤ {entry_config['rsi_14_max']}")
 
-    # 2. RSI(7) 체크
-    is_rsi_short_recovery = (rsi_short_prev < entry_config["rsi_7_trigger"]) and (rsi_short >= entry_config["rsi_7_recover"])
+    # 2. RSI(7) 체크 - 과매도 진입 후 반등 조건
+    trigger = entry_config["rsi_7_trigger"]
+    recover = entry_config["rsi_7_recover"]
+    is_rsi_short_recovery = (rsi_short_prev < trigger) and (rsi_short >= recover)
     if not is_rsi_short_recovery:
-        return f"[{regime}] 반등 대기: RSI7({rsi_short:.1f}) (이전: {rsi_short_prev:.1f}, 목표: ↑{entry_config['rsi_7_recover']})"
-    passed.append(f"✓ RSI7({rsi_short:.1f}) ↑{entry_config['rsi_7_recover']} 돌파")
+        if rsi_short_prev >= trigger:
+            # 아직 과매도 영역에 진입하지 않음
+            return f"[{regime}] 과매도 대기: RSI7({rsi_short:.1f}) - {trigger} 이하 진입 필요 (현재 이전값: {rsi_short_prev:.1f})"
+        else:
+            # 과매도 진입했지만 아직 반등 미확인
+            return f"[{regime}] 반등 대기: RSI7({rsi_short:.1f}) - {recover} 이상 반등 필요 (이전: {rsi_short_prev:.1f})"
+    passed.append(f"✓ RSI7 과매도({trigger}) 진입 후 반등({recover}) 확인")
 
     # 3. MA 체크
     if entry_config["ma_condition"] == "crossover":
@@ -219,6 +226,7 @@ async def bot_loop():
                         
                         indicators = get_all_indicators(df)
                         indicators["regime"] = regime
+                        indicators["symbol"] = symbol  # 디버깅용
                         current_price = Decimal(str(indicators["close"]))
                         
                         # 횡보장일 경우 BB 터치 리커버리 별도 계산 (v3.0 계획)
@@ -286,7 +294,9 @@ async def bot_loop():
 
                         else:
                             # [Case B] 포지션 미보유 -> 진입(Entry) 체크
-                            if strategy.check_entry_signal(indicators):
+                            # DEBUG_ENTRY=1 환경변수로 진입 조건 디버깅 활성화
+                            debug_entry = os.getenv("DEBUG_ENTRY", "0") == "1"
+                            if strategy.check_entry_signal(indicators, debug=debug_entry):
                                 print(f"[{symbol}] Entry Signal Detected!")
                                 
                                 # 리스크 관리 검증
@@ -393,7 +403,7 @@ async def update_regime_job():
                 # 1. 1시간봉 계산을 위해 충분한 1분봉 데이터 조회
                 df_1m = await get_recent_candles(session, symbol, limit=200 * 60) # 200시간어치
                 if len(df_1m) < config.MIN_HOURLY_CANDLES_FOR_REGIME:
-                    await redis_client.set(f"market:regime:{symbol}", "UNKNOWN", ex=3900)
+                    await redis_client.set(f"market:regime:{symbol}", "UNKNOWN", ex=7200)
                     continue
                 
                 # 2. 리샘플링 및 MA 계산
@@ -406,7 +416,7 @@ async def update_regime_job():
                 regime = detect_regime(ma50, ma200)
                 
                 # 4. Redis 캐싱
-                await redis_client.set(f"market:regime:{symbol}", regime, ex=3900)
+                await redis_client.set(f"market:regime:{symbol}", regime, ex=7200)
                 
                 # 5. DB 기록 (레짐 변경 시 또는 주기적)
                 from src.common.models import RegimeHistory
