@@ -100,24 +100,36 @@ class DailyReporter:
         }
 
     async def _generate_llm_summary(self, data: Dict[str, Any]) -> str:
+        """
+        LLM을 사용하여 일간 리포트 요약 생성
+        
+        PromptTemplate은 {variable_name} 형식만 지원하므로,
+        딕셔너리 데이터를 개별 변수로 풀어서 전달합니다.
+        """
         prompt = PromptTemplate(
-            input_variables=["data"],
+            input_variables=["date", "total_pnl", "trade_count"],
             template="""
             당신은 가상화폐 매매 봇 CoinPilot의 운영자입니다.
             오늘의 매매 결과를 바탕으로 사용자에게 보낼 3줄 이내의 요약 브리핑을 작성해주세요.
             
             [매매 데이터]
-            - 날짜: {data['date']}
-            - 총 손익: {data['total_pnl']} USDT
-            - 거래 횟수: {data['trade_count']}회
+            - 날짜: {date}
+            - 총 손익: {total_pnl} USDT
+            - 거래 횟수: {trade_count}회
             
             톤앤매너: 전문적이지만 친절하게. 이모지 사용 가능.
             결과가 좋으면 칭찬하고, 나쁘면 리스크 관리가 잘 되었음을 강조하세요.
             """
         )
         chain = prompt | self.llm
-        response = await chain.ainvoke({"data": data})
+        # 딕셔너리를 개별 변수로 풀어서 전달
+        response = await chain.ainvoke({
+            "date": data["date"],
+            "total_pnl": data["total_pnl"],
+            "trade_count": data["trade_count"]
+        })
         return response.content
+
 
 # 실행 예시 (Main loop 등에서 호출)
 # reporter = DailyReporter(session_factory)

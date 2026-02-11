@@ -1,4 +1,4 @@
-# CoinPilot Project Plan v3.0
+# CoinPilot Project Plan v3.1
 **Kubernetes 기반 자율 가상화폐 매매 AI 에이전트**
 *(Rule-Based Core + AI-Assisted Decision System)*
 
@@ -32,29 +32,57 @@
 | **Assistant** | RAG Agent | 리스크 이벤트 감지 (거래 중단) | 보조 (비활성 가능) |
 | **Assistant** | Volatility Model | 변동성 예측 → 포지션 크기 조절 | 보조 (선택적) |
 
-### 2.2 의사결정 흐름
+### 2.2 의사결정 흐름 (v3.0 업데이트)
 **"AI가 실패해도 시스템은 동작한다"**가 핵심 원칙입니다.
-* **Flow:** [시장 데이터] → [Rule Engine: 조건 충족?] → [Risk Manager: 진입 가능?] → [Executor: 주문 실행]
-* **AI 개입:**
-    * **SQL Agent:** 지표 조회 보조
-    * **RAG Agent:** "해킹", "규제" 등 감지 시 `HALT` 신호
-    * **Volatility Model:** 변동성 높으면 포지션 축소 제안
+
+**매매 실행 Flow (v3.0):**
+```
+[시장 데이터] → [레짐 감지 (1시간 주기)] → [Rule Engine: 레짐별 조건 충족?]
+  → [AI Analyst: 신호 신뢰성 검증] → [AI Guardian: 리스크 검토]
+  → [Risk Manager: 진입 가능?] → [Executor: 주문 실행]
+```
+
+* **AI 검증 2단계:**
+    * **Market Analyst:** Rule Engine 통과 신호의 기술적 신뢰성 판단 (CONFIRM/REJECT, confidence < 80 시 강제 REJECT)
+    * **Risk Guardian:** 거시적 리스크 및 심리 상태 검토 (SAFE/WARNING)
+    * AI Timeout(20초) 또는 에러 시 → 보수적으로 REJECT (Fallback 설계)
+* **보조 Agent:**
+    * **SQL Agent:** 자연어 질의 → SQL 변환 → 지표 조회
+    * **RAG Agent:** 문서/규칙 검색, 리스크 이벤트 감지
+    * **Volatility Model:** GARCH 기반 변동성 예측 → 포지션 사이징
 
 ## 3. 트레이딩 전략
-### 3.1 채택 전략: Mean Reversion + Trend Filter
-과매도 구간 반등을 노리되, 역추세 진입을 방지합니다.
+### 3.1 채택 전략: Adaptive Mean Reversion (v3.1)
+마켓 레짐(BULL/SIDEWAYS/BEAR)을 감지하고 각 상황에 맞는 진입/청산 조건을 동적으로 적용합니다.
+과매도 구간 반등을 노리되, Rule Engine은 느슨한 필터로 후보를 생성하고 AI Agent가 엄격하게 2차 판단합니다.
 
-**진입 조건 (Long) - v2.3 (Week 8 Strategy Expansion)**
-| 조건 | v1.0 (보수적) | v2.3 (완화) | 근거 |
+**레짐 감지 (1시간 주기)**
+| 레짐 | 조건 | 설명 |
+| :--- | :--- | :--- |
+| **BULL** | MA50 > MA200 + 2% | 상승장 (골든크로스) |
+| **SIDEWAYS** | \|MA50 - MA200\| ≤ 2% | 횡보장 |
+| **BEAR** | MA50 < MA200 - 2% | 하락장 (데드크로스) |
+| **UNKNOWN** | 데이터 부족 | 신규 거래 보류 |
+
+**진입 조건 (Long) - v3.1 (레짐 기반 적응형)**
+| 조건 | BULL | SIDEWAYS | BEAR |
 | :--- | :--- | :--- | :--- |
-| **RSI (14)** | < 30 | < **35** | RSI 35 이하도 반등 가능성, 기회 확대 |
-| **Price vs MA** | > MA 200 | > **MA 20** | RSI 과매도와 MA200/50 상충 문제 해결, BB 중앙선과 동일 |
-| **Volume** | > 1.5배 | > **1.2배** | 1.2배도 의미 있는 거래량 증가 |
-| **Bollinger Band** | 하단 터치 필수 | **선택적 (기본 OFF)** | RSI와 중복, 불필요하게 까다로움 |
+| **RSI (14)** | < 50 | < 45 | < 45 |
+| **RSI (7) Trigger** | < 45 | < 40 | < 35 |
+| **RSI (7) Recover** | ≥ 45 | ≥ 40 | ≥ 35 |
+| **RSI (7) 반등폭** | ≥ 2pt | ≥ 2pt | ≥ 2pt |
+| **MA 조건** | MA20 돌파 | MA20 근접 (97%) | MA20 근접 or 돌파 |
+| **거래량 상한** | ≥ 1.2배 | - | - |
+| **거래량 하한** | - | ≥ 0.2배 | ≥ 0.1배 |
+| **BB 하단 방어** | - | 가격 > BB 하단 | 가격 > BB 하단 |
+| **BB 터치 회복** | - | 필수 | - |
+| **거래량 급증 체크** | - | - | 2배 이상 시 보류 |
+| **포지션 비중** | 100% | 80% | 50% |
 
-> ⚠️ **롤백 모드**: `src/config/strategy.py`에서 `USE_CONSERVATIVE_MODE = True` 설정 시 v1.0(MA200, RSI30)으로 즉시 복귀
+> 설정 파일: `config/strategy_v3.yaml`, 기본값: `src/config/strategy.py`
+> 롤백: YAML 값을 이전으로 복원 후 재배포
 
-**대상 코인 (v2.0 확장)**
+**대상 코인**
 | 코인 | 심볼 | 선정 이유 |
 | :--- | :--- | :--- |
 | Bitcoin | KRW-BTC | 기준 자산, 필수 |
@@ -63,13 +91,16 @@
 | Solana | KRW-SOL | 고변동성, 기회 많음 |
 | Dogecoin | KRW-DOGE | 밈코인, 독자적 패턴 |
 
-**청산 조건**
-| 유형 | 조건 | 설명 |
-| :--- | :--- | :--- |
-| **Take Profit** | +5% 도달 | 목표 수익 달성 시 전량 청산 |
-| **Stop Loss** | -3% 도달 | 손실 제한 (필수) |
-| **Signal Exit** | RSI > 70 | 과매수 구간 진입 시 청산 |
-| **Time Exit** | 48시간 경과 | 장기 보유 방지 |
+**청산 조건 (레짐별 차등)**
+| 유형 | BULL | SIDEWAYS | BEAR |
+| :--- | :--- | :--- | :--- |
+| **Take Profit** | +5% | +3% | +3% |
+| **Stop Loss** | -3% | -4% | -5% |
+| **Trailing Stop** | 1% 활성, 3% 하락 시 | 1% 활성, 2.5% 하락 시 | 1% 활성, 2% 하락 시 |
+| **RSI 과매수** | RSI > 75 (수익 1%+) | RSI > 70 (수익 1%+) | RSI > 70 (수익 0.5%+) |
+| **Time Limit** | 72시간 | 48시간 | 24시간 |
+
+> 레짐 변경 시 Stop Loss는 타이트한(작은) 값 유지 정책 적용
 
 ### 3.2 리스크 관리 규칙 (Hard-coded)
 AI가 오버라이드할 수 없는 절대 규칙입니다.
@@ -82,24 +113,43 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **최소 거래 간격** | 30분 | 주문 지연 |
 
 ## 4. AI Agent 설계
-### 4.1 Agent 역할: 도구 사용자 (Tool User)
+### 4.1 매매 판단 Agent (LangGraph 워크플로우)
+
+**A. Market Analyst (매매 판단)**
+* **역할:** Rule Engine이 포착한 진입 신호의 기술적 신뢰성 검증
+* **입력:** 심볼, 지표(RSI, MA, BB, 거래량), 레짐 정보
+* **출력:** CONFIRM/REJECT + confidence(0-100) + 추론 근거
+* **정책:** confidence < 80 → 강제 REJECT
+* **구현:** `src/agents/analyst.py`
+
+**B. Risk Guardian (리스크 검토)**
+* **역할:** 거시적 리스크 및 투자자 심리 상태 검토
+* **입력:** 심볼, 지표, Analyst 결과
+* **출력:** SAFE/WARNING
+* **구현:** `src/agents/guardian.py`
+
+**워크플로우:** `Analyst → (CONFIRM인 경우만) → Guardian → 최종 결정`
+**Timeout:** 20초 (초과 시 보수적으로 REJECT)
+
+### 4.2 보조 Agent (챗봇/조회용)
+
 **A. SQL Agent (Technical Assistant)**
 * **역할:** 자연어 질의 → SQL 변환 → 지표 조회
-* **입력:** "최근 4시간 RSI 30 이하?"
-* **출력:** `SELECT * FROM market_candle ...`
+* **구현:** `src/agents/sql_agent.py`
 
-**B. RAG Agent (Risk Sentinel)**
-* **역할:** 뉴스 리스크 감지 (가격 예측 X)
-* **키워드:** 해킹, SEC, 소송, 상폐, 파산
-* **출력:** `HALT_TRADING` or `CLEAR`
+**B. RAG Agent (문서 검색)**
+* **역할:** PROJECT_CHARTER, 리스크 규칙 등 문서 검색
+* **구현:** `src/agents/rag_agent.py`
 
 **C. Volatility Model**
-* **역할:** 변동성(GARCH/LSTM) 예측 → 포지션 사이징
-* **출력:** 변동성 높음(High) → 포지션 50% 축소
+* **역할:** GARCH 기반 변동성 예측 → 포지션 사이징
+* **구현:** `src/analytics/volatility_model.py`
 
-### 4.2 고급 기능
-* **Agent Memory:** 성공/실패 패턴을 Vector DB(pgvector)에 저장해 유사 상황 시 참조 (RAG)
-* **Self-Reflection:** Critic Agent가 SQL/검색 결과의 타당성 2차 검증
+### 4.3 고급 기능 (Future)
+* **Agent Memory:** 성공/실패 패턴을 Vector DB(pgvector)에 저장해 유사 상황 시 참조 (인프라 준비 완료, 구현 대기)
+* **EvalOps:** AI 판단의 사후 평가 체계 (규칙 기반 → 추후 LLM Judge 확장)
+* **Self-Reflection:** Critic Agent가 Analyst 결정의 규칙 준수 여부 2차 검증 (검토 중)
+* 상세 계획: `docs/work-plans/13_ai_enhancement-plan.md` 참조
 
 ## 5. 기술 스택
 | 구분 | 기술 | 선정 이유 |
@@ -176,12 +226,9 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 
 ---
 
-## 8. 중간 점검 (Week 8 완료 시점)
+## 8. 프로젝트 점검
 
-**점검일**: 2026-02-02
-**점검자**: Claude Code (Operator & Reviewer)
-
-### 8.1 Week별 완료 상태 업데이트
+### 8.1 Week별 완료 상태
 
 | 주차 | 목표 | 상태 | 비고 |
 |------|------|------|------|
@@ -194,42 +241,72 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Week 7** | AI Agent + Chatbot | ✅ 완료 | SQL/RAG/Router Agent + Chatbot UI |
 | **Week 8** | 고도화 & 프로덕션 준비 | ✅ 완료 | Monitoring, Volatility, CI/CD |
 
-### 8.2 핵심 기능 구현 현황
+### 8.2 Week 8 이후 진행 사항 (운영 최적화)
+
+| 작업 | 상태 | 날짜 | 구현 보고서 |
+|------|:----:|------|-----------|
+| v3.0 적응형 전략 (레짐 기반) | ✅ | 2026-02-06 | `docs/work-result/10_coinpilot_v3_implementation_report.md` |
+| v3.1 전략 정교화 (Falling Knife 방지, 거래량 필터) | ✅ | 2026-02-07 | `docs/work-result/11_notification_and_timezone_improvements.md` |
+| 스케줄러 안정화, AI Reject 알림, KST 변환 | ✅ | 2026-02-07 | 위 문서 참조 |
+| Redis TTL 최적화 (레짐 데이터 소실 방지) | ✅ | 2026-02-08 | git commit 참조 |
+| Daily Report 스케줄러 복구 | ✅ | 2026-02-11 | `docs/work-result/12_daily_report_fix.md` |
+| v3.1 파라미터 튜닝 (RSI/거래량 완화) | ✅ | 2026-02-12 | `docs/work-result/12_strategy_parameter_report.md` |
+| `detect_regime()` threshold 버그 수정 | ✅ | 2026-02-12 | 위 문서 참조 |
+| 백테스트 코드 v3.1 조건 동기화 | ✅ | 2026-02-12 | 위 문서 참조 |
+
+### 8.3 핵심 기능 구현 현황
 
 | 구성요소 | 역할 | 상태 | 구현 파일 |
 |----------|------|------|-----------|
-| Rule Engine | 매매 규칙 평가/신호 생성 | ✅ | `src/engine/rule_engine.py` |
+| Adaptive Strategy | 레짐 기반 적응형 진입/청산 | ✅ | `src/engine/strategy.py` |
+| Regime Detection | MA50/MA200 기반 레짐 감지 | ✅ | `src/common/indicators.py` |
+| Trailing Stop | HWM 기반 동적 손절 | ✅ | `src/engine/strategy.py` |
+| Market Analyst | AI 진입 신호 검증 (LangGraph) | ✅ | `src/agents/analyst.py` |
+| Risk Guardian | AI 리스크 검토 (LangGraph) | ✅ | `src/agents/guardian.py` |
+| Agent Runner | AI 워크플로우 실행/DB 로깅 | ✅ | `src/agents/runner.py` |
 | Risk Manager | 포지션 크기, 손절, 일일 한도 | ✅ | `src/engine/risk_manager.py` |
 | SQL Agent | 자연어 → SQL 변환 | ✅ | `src/agents/sql_agent.py` |
 | RAG Agent | 문서/규칙 검색 | ✅ | `src/agents/rag_agent.py` |
+| Daily Reporter | 일간 리포트 LLM 생성 → Discord | ✅ | `src/agents/daily_reporter.py` |
 | Volatility Model | GARCH → 포지션 사이징 | ✅ | `src/analytics/volatility_model.py` |
 | Prometheus Metrics | 시스템 관측성 | ✅ | `src/utils/metrics.py` |
 | Grafana Dashboards | 메트릭 시각화 | ✅ | `deploy/monitoring/grafana-provisioning/` |
 | CI/CD Pipeline | 테스트/배포 자동화 | ✅ | `.github/workflows/ci.yml` |
+| Backtest v3 | 레짐 기반 전략 백테스트 | ✅ | `scripts/backtest_v3.py` |
 
-### 8.3 미구현 항목 (Future Consideration 유지)
+### 8.4 미구현 항목 (Future Consideration)
 
 | 항목 | Charter 위치 | 상태 | 사유 |
 |------|-------------|------|------|
-| Agent Memory | 4.2 고급 기능 | 🔜 Future | 우선순위 낮음 (pgvector 인프라는 준비됨) |
-| Self-Reflection | 4.2 고급 기능 | 🔜 Future | 고급 기능으로 유지 |
+| Agent Memory (Episodic) | 4.3 고급 기능 | 🔜 Future | pgvector 인프라 준비됨, 거래 데이터 축적 후 구현 |
+| EvalOps (AI 판단 평가) | 4.3 고급 기능 | 🔜 Future | 거래 데이터 축적 필요 |
+| Self-Reflection (Critic) | 4.3 고급 기능 | 🔜 Future | 기존 Rule Engine/Risk Manager와 중복 검토 필요 |
+| MCP | Future Consideration | 🔜 보류 | 월 50건+ 거래, 외부 연동 필요성 발생 시 재검토 |
 | n8n IaC | Week 8 | ⚠️ 수동 | JSON Export 백업 권장 |
+| Phase 2 레짐 MA 조정 | 전략 튜닝 | 📋 계획 | Phase 1 모니터링 후 Option B (MA 30/100) 검토 |
 
-### 8.4 문서 참고
+### 8.5 문서 참고
 
 | 문서 | 설명 |
 |------|------|
 | `docs/work-result/week7-walkthrough.md` | AI Chatbot 구현 상세 |
 | `docs/work-result/week8-walkthrough.md` | 고도화 구현 상세 |
-| `docs/troubleshooting/week8-ts.md` | Week 8 트러블슈팅 로그 |
+| `docs/work-result/week8-strategy-expansion.md` | Week 8 전략 확장 |
+| `docs/work-result/10_coinpilot_v3_implementation_report.md` | v3.0 적응형 전략 구현 |
+| `docs/work-result/11_notification_and_timezone_improvements.md` | v3.1 정교화 및 알림 개선 |
+| `docs/work-result/12_daily_report_fix.md` | Daily Report 복구 |
+| `docs/work-result/12_strategy_parameter_report.md` | 파라미터 튜닝 구현 |
+| `docs/work-plans/12_strategy_parameter_tuning.md` | 파라미터 튜닝 계획 (확정) |
+| `docs/work-plans/13_ai_enhancement-plan.md` | AI 고도화 계획 (초안, 재계획 예정) |
 
-### 8.5 프로젝트 상태
+### 8.6 프로젝트 상태
 
 | 항목 | 결과 |
 |------|------|
-| **Charter 대비 구현률** | **95%** |
-| **핵심 기능 완성도** | 100% |
-| **프로덕션 준비 상태** | ✅ Ready |
+| **Charter 대비 구현률** | **97%** (핵심 기능 100%, 고급 기능 Future) |
+| **전략 버전** | v3.1 (레짐 기반 적응형 + 파라미터 튜닝) |
+| **프로덕션 준비 상태** | ✅ Ready (운영 중) |
+| **현재 초점** | 파라미터 튜닝 효과 모니터링 → Phase 2 레짐 MA 조정 검토 |
 
 ---
-*Reviewed by Claude Code (Operator Role)*
+*최종 업데이트: 2026-02-12 by Claude Code (Operator Role)*
