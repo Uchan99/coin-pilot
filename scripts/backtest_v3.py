@@ -21,7 +21,8 @@ from src.common.db import get_db_session
 from src.common.models import MarketData
 from src.common.indicators import (
     calculate_rsi, calculate_ma, calculate_bb,
-    resample_to_hourly, detect_regime, check_bb_touch_recovery
+    resample_to_hourly, detect_regime, check_bb_touch_recovery,
+    calculate_volume_ratios
 )
 
 @dataclass
@@ -65,15 +66,22 @@ def add_indicators_to_df(df: pd.DataFrame) -> pd.DataFrame:
     # Volume Ratio
     vol_ma_20 = df['volume'].rolling(window=20).mean()
     df['vol_ratio'] = df['volume'] / vol_ma_20
+    
+    # Volume Ratios (Survey)
+    df['vol_ratios'] = calculate_volume_ratios(df['volume'], period=20)
 
     return df
 
 
-def get_regime(row: pd.Series) -> str:
+def get_regime(row: pd.Series, config: StrategyConfig) -> str:
     """행에서 레짐 판단"""
     ma50 = row.get('ma50')
     ma200 = row.get('ma200')
-    return detect_regime(ma50, ma200)
+    return detect_regime(
+        ma50, ma200, 
+        bull_threshold=config.BULL_THRESHOLD_PCT, 
+        bear_threshold=config.BEAR_THRESHOLD_PCT
+    )
 
 
 def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: pd.DataFrame, idx: int) -> bool:
@@ -97,6 +105,13 @@ def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: 
     if not (row['rsi_short_prev'] < entry["rsi_7_trigger"] and row['rsi_short'] >= entry["rsi_7_recover"]):
         return False
 
+    # 3. v3.1: RSI(7) 최소 반등 폭 체크
+    min_bounce_pct = entry.get("min_rsi_7_bounce_pct")
+    if min_bounce_pct is not None:
+        rsi_bounce = row['rsi_short'] - row['rsi_short_prev']
+        if rsi_bounce < min_bounce_pct:
+            return False
+
     # MA 조건
     if entry["ma_condition"] == "crossover":
         if row['close'] <= row['ma20']:
@@ -105,13 +120,35 @@ def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: 
         prox = entry.get("ma_proximity_pct", 0.97)
         if row['close'] < row['ma20'] * prox:
             return False
+    elif entry["ma_condition"] == "proximity_or_above":
+        prox = entry.get("ma_proximity_pct", 0.97)
+        if row['close'] < row['ma20'] * prox:
+            return False
 
-    # 거래량 조건
+    # 5. v3.1: BB 하단 체크 (Falling Knife 방지)
+    if entry.get("require_price_above_bb_lower") and not pd.isna(row['bb_lower']):
+        if row['close'] < row['bb_lower']:
+            return False
+
+    # 6. 거래량 상한 조건
     if entry.get("volume_ratio") is not None:
         if pd.isna(row['vol_ratio']) or row['vol_ratio'] < entry["volume_ratio"]:
             return False
 
-    # 횡보장 BB 조건
+    # 7. v3.1: 거래량 하한 조건
+    if entry.get("volume_min_ratio") is not None:
+        if pd.isna(row['vol_ratio']) or row['vol_ratio'] < entry["volume_min_ratio"]:
+            return False
+
+    # 8. v3.1: 거래량 급증 체크 (BEAR 전용)
+    if entry.get("volume_surge_check"):
+        vol_surge_ratio = entry.get("volume_surge_ratio", 2.0)
+        # 최근 3캔들 확인 (현재 포함)
+        recent_ratios = df.iloc[max(0, idx-2):idx+1]['vol_ratios'].tolist()
+        if any(v >= vol_surge_ratio for v in recent_ratios):
+            return False
+
+    # 9. 횡보장 BB 터치 회복 조건
     if regime == "SIDEWAYS" and entry.get("bb_enabled"):
         lookback = entry.get("bb_touch_lookback", 3)
         if idx < lookback + 1:
@@ -174,7 +211,7 @@ def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str) -> Li
 
     for idx, row in df_clean.iterrows():
         current_time = row['timestamp']
-        regime = get_regime(row)
+        regime = get_regime(row, config)
 
         # 포지션 보유 중 -> 청산 체크
         if position:

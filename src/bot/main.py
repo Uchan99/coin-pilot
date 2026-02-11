@@ -413,7 +413,11 @@ async def update_regime_job():
                 ma200 = calculate_ma(df_1h['close'], period=200).iloc[-1]
                 
                 # 3. 레짐 판단
-                regime = detect_regime(ma50, ma200)
+                regime = detect_regime(
+                    ma50, ma200,
+                    bull_threshold=config.BULL_THRESHOLD_PCT,
+                    bear_threshold=config.BEAR_THRESHOLD_PCT
+                )
                 
                 # 4. Redis 캐싱
                 await redis_client.set(f"market:regime:{symbol}", regime, ex=7200)
@@ -462,6 +466,25 @@ async def retrain_volatility_job():
     except Exception as e:
         print(f"[Scheduler] Retraining Failed: {e}")
 
+async def daily_reporter_job():
+    """
+    매일 22:00 KST (13:00 UTC)에 일간 리포트 생성 및 전송
+    
+    DailyReporter를 통해 오늘의 매매 결과를 조회하고,
+    LLM으로 요약을 생성한 후 n8n 웹훅으로 Discord에 전송합니다.
+    """
+    print("[Scheduler] Generating Daily Report...")
+    try:
+        from src.agents.daily_reporter import DailyReporter
+        reporter = DailyReporter(get_db_session)
+        await reporter.generate_and_send()
+        print("[Scheduler] Daily Report sent successfully.")
+    except Exception as e:
+        print(f"[Scheduler] Daily Report Failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 # FastAPI App Setup for Health & Metrics
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -475,6 +498,9 @@ async def lifespan(app: FastAPI):
     # coalesce: 놓친 작업들을 하나로 합쳐서 실행
     scheduler.add_job(update_regime_job, 'interval', hours=1,
                       misfire_grace_time=300, coalesce=True)
+    # 매일 22:00 KST (13:00 UTC)에 일간 리포트 전송
+    scheduler.add_job(daily_reporter_job, 'cron', hour=13, minute=0, timezone=timezone.utc,
+                      misfire_grace_time=7200, coalesce=True)
     scheduler.start()
     
     # 서버 기동 직후 즉시 레짐 업데이트 1회 실행

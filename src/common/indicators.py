@@ -160,13 +160,16 @@ def resample_to_hourly(df_1m: pd.DataFrame) -> pd.DataFrame:
     resampled.columns = ['open', 'high', 'low', 'close', 'volume']
     return resampled
 
-def detect_regime(ma50: Optional[float], ma200: Optional[float]) -> str:
+def detect_regime(ma50: Optional[float], ma200: Optional[float], 
+                  bull_threshold: float = 2.0, bear_threshold: float = -2.0) -> str:
     """
     마켓 레짐 감지
 
     Args:
         ma50: 50기간(1시간봉) 이동평균선 값 (None이면 데이터 부족)
         ma200: 200기간(1시간봉) 이동평균선 값 (None이면 데이터 부족)
+        bull_threshold: 상승장 판단 기준 (기본값: 2.0%)
+        bear_threshold: 하락장 판단 기준 (기본값: -2.0%)
 
     Returns:
         "BULL" | "SIDEWAYS" | "BEAR" | "UNKNOWN"
@@ -177,12 +180,12 @@ def detect_regime(ma50: Optional[float], ma200: Optional[float]) -> str:
 
     diff_pct = (ma50 - ma200) / ma200 * 100
 
-    if diff_pct > 2.0:
-        return "BULL"       # 상승장: MA50이 MA200보다 2% 이상 위
-    elif diff_pct < -2.0:
-        return "BEAR"       # 하락장: MA50이 MA200보다 2% 이상 아래
+    if diff_pct > bull_threshold:
+        return "BULL"       # 상승장: MA50이 MA200보다 N% 이상 위
+    elif diff_pct < bear_threshold:
+        return "BEAR"       # 하락장: MA50이 MA200보다 N% 이상 아래
     else:
-        return "SIDEWAYS"   # 횡보장: MA50과 MA200 차이 ±2% 이내
+        return "SIDEWAYS"   # 횡보장: 차이가 임계값 이내
 
 def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3) -> bool:
     """

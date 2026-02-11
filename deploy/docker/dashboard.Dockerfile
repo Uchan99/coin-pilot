@@ -18,6 +18,7 @@ RUN pip install --upgrade pip && \
 # Copy source code
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY config/ ./config/
 
 # Set env
 ENV PYTHONPATH=/app

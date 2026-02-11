@@ -50,8 +50,8 @@ class StrategyConfig:
     REGIMES: Dict[str, Any] = field(default_factory=lambda: {
         "BULL": {
             "entry": {
-                "rsi_14_max": 45, "rsi_7_trigger": 40, "rsi_7_recover": 40,
-                "min_rsi_7_bounce_pct": 3.0,  # RSI(7) 최소 반등 폭
+                "rsi_14_max": 50, "rsi_7_trigger": 45, "rsi_7_recover": 45,
+                "min_rsi_7_bounce_pct": 2.0,  # RSI(7) 최소 반등 폭
                 "ma_condition": "crossover", "ma_period": 20,
                 "volume_ratio": 1.2,           # 상한 조건
                 "volume_min_ratio": None       # 하한 조건 미적용
@@ -65,13 +65,13 @@ class StrategyConfig:
         },
         "SIDEWAYS": {
             "entry": {
-                "rsi_14_max": 40, "rsi_7_trigger": 35, "rsi_7_recover": 35,
-                "min_rsi_7_bounce_pct": 3.0,
+                "rsi_14_max": 45, "rsi_7_trigger": 40, "rsi_7_recover": 40,
+                "min_rsi_7_bounce_pct": 2.0,
                 "ma_condition": "proximity", "ma_period": 20, "ma_proximity_pct": 0.97,
                 "bb_enabled": True,
                 "require_price_above_bb_lower": True,  # BB 하단 아래 진입 금지
                 "volume_ratio": None,           # 상한 조건 미적용
-                "volume_min_ratio": 0.5         # 하한 조건: 최소 50%
+                "volume_min_ratio": 0.2         # 하한 조건: 최소 20%
             },
             "exit": {
                 "take_profit_pct": 0.03, "stop_loss_pct": 0.04, "trailing_stop_pct": 0.025,
@@ -82,12 +82,12 @@ class StrategyConfig:
         },
         "BEAR": {
             "entry": {
-                "rsi_14_max": 40, "rsi_7_trigger": 30, "rsi_7_recover": 30,
-                "min_rsi_7_bounce_pct": 3.0,
+                "rsi_14_max": 45, "rsi_7_trigger": 35, "rsi_7_recover": 35,
+                "min_rsi_7_bounce_pct": 2.0,
                 "ma_condition": "proximity_or_above", "ma_period": 20, "ma_proximity_pct": 0.97,
                 "require_price_above_bb_lower": True,  # BB 하단 아래 진입 금지
                 "volume_ratio": None,           # 상한 조건 미적용
-                "volume_min_ratio": 0.5,        # 하한 조건: 최소 50%
+                "volume_min_ratio": 0.1,        # 하한 조건: 최소 10%
                 "volume_surge_check": True,     # 거래량 급증 체크
                 "volume_surge_ratio": 2.0       # 평균 대비 2배 이상 급증 시 보류
             },
