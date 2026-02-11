@@ -43,6 +43,18 @@ spec:
                  secretKeyRef:
                    name: coin-pilot-secret
                    key: ANTHROPIC_API_KEY
+            - name: N8N_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: N8N_WEBHOOK_SECRET
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-pilot-secret
+                  key: OPENAI_API_KEY
+            - name: N8N_URL
+              value: "http://n8n:5678"
             - name: PAPER_BALANCE
               value: "10000000"
           resources:
