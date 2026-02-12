@@ -59,6 +59,7 @@
 
 *   Docker 이미지 빌드 시 `config/` 디렉토리가 COPY 대상에 포함되지 않아, K8s 배포 시 `strategy_v3.yaml`이 이미지 내에 존재하지 않고 Python 기본값(`src/config/strategy.py`)만 사용되던 문제를 수정
 *   `COPY config/ ./config/` 추가하여 YAML 설정이 이미지에 포함되도록 조치
+*   **환경변수 추가**: `k8s/apps/bot-deployment.yaml`에 `OPENAI_API_KEY` (DailyReporter용), `N8N_URL`, `N8N_WEBHOOK_SECRET` 추가하여 배포 시 누락 방지
 
 ---
 

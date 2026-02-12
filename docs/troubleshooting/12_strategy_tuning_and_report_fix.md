@@ -70,14 +70,15 @@ chain.invoke({"total_pnl": data['total_pnl'], ...})
 
 **해결**:
 1. `k8s/apps/bot-deployment.yaml`에 `OPENAI_API_KEY` 환경변수 추가 (Secret 참조).
-2. `deploy/deploy_to_minikube.sh`에서 Secret 생성 시 `OPENAI_API_KEY` 포함 확인.
+2. 추가로 `N8N_WEBHOOK_SECRET`, `N8N_URL`도 누락된 것을 확인하여 함께 추가함.
+3. `deploy/deploy_to_minikube.sh`에서 Secret 생성 시 `OPENAI_API_KEY` 포함 확인.
 
 ### 4.2 문제 상황: n8n 연결 실패 (Local vs K8s)
 **증상**: 로컬 테스트 시 `http://n8n:5678` 접속 불가 에러.
 **원인**: K8s 내부 서비스 도메인(`n8n`)을 로컬에서 해석할 수 없음.
 **해결**:
-- `bot-deployment.yaml`에 `N8N_URL` 환경변수 명시 (`http://n8n:5678`).
-- 로컬 테스트(`scripts/test_daily_report.sh`) 시에는 `.env`를 통해 `http://localhost:5678` 사용 (Port Forwarding).
+1. `k8s/apps/bot-deployment.yaml`에 `N8N_URL` 환경변수 명시 (`http://n8n:5678`).
+2. 로컬 테스트(`scripts/test_daily_report.sh`) 시에는 `.env`를 통해 `http://localhost:5678` 사용 (Port Forwarding).
 
 ### 4.3 문제 상황: 설정 파일 갱신 안 됨 (Docker)
 **증상**: `config/strategy_v3.yaml`을 수정하고 배포했으나 봇이 구버전 설정을 로드함.
