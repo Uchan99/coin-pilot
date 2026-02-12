@@ -130,7 +130,8 @@ class AgentRunner:
         try:
             # 결정 시점 가격 및 레짐 추출
             price_at_decision = indicators.get("close") if indicators else None
-            regime = market_context.get("regime") if market_context else None
+            # market_context는 list(캔들 데이터)이므로 regime은 indicators에서 추출
+            regime = indicators.get("regime") if indicators else None
 
             async with get_db_session() as session:
                 log = AgentDecision(
@@ -150,7 +151,7 @@ class AgentRunner:
             if decision == "REJECT":
                 asyncio.create_task(notifier.send_webhook("/webhook/ai-reject", {
                     "symbol": symbol,
-                    "regime": market_context.get("regime", "UNKNOWN") if market_context else "UNKNOWN",
+                    "regime": indicators.get("regime", "UNKNOWN") if indicators else "UNKNOWN",
                     "rsi": round(indicators.get("rsi", 0), 1) if indicators else 0,
                     "reason": reasoning[:500] if reasoning else "No reason provided",
                     "timestamp": datetime.now(timezone.utc).isoformat()

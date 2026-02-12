@@ -88,8 +88,71 @@ chain.invoke({"total_pnl": data['total_pnl'], ...})
 
 ---
 
-## 5. 결론
+## 5. 모니터링 중 추가 트러블슈팅 (2026-02-13)
+
+v3.1 배포 후 12시간 이상 모니터링 중 발견된 추가 문제들과 해결 과정.
+
+### 5.1 AI Agent Decision DB 저장 실패 (Critical)
+
+**증상**:
+- 봇 로그에 `✅ 모든 진입 조건 충족!` → `Entry Signal Detected!` → AI Agent REJECT 판단까지 정상 수행
+- 그러나 대시보드 System 탭의 "Recent AI Agent Decisions"에 새로운 결정이 표시되지 않음 (마지막 기록: 2026-02-07)
+- 봇 로그에 매번 `[!] Failed to log agent decision: 'list' object has no attribute 'get'` 에러 출력
+
+**원인**:
+- `src/agents/runner.py:133`에서 `market_context.get("regime")` 호출
+- `market_context`는 `executor.py:73`에서 `signal_info.get("market_context", {})`로 전달되는데, 이 값은 `df.tail(10).to_dict(orient="records")` — **dict가 아닌 list**
+- list에는 `.get()` 메서드가 없어 `AttributeError` 발생 → `_log_decision` 전체 실패 → DB 미저장
+- 같은 문제가 REJECT 시 Discord 알림 전송 코드(line 154)에도 존재했으나, DB 저장이 먼저 실패하여 해당 코드까지 도달하지 못함
+
+**해결**:
+```python
+# Before (runner.py:133, 154)
+regime = market_context.get("regime") if market_context else None
+"regime": market_context.get("regime", "UNKNOWN") if market_context else "UNKNOWN"
+
+# After
+regime = indicators.get("regime") if indicators else None
+"regime": indicators.get("regime", "UNKNOWN") if indicators else "UNKNOWN"
+```
+- `regime`은 `signal_info`에 직접 포함되어 있으므로 `indicators`(= `signal_info`)에서 추출하는 것이 올바름
+
+**파일**: `src/agents/runner.py` (2곳 수정)
+
+### 5.2 n8n Health Check 대시보드 표시 오류
+
+**증상**:
+- 대시보드 System 탭에서 n8n Workflow가 🔴 Error로 표시
+- 그러나 n8n 자체는 정상 동작 (Daily Report Discord 발송 성공, AI REJECT 알림도 정상)
+
+**원인**:
+- 대시보드가 K8s pod이 아닌 **로컬에서 Streamlit으로 실행** 중
+- 로컬 환경에서는 `N8N_SERVICE_HOST` 환경변수가 없어 `localhost:5678`로 폴백
+- n8n 포트포워딩이 누락되어 있었음 (DB, Redis만 포트포워딩된 상태)
+
+**해결**:
+1. n8n 포트포워딩 추가: `kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678 &`
+2. Health check 안정성 개선: timeout 2초→3초, 재시도 1회 추가 (`src/dashboard/pages/5_system.py`)
+
+### 5.3 Regime UNKNOWN 표시 (재시작 후)
+
+**증상**:
+- PC 재부팅 후 대시보드에 "Regime 판단 대기중, 8.3일 데이터 필요" 표시
+- 약 3시간 후 자동 복구
+
+**원인**:
+- 재부팅으로 Redis 캐시 초기화 → regime 값 소실
+- 봇 시작 시 `update_regime_job()`이 즉시 호출되나(`main.py:507`), 당시 startup 에러 또는 캔들 데이터 부족으로 UNKNOWN 설정
+- 1시간 주기 스케줄러 재실행 시 정상 복구
+
+**상태**: 현재는 정상 동작 확인. 시작 시 regime 업데이트 실패 원인은 로그 소실로 정확한 추적 불가.
+
+---
+
+## 6. 결론
 
 - **전략**: 지나친 보수성을 탈피하고 유연함을 확보 (백테스트 결과 0건 → 13건 거래).
 - **리포트**: 스케줄러 및 환경변수 완비로 안정적 운영 기반 마련.
 - **배포**: 설정 파일 동기화 문제 해결로 CI/CD 신뢰성 향상.
+- **AI Agent**: Decision DB 저장 버그 수정으로 대시보드 모니터링 정상화 및 Discord REJECT 알림 동작 확인.
+- **대시보드**: n8n Health Check 정상화 (포트포워딩 + 재시도 로직).

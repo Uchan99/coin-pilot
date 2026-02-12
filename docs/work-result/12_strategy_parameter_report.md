@@ -228,7 +228,41 @@ RSI7 trigger/recover 분리(trigger > recover) 방식도 모니터링 데이터�
 계획서의 모든 구현 항목이 정확하게 반영되었으며, 추가로 Dockerfile 배포 문제까지 해결. 코드 품질에 문제 없음.
 
 **배포 후 체크리스트:**
-- [ ] `DEBUG_ENTRY=1` 활성화하여 조건별 통과/실패율 수집
-- [ ] RSI14 통과율 0% → 20% 이상 증가 확인
-- [ ] AI Agent 호출 발생 여부 확인
+- [x] `DEBUG_ENTRY=1` 활성화하여 조건별 통과/실패율 수집
+- [x] RSI14 통과율 0% → 20% 이상 증가 확인
+- [x] AI Agent 호출 발생 여부 확인
 - [ ] 1~2일 모니터링 후 Phase 2(레짐 MA 조정) 검토
+
+---
+
+## 6. 모니터링 결과 및 추가 수정 (2026-02-13)
+
+v3.1 배포 후 12시간 이상 모니터링 중 발견된 문제와 수정 사항.
+
+### 6.1 AI Agent Decision DB 저장 버그 수정
+
+**문제**: `src/agents/runner.py`의 `_log_decision()`에서 `market_context.get("regime")` 호출 시 `AttributeError` 발생. `market_context`가 dict가 아닌 list(캔들 데이터)였기 때문.
+
+**영향**: AI Agent는 정상 실행(REJECT 판단)되었으나, **모든 Decision이 DB에 저장되지 않음** → 대시보드 미표시.
+
+**수정**: `market_context.get("regime")` → `indicators.get("regime")` (runner.py 2곳)
+
+**검증**: 수정 배포 후 AI REJECT Decision이 DB에 정상 저장되고, Discord 알림도 발송됨을 확인.
+
+### 6.2 n8n Health Check 대시보드 표시 수정
+
+**문제**: 대시보드가 로컬 Streamlit으로 실행 중이라 n8n에 접근 불가 (포트포워딩 누락).
+
+**수정**:
+1. n8n 포트포워딩 추가
+2. `src/dashboard/pages/5_system.py` health check에 재시도 로직 추가 (timeout 3초, 2회 시도)
+
+### 6.3 체크리스트 업데이트
+
+| 항목 | 결과 |
+|------|------|
+| 진입 조건 충족 발생 | ✅ KRW-BTC, KRW-XRP, KRW-ETH, KRW-SOL에서 다수 발생 |
+| AI Agent 호출 | ✅ 모든 진입 신호에 대해 정상 호출 |
+| AI Agent Decision DB 저장 | ✅ 버그 수정 후 정상 저장 |
+| Discord REJECT 알림 | ✅ 수정 후 정상 발송 |
+| n8n Health Check | ✅ 포트포워딩 추가 후 Active 표시 |

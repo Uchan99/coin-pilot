@@ -44,17 +44,16 @@ with col2:
 
 # 1-3. n8n Check
 n8n_status = False
-try:
-    # n8n 헬스체크
-    # K8s 환경: N8N_SERVICE_HOST/PORT 자동 주입됨, 로컬 환경: localhost 사용
-    # 주의: N8N_PORT는 K8s가 "tcp://IP:PORT" 형식으로 주입하므로 사용 불가
-    N8N_HOST = os.getenv("N8N_SERVICE_HOST", "localhost")  # K8s 자동 주입 변수
-    N8N_PORT = os.getenv("N8N_SERVICE_PORT", "5678")       # K8s 자동 주입 변수
-    resp = requests.get(f"http://{N8N_HOST}:{N8N_PORT}/healthz", timeout=2)
-    if resp.status_code == 200:
-        n8n_status = True
-except:
-    pass
+N8N_HOST = os.getenv("N8N_SERVICE_HOST", "localhost")
+N8N_PORT = os.getenv("N8N_SERVICE_PORT", "5678")
+for _attempt in range(2):
+    try:
+        resp = requests.get(f"http://{N8N_HOST}:{N8N_PORT}/healthz", timeout=3)
+        if resp.status_code == 200:
+            n8n_status = True
+            break
+    except:
+        pass
 
 with col3:
     icon = "🟢" if n8n_status else "🔴"
