@@ -14,9 +14,15 @@ def get_llm(model_type="analyst"):
     # 현재는 Claude만 사용하지만, 향후 provider 분기 가능
     # provider = os.getenv("LLM_PROVIDER", "anthropic")
     
+    # LLM_MODE 환경변수로 모델 전환: "dev" = Haiku (저비용), "prod" = Sonnet (고성능)
+    llm_mode = os.getenv("LLM_MODE", "dev")
+    if llm_mode == "prod":
+        model_name = "claude-sonnet-4-5-20250929"   # Production (High Reasoning, ~$0.02/call)
+    else:
+        model_name = "claude-haiku-4-5-20251001"    # Development (Low Cost, ~$0.001/call)
+
     return ChatAnthropic(
-        # model="claude-3-haiku-20240307",    # Development (Low Cost, Fast)
-        model="claude-sonnet-4-5-20250929",   # Production (High Reasoning)
+        model=model_name,
         temperature=0,
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY")
     )

@@ -16,8 +16,8 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
         ("system", ANALYST_SYSTEM_PROMPT),
         ("human", "현재 시장 상황을 분석하여 매수 승인 여부를 결정해주세요.\n\n"
                   "심볼: {symbol}\n"
-                  "지표: {indicators}\n"
-                  "최근 데이터: {market_context}")
+                  "현재 지표 (1분봉 기준): {indicators}\n"
+                  "최근 1시간봉 캔들 (최대 24개): {market_context}")
     ])
     
     chain = prompt | structured_llm
@@ -33,7 +33,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     final_decision = result.decision
     final_reasoning = result.reasoning
     
-    if result.decision == "CONFIRM" and result.confidence < 80:
+    if result.decision == "CONFIRM" and result.confidence < 60:
         final_decision = "REJECT"
         final_reasoning = f"[Low Confidence: {result.confidence}] {result.reasoning}"
     

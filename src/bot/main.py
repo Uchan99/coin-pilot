@@ -316,7 +316,10 @@ async def bot_loop():
                                     # 수량 계산 (투자금 / 현재가)
                                     quantity = actual_invest_amount / current_price
                                     if quantity > 0:
-                                        market_context = df.tail(10).to_dict(orient="records")
+                                        # AI에게 1시간봉 24개 제공 (v3.2: 넓은 시야)
+                                        from src.common.indicators import resample_to_hourly
+                                        hourly_for_ai = resample_to_hourly(df).tail(24)
+                                        market_context = hourly_for_ai.to_dict(orient="records")
                                         signal_info = {
                                             **indicators,
                                             "market_context": market_context,

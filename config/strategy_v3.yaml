@@ -1,5 +1,5 @@
 # config/strategy_v3.yaml
-# v3.1 업데이트: 거래량 조건 분리, RSI 반등 강도, BB 하단 체크, 거래량 급증 체크
+# v3.2 업데이트: v3.0/v3.1 중간값 적용, AI Agent 역할 분리
 
 regime_detection:
   ma_fast_period: 50
@@ -18,9 +18,9 @@ data:
 regimes:
   BULL:
     entry:
-      rsi_14_max: 50
-      rsi_7_trigger: 45
-      rsi_7_recover: 45
+      rsi_14_max: 47
+      rsi_7_trigger: 42
+      rsi_7_recover: 42
       min_rsi_7_bounce_pct: 2.0        # RSI(7) 최소 반등 폭 (포인트)
       ma_condition: "crossover"         # MA20 상향 돌파
       ma_period: 20
@@ -38,9 +38,9 @@ regimes:
 
   SIDEWAYS:
     entry:
-      rsi_14_max: 45
-      rsi_7_trigger: 40
-      rsi_7_recover: 40
+      rsi_14_max: 42
+      rsi_7_trigger: 37
+      rsi_7_recover: 37
       min_rsi_7_bounce_pct: 2.0        # RSI(7) 최소 반등 폭
       ma_condition: "proximity"
       ma_period: 20
@@ -51,7 +51,7 @@ regimes:
       bb_touch_lookback: 3
       require_price_above_bb_lower: true  # BB 하단 아래에서는 진입 금지
       volume_ratio: null                  # 상한 조건: 횡보장에서는 미적용
-      volume_min_ratio: 0.2               # 하한 조건: 최소 20% 이상 필요
+      volume_min_ratio: 0.3               # 하한 조건: 최소 30% 이상 필요
     exit:
       take_profit_pct: 0.03
       stop_loss_pct: 0.04
@@ -64,16 +64,16 @@ regimes:
 
   BEAR:
     entry:
-      rsi_14_max: 45
-      rsi_7_trigger: 35
-      rsi_7_recover: 35
+      rsi_14_max: 42
+      rsi_7_trigger: 32
+      rsi_7_recover: 32
       min_rsi_7_bounce_pct: 2.0           # RSI(7) 최소 반등 폭
       ma_condition: "proximity_or_above"   # MA20 위 돌파 OR MA20 아래 3% 이내
       ma_period: 20
       ma_proximity_pct: 0.97
       require_price_above_bb_lower: true   # BB 하단 아래에서는 진입 금지 (Falling Knife 방지)
       volume_ratio: null                   # 상한 조건: 하락장에서는 미적용
-      volume_min_ratio: 0.1                # 하한 조건: 최소 10% 이상 필요
+      volume_min_ratio: 0.2                # 하한 조건: 최소 20% 이상 필요
       volume_surge_check: true             # 직전 급락 시 거래량 급증 여부 체크
       volume_surge_ratio: 2.0              # 직전 3캔들 중 평균 대비 2배 이상 급증 있으면 진입 보류
     exit:

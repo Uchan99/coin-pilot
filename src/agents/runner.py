@@ -147,15 +147,16 @@ class AgentRunner:
                 session.add(log)
                 await session.commit()
 
-            # REJECT 시 Discord 알림 전송
-            if decision == "REJECT":
-                asyncio.create_task(notifier.send_webhook("/webhook/ai-reject", {
-                    "symbol": symbol,
-                    "regime": indicators.get("regime", "UNKNOWN") if indicators else "UNKNOWN",
-                    "rsi": round(indicators.get("rsi", 0), 1) if indicators else 0,
-                    "reason": reasoning[:500] if reasoning else "No reason provided",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }))
+            # Discord 알림 전송 (REJECT/CONFIRM 모두)
+            asyncio.create_task(notifier.send_webhook("/webhook/ai-decision", {
+                "symbol": symbol,
+                "decision": decision,
+                "regime": indicators.get("regime", "UNKNOWN") if indicators else "UNKNOWN",
+                "rsi": round(indicators.get("rsi", 0), 1) if indicators else 0,
+                "confidence": confidence,
+                "reason": reasoning[:1500] if reasoning else "No reason provided",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }))
         except Exception as e:
             print(f"[!] Failed to log agent decision: {e}")
 
