@@ -71,10 +71,10 @@ class AgentRunner:
         }
         
         try:
-            # V1.1 정책: 20초 타임아웃 적용
+            # V1.1 정책: 40초 타임아웃 적용 (Sonnet + 1시간봉 데이터 대응)
             result = await asyncio.wait_for(
                 self.graph.ainvoke(initial_state),
-                timeout=20.0
+                timeout=40.0
             )
             
             # 결과 분석

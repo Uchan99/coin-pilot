@@ -14,7 +14,7 @@ class RegimeEntryConfig:
     bb_enabled: bool = False
     bb_period: int = 20
     bb_std: float = 2.0
-    bb_touch_lookback: int = 3
+    bb_touch_lookback: int = 30
     volume_ratio: Optional[float] = None
 
 @dataclass
@@ -50,10 +50,10 @@ class StrategyConfig:
     REGIMES: Dict[str, Any] = field(default_factory=lambda: {
         "BULL": {
             "entry": {
-                "rsi_14_max": 47, "rsi_7_trigger": 42, "rsi_7_recover": 42,
+                "rsi_14_max": 50, "rsi_7_trigger": 42, "rsi_7_recover": 42,
                 "min_rsi_7_bounce_pct": 2.0,  # RSI(7) 최소 반등 폭
                 "ma_condition": "crossover", "ma_period": 20,
-                "volume_ratio": 1.2,           # 상한 조건
+                "volume_ratio": 1.0,           # 상한 조건
                 "volume_min_ratio": None       # 하한 조건 미적용
             },
             "exit": {
@@ -65,7 +65,7 @@ class StrategyConfig:
         },
         "SIDEWAYS": {
             "entry": {
-                "rsi_14_max": 42, "rsi_7_trigger": 37, "rsi_7_recover": 37,
+                "rsi_14_max": 48, "rsi_7_trigger": 40, "rsi_7_recover": 40,
                 "min_rsi_7_bounce_pct": 2.0,
                 "ma_condition": "proximity", "ma_period": 20, "ma_proximity_pct": 0.97,
                 "bb_enabled": True,
@@ -82,7 +82,7 @@ class StrategyConfig:
         },
         "BEAR": {
             "entry": {
-                "rsi_14_max": 42, "rsi_7_trigger": 32, "rsi_7_recover": 32,
+                "rsi_14_max": 42, "rsi_7_trigger": 30, "rsi_7_recover": 30,
                 "min_rsi_7_bounce_pct": 2.0,
                 "ma_condition": "proximity_or_above", "ma_period": 20, "ma_proximity_pct": 0.97,
                 "require_price_above_bb_lower": True,  # BB 하단 아래 진입 금지

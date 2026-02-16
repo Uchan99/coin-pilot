@@ -90,15 +90,53 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
             return f"[{regime}] 반등 대기: RSI7({rsi_short:.1f}) - {recover} 이상 반등 필요 (이전: {rsi_short_prev:.1f})"
     passed.append(f"✓ RSI7 과매도({trigger}) 진입 후 반등({recover}) 확인")
 
-    # 3. MA 체크
+    # 3. RSI(7) 최소 반등폭 체크
+    min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
+    if min_bounce_pct is not None:
+        rsi_bounce = rsi_short - rsi_short_prev
+        if rsi_bounce < min_bounce_pct:
+            return f"[{regime}] 반등폭 부족: RSI7 반등 {rsi_bounce:.1f}pt < 최소 {min_bounce_pct}pt"
+    passed.append(f"✓ RSI7 반등폭 충분")
+
+    # 4. MA 체크
     if entry_config["ma_condition"] == "crossover":
         if close <= ma_trend:
             return f"[{regime}] 추세 대기: 현재가({close:,.0f}) ≤ MA20({ma_trend:,.0f})"
-    elif entry_config["ma_condition"] == "proximity":
+    elif entry_config["ma_condition"] in ("proximity", "proximity_or_above"):
         prox = entry_config.get("ma_proximity_pct", 0.97)
         if close < ma_trend * prox:
             return f"[{regime}] 추세 대기: 현재가({close:,.0f}) < MA20x{prox}({ma_trend*prox:,.0f})"
     passed.append(f"✓ {entry_config['ma_condition']} 필터 통과")
+
+    # 5. BB 하단 체크 (Falling Knife 방지)
+    bb_lower = indicators.get("bb_lower")
+    if entry_config.get("require_price_above_bb_lower") and bb_lower is not None:
+        if close < bb_lower:
+            return f"[{regime}] BB 하단 아래: 현재가({close:,.0f}) < BB하단({bb_lower:,.0f})"
+    passed.append(f"✓ BB 하단 위 확인")
+
+    # 6. 거래량 상한 조건
+    if entry_config.get("volume_ratio") is not None:
+        if vol_ratio is None or vol_ratio < entry_config["volume_ratio"]:
+            return f"[{regime}] 거래량 부족: {vol_ratio:.2f}x < {entry_config['volume_ratio']}x"
+    # 7. 거래량 하한 조건
+    if entry_config.get("volume_min_ratio") is not None:
+        if vol_ratio is None or vol_ratio < entry_config["volume_min_ratio"]:
+            return f"[{regime}] 거래량 부족: {vol_ratio:.2f}x < 최소 {entry_config['volume_min_ratio']}x"
+    passed.append(f"✓ 거래량 조건 통과 ({vol_ratio:.2f}x)")
+
+    # 8. 거래량 급증 체크 (하락장 전용)
+    if entry_config.get("volume_surge_check"):
+        vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
+        recent_vol_ratios = indicators.get("recent_vol_ratios", [])
+        if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
+            return f"[{regime}] 거래량 급증 감지: 패닉 셀링 가능성"
+
+    # 9. BB 터치 회복 조건 (횡보장 전용)
+    if regime == "SIDEWAYS" and entry_config.get("bb_enabled"):
+        if not indicators.get("bb_touch_recovery", False):
+            return f"[{regime}] BB 터치 회복 대기: BB 하단 터치 후 복귀 미확인"
+    passed.append(f"✓ 모든 조건 통과")
 
     passed_str = "\n".join(passed)
     return f"✅ [{regime}] 진입 조건 충족! AI 검증 대기 중...\n{passed_str}"

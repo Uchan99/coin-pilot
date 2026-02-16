@@ -44,7 +44,7 @@ spec:
                    name: coin-pilot-secret
                    key: ANTHROPIC_API_KEY
             - name: LLM_MODE
-              value: "dev"          # dev=Haiku(저비용), prod=Sonnet(고성능)
+              value: "prod"         # dev=Haiku(저비용), prod=Sonnet(고성능)
             - name: N8N_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:

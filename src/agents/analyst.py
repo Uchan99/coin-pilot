@@ -29,7 +29,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     })
     
     # 분석 결과 업데이트
-    # V1.2 정책: confidence < 80 이면 강제 REJECT
+    # V1.2 정책: confidence < 60 이면 강제 REJECT
     final_decision = result.decision
     final_reasoning = result.reasoning
     
