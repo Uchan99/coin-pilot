@@ -20,12 +20,17 @@ from sqlalchemy import select, desc, update
 sys.path.append(os.getcwd())
 
 from src.common.db import get_db_session, get_redis_client
-from src.common.models import MarketData
-from src.common.indicators import get_all_indicators
-from src.engine.strategy import MeanReversionStrategy
+from src.common.models import MarketData, Position
+from src.common.indicators import get_all_indicators, resample_to_hourly
+from src.engine.strategy import MeanReversionStrategy, evaluate_entry_conditions
 from src.engine.executor import PaperTradingExecutor
 from src.engine.risk_manager import RiskManager
 from src.utils.metrics import metrics
+from src.agents.context_features import (
+    build_market_context,
+    compute_bear_context_features,
+    should_run_ai_analysis,
+)
 
 # Graceful Shutdown Handler
 SHUTDOWN = False
@@ -57,88 +62,15 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
     if regime == "UNKNOWN":
         return "데이터 수집 중: 레짐 판단 대기 (약 8.3일치 데이터 필요)"
 
-    # 전략 조건 상세 분석 (v3.0)
-    rsi = indicators.get("rsi", 0)
-    rsi_short = indicators.get("rsi_short", 0)
-    rsi_short_prev = indicators.get("rsi_short_prev", 0)
-    ma_trend = indicators.get("ma_trend", 0)
-    vol_ratio = indicators.get("vol_ratio", 0)
-    close = indicators.get("close", 0)
-    
     regime_config = config.REGIMES.get(regime)
     if not regime_config:
         return f"[{regime}] 설정 로드 실패"
-        
     entry_config = regime_config["entry"]
-    passed = [f"Market Regime: {regime}"]
+    eval_result = evaluate_entry_conditions(indicators, entry_config, regime)
+    if not eval_result["valid"]:
+        return f"[{regime}] {eval_result['reason']}"
 
-    # 1. RSI(14) 체크
-    if rsi > entry_config["rsi_14_max"]:
-        return f"[{regime}] 관망 중: RSI14({rsi:.1f}) > {entry_config['rsi_14_max']}"
-    passed.append(f"✓ RSI14({rsi:.1f}) ≤ {entry_config['rsi_14_max']}")
-
-    # 2. RSI(7) 체크 - 과매도 진입 후 반등 조건
-    trigger = entry_config["rsi_7_trigger"]
-    recover = entry_config["rsi_7_recover"]
-    is_rsi_short_recovery = (rsi_short_prev < trigger) and (rsi_short >= recover)
-    if not is_rsi_short_recovery:
-        if rsi_short_prev >= trigger:
-            # 아직 과매도 영역에 진입하지 않음
-            return f"[{regime}] 과매도 대기: RSI7({rsi_short:.1f}) - {trigger} 이하 진입 필요 (현재 이전값: {rsi_short_prev:.1f})"
-        else:
-            # 과매도 진입했지만 아직 반등 미확인
-            return f"[{regime}] 반등 대기: RSI7({rsi_short:.1f}) - {recover} 이상 반등 필요 (이전: {rsi_short_prev:.1f})"
-    passed.append(f"✓ RSI7 과매도({trigger}) 진입 후 반등({recover}) 확인")
-
-    # 3. RSI(7) 최소 반등폭 체크
-    min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
-    if min_bounce_pct is not None:
-        rsi_bounce = rsi_short - rsi_short_prev
-        if rsi_bounce < min_bounce_pct:
-            return f"[{regime}] 반등폭 부족: RSI7 반등 {rsi_bounce:.1f}pt < 최소 {min_bounce_pct}pt"
-    passed.append(f"✓ RSI7 반등폭 충분")
-
-    # 4. MA 체크
-    if entry_config["ma_condition"] == "crossover":
-        if close <= ma_trend:
-            return f"[{regime}] 추세 대기: 현재가({close:,.0f}) ≤ MA20({ma_trend:,.0f})"
-    elif entry_config["ma_condition"] in ("proximity", "proximity_or_above"):
-        prox = entry_config.get("ma_proximity_pct", 0.97)
-        if close < ma_trend * prox:
-            return f"[{regime}] 추세 대기: 현재가({close:,.0f}) < MA20x{prox}({ma_trend*prox:,.0f})"
-    passed.append(f"✓ {entry_config['ma_condition']} 필터 통과")
-
-    # 5. BB 하단 체크 (Falling Knife 방지)
-    bb_lower = indicators.get("bb_lower")
-    if entry_config.get("require_price_above_bb_lower") and bb_lower is not None:
-        if close < bb_lower:
-            return f"[{regime}] BB 하단 아래: 현재가({close:,.0f}) < BB하단({bb_lower:,.0f})"
-    passed.append(f"✓ BB 하단 위 확인")
-
-    # 6. 거래량 상한 조건
-    if entry_config.get("volume_ratio") is not None:
-        if vol_ratio is None or vol_ratio < entry_config["volume_ratio"]:
-            return f"[{regime}] 거래량 부족: {vol_ratio:.2f}x < {entry_config['volume_ratio']}x"
-    # 7. 거래량 하한 조건
-    if entry_config.get("volume_min_ratio") is not None:
-        if vol_ratio is None or vol_ratio < entry_config["volume_min_ratio"]:
-            return f"[{regime}] 거래량 부족: {vol_ratio:.2f}x < 최소 {entry_config['volume_min_ratio']}x"
-    passed.append(f"✓ 거래량 조건 통과 ({vol_ratio:.2f}x)")
-
-    # 8. 거래량 급증 체크 (하락장 전용)
-    if entry_config.get("volume_surge_check"):
-        vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
-        recent_vol_ratios = indicators.get("recent_vol_ratios", [])
-        if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
-            return f"[{regime}] 거래량 급증 감지: 패닉 셀링 가능성"
-
-    # 9. BB 터치 회복 조건 (횡보장 전용)
-    if regime == "SIDEWAYS" and entry_config.get("bb_enabled"):
-        if not indicators.get("bb_touch_recovery", False):
-            return f"[{regime}] BB 터치 회복 대기: BB 하단 터치 후 복귀 미확인"
-    passed.append(f"✓ 모든 조건 통과")
-
-    passed_str = "\n".join(passed)
+    passed_str = "\n".join(eval_result["passed_checks"])
     return f"✅ [{regime}] 진입 조건 충족! AI 검증 대기 중...\n{passed_str}"
 
 
@@ -262,19 +194,16 @@ async def bot_loop():
                         if redis_client:
                             regime = await redis_client.get(f"market:regime:{symbol}") or "UNKNOWN"
                         
-                        indicators = get_all_indicators(df)
+                        regime_entry_config = config.REGIMES.get(regime, {}).get("entry", {})
+                        indicators = get_all_indicators(
+                            df,
+                            ma_period=regime_entry_config.get("ma_period", 20),
+                            rsi_short_recovery_lookback=regime_entry_config.get("rsi_7_recovery_lookback", 5),
+                            bb_touch_lookback=regime_entry_config.get("bb_touch_lookback", 30),
+                        )
                         indicators["regime"] = regime
                         indicators["symbol"] = symbol  # 디버깅용
                         current_price = Decimal(str(indicators["close"]))
-                        
-                        # 횡보장일 경우 BB 터치 리커버리 별도 계산 (v3.0 계획)
-                        if regime == "SIDEWAYS":
-                            from src.common.indicators import resample_to_hourly, calculate_bb, check_bb_touch_recovery
-                            hourly_df = resample_to_hourly(df)
-                            if len(hourly_df) >= 20:
-                                bb = calculate_bb(hourly_df['close'], period=20)
-                                hourly_df['bb_lower'] = bb['BBL']
-                                indicators["bb_touch_recovery"] = check_bb_touch_recovery(hourly_df)
                         
                         # -------------------------------------------------------
                         # Step 3. Position & Signal Check
@@ -354,22 +283,50 @@ async def bot_loop():
                                     # 수량 계산 (투자금 / 현재가)
                                     quantity = actual_invest_amount / current_price
                                     if quantity > 0:
-                                        # AI에게 1시간봉 24개 제공 (v3.2: 넓은 시야)
-                                        from src.common.indicators import resample_to_hourly
-                                        hourly_for_ai = resample_to_hourly(df).tail(24)
-                                        market_context = hourly_for_ai.to_dict(orient="records")
-                                        signal_info = {
+                                        # Rule 통과 시점에만 AI 전용 컨텍스트(1시간봉 24개 목표) 추가 조회
+                                        ai_df_1m = await get_recent_candles(session, symbol, limit=36 * 60)
+                                        ai_source_df = ai_df_1m if len(ai_df_1m) > 0 else df
+                                        hourly_for_ai = resample_to_hourly(ai_source_df)
+                                        market_context = build_market_context(hourly_for_ai, target_candles=24)
+                                        context_len = len(market_context)
+                                        metrics.ai_context_candles.observe(context_len)
+
+                                        ai_indicators = {
                                             **indicators,
-                                            "market_context": market_context,
-                                            "regime": regime
+                                            "ai_context_candles": context_len
                                         }
-                                        await executor.execute_order(
-                                            session, symbol, "BUY", 
-                                            current_price, quantity, 
-                                            strategy.name, 
-                                            signal_info
+                                        if regime == "BEAR":
+                                            ai_indicators.update(compute_bear_context_features(hourly_for_ai, window=8))
+
+                                        should_run_ai, prefilter_reason = should_run_ai_analysis(
+                                            regime=regime,
+                                            indicators=ai_indicators,
+                                            market_context_len=context_len,
+                                            entry_config=regime_entry_config,
                                         )
-                                        metrics.trade_count.inc()
+                                        if not should_run_ai:
+                                            bot_action = "SKIP"
+                                            bot_reason = f"AI PreFilter Rejected: {prefilter_reason}"
+                                            metrics.ai_prefilter_skips.inc()
+                                            print(f"[-] {symbol} AI PreFilter Rejected: {prefilter_reason}")
+                                        else:
+                                            signal_info = {
+                                                **ai_indicators,
+                                                "market_context": market_context,
+                                                "regime": regime
+                                            }
+                                            metrics.ai_requests.inc()
+                                            success = await executor.execute_order(
+                                                session, symbol, "BUY", 
+                                                current_price, quantity, 
+                                                strategy.name, 
+                                                signal_info
+                                            )
+                                            if success:
+                                                metrics.trade_count.inc()
+                                            else:
+                                                bot_action = "SKIP"
+                                                bot_reason = "AI Rejected or Execution Failed"
                                 else:
                                     # 리스크 관리로 인한 거부
                                     bot_action = "SKIP"

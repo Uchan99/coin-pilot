@@ -45,7 +45,9 @@ class PaperTradingExecutor:
                 "symbol": pos.symbol,
                 "quantity": pos.quantity,
                 "avg_price": pos.avg_price,
-                "opened_at": pos.opened_at
+                "opened_at": pos.opened_at,
+                "regime": pos.regime,
+                "high_water_mark": pos.high_water_mark
             }
         return None
 

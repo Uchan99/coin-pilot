@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any, List
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 
@@ -26,6 +26,144 @@ class BaseStrategy(ABC):
         pass
 
 from src.config.strategy import StrategyConfig
+
+
+def _fmt_float(value: Any, digits: int = 1, default: str = "N/A") -> str:
+    if value is None:
+        return default
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return default
+
+
+def evaluate_entry_conditions(indicators: Dict, entry_config: Dict, regime: str) -> Dict[str, Any]:
+    """
+    진입 조건 판정과 상세 근거를 단일 경로로 계산합니다.
+    """
+    rsi_14 = indicators.get("rsi")
+    rsi_7 = indicators.get("rsi_short")
+    rsi_7_prev = indicators.get("rsi_short_prev")
+    rsi_7_min_lookback = indicators.get("rsi_short_min_lookback")
+    rsi_lookback = int(indicators.get("rsi_short_recovery_lookback", 5))
+    ma_20 = indicators.get("ma_trend")
+    vol_ratio = indicators.get("vol_ratio")
+    close = indicators.get("close")
+    bb_lower = indicators.get("bb_lower")
+
+    passed_checks: List[str] = [f"Market Regime: {regime}"]
+
+    if rsi_14 is None:
+        return {"valid": False, "reason": "RSI14 데이터 없음", "passed_checks": passed_checks}
+    if rsi_14 > entry_config["rsi_14_max"]:
+        return {
+            "valid": False,
+            "reason": f"관망 중: RSI14({rsi_14:.1f}) > {entry_config['rsi_14_max']}",
+            "passed_checks": passed_checks,
+        }
+    passed_checks.append(f"✓ RSI14({rsi_14:.1f}) ≤ {entry_config['rsi_14_max']}")
+
+    if None in [rsi_7, rsi_7_prev]:
+        return {"valid": False, "reason": "RSI7 데이터 부족", "passed_checks": passed_checks}
+    if rsi_7_min_lookback is None:
+        rsi_7_min_lookback = min(rsi_7, rsi_7_prev)
+
+    trigger = entry_config["rsi_7_trigger"]
+    recover = entry_config["rsi_7_recover"]
+    is_rsi_short_recovery = (rsi_7_min_lookback < trigger) and (rsi_7 >= recover)
+    if not is_rsi_short_recovery:
+        if rsi_7_min_lookback >= trigger:
+            return {
+                "valid": False,
+                "reason": (
+                    f"과매도 대기: 최근 {rsi_lookback}캔들 RSI7 최저({rsi_7_min_lookback:.1f}) >= {trigger}"
+                ),
+                "passed_checks": passed_checks,
+            }
+        return {
+            "valid": False,
+            "reason": f"반등 대기: RSI7({rsi_7:.1f}) - {recover} 이상 반등 필요 (최근 최저: {rsi_7_min_lookback:.1f})",
+            "passed_checks": passed_checks,
+        }
+    passed_checks.append(f"✓ RSI7 최근 {rsi_lookback}캔들 과매도({trigger}) 진입 후 반등({recover}) 확인")
+
+    min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
+    if min_bounce_pct is not None:
+        rsi_bounce = rsi_7 - rsi_7_min_lookback
+        if rsi_bounce < min_bounce_pct:
+            return {
+                "valid": False,
+                "reason": f"반등폭 부족: RSI7 반등 {rsi_bounce:.1f}pt < 최소 {min_bounce_pct}pt",
+                "passed_checks": passed_checks,
+            }
+    passed_checks.append("✓ RSI7 반등폭 충분")
+
+    if ma_20 is None or close is None:
+        return {"valid": False, "reason": "MA/가격 데이터 부족", "passed_checks": passed_checks}
+    ma_condition = entry_config["ma_condition"]
+    if ma_condition == "crossover":
+        if close <= ma_20:
+            return {
+                "valid": False,
+                "reason": f"추세 대기: 현재가({close:,.0f}) ≤ MA20({ma_20:,.0f})",
+                "passed_checks": passed_checks,
+            }
+    elif ma_condition in ("proximity", "proximity_or_above"):
+        prox = entry_config.get("ma_proximity_pct", 0.97)
+        if close < ma_20 * prox:
+            return {
+                "valid": False,
+                "reason": f"추세 대기: 현재가({close:,.0f}) < MA20x{prox}({ma_20*prox:,.0f})",
+                "passed_checks": passed_checks,
+            }
+    passed_checks.append(f"✓ {ma_condition} 필터 통과")
+
+    if entry_config.get("require_price_above_bb_lower") and bb_lower is not None and close < bb_lower:
+        return {
+            "valid": False,
+            "reason": f"BB 하단 아래: 현재가({close:,.0f}) < BB하단({bb_lower:,.0f})",
+            "passed_checks": passed_checks,
+        }
+    passed_checks.append("✓ BB 하단 위 확인")
+
+    if entry_config.get("volume_ratio") is not None:
+        volume_ratio_min = entry_config["volume_ratio"]
+        if vol_ratio is None or vol_ratio < volume_ratio_min:
+            return {
+                "valid": False,
+                "reason": f"거래량 부족: {_fmt_float(vol_ratio, digits=2)}x < {volume_ratio_min}x",
+                "passed_checks": passed_checks,
+            }
+
+    if entry_config.get("volume_min_ratio") is not None:
+        volume_min_ratio = entry_config["volume_min_ratio"]
+        if vol_ratio is None or vol_ratio < volume_min_ratio:
+            return {
+                "valid": False,
+                "reason": f"거래량 부족: {_fmt_float(vol_ratio, digits=2)}x < 최소 {volume_min_ratio}x",
+                "passed_checks": passed_checks,
+            }
+    passed_checks.append(f"✓ 거래량 조건 통과 ({_fmt_float(vol_ratio, digits=2)}x)")
+
+    if entry_config.get("volume_surge_check"):
+        vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
+        recent_vol_ratios = indicators.get("recent_vol_ratios", [])
+        if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
+            return {
+                "valid": False,
+                "reason": "거래량 급증 감지: 패닉 셀링 가능성",
+                "passed_checks": passed_checks,
+            }
+
+    if regime == "SIDEWAYS" and entry_config.get("bb_enabled") and not indicators.get("bb_touch_recovery", False):
+        return {
+            "valid": False,
+            "reason": "BB 터치 회복 대기: BB 하단 터치 후 복귀 미확인",
+            "passed_checks": passed_checks,
+        }
+
+    passed_checks.append("✓ 모든 조건 통과")
+    return {"valid": True, "reason": "", "passed_checks": passed_checks}
 
 class TrailingStop:
     """
@@ -85,7 +223,6 @@ class MeanReversionStrategy(BaseStrategy):
         - volume_min_ratio: 거래량 하한 조건
         - volume_surge_check: 거래량 급증 체크 (BEAR 전용)
         """
-        symbol = indicators.get("symbol", "UNKNOWN")
         regime = indicators.get("regime", "UNKNOWN")
 
         if regime == "UNKNOWN":
@@ -97,101 +234,14 @@ class MeanReversionStrategy(BaseStrategy):
             return False
 
         entry_config = regime_config["entry"]
-
-        rsi_14 = indicators.get("rsi")
-        rsi_7 = indicators.get("rsi_short")
-        rsi_7_prev = indicators.get("rsi_short_prev")
-        ma_20 = indicators.get("ma_trend")
-        vol_ratio = indicators.get("vol_ratio")
-        close = indicators.get("close")
-        bb_lower = indicators.get("bb_lower")
-
-        # 1. 기본 공통 조건 (RSI 14)
-        if rsi_14 is None or rsi_14 > entry_config["rsi_14_max"]:
-            if debug:
-                print(f"[{symbol}] ❌ RSI14 조건 실패: {rsi_14:.1f} > {entry_config['rsi_14_max']}")
-            return False
-
-        # 2. RSI 7 반등 조건 (trigger -> recover)
-        if None in [rsi_7, rsi_7_prev]:
-            return False
-        is_rsi_short_recovery = (rsi_7_prev < entry_config["rsi_7_trigger"]) and (rsi_7 >= entry_config["rsi_7_recover"])
-        if not is_rsi_short_recovery:
-            if debug:
-                print(f"[{symbol}] ❌ RSI7 반등 조건 실패: prev={rsi_7_prev:.1f}, curr={rsi_7:.1f}, trigger<{entry_config['rsi_7_trigger']}, recover>={entry_config['rsi_7_recover']}")
-            return False
-
-        # 3. v3.1: RSI(7) 최소 반등 폭 체크
-        min_bounce_pct = entry_config.get("min_rsi_7_bounce_pct")
-        if min_bounce_pct is not None:
-            rsi_bounce = rsi_7 - rsi_7_prev
-            if rsi_bounce < min_bounce_pct:
-                if debug:
-                    print(f"[{symbol}] ❌ RSI7 반등폭 부족: {rsi_bounce:.1f} < {min_bounce_pct}")
-                return False
-
-        # 4. MA 조건 (crossover | proximity | proximity_or_above)
-        if ma_20 is None:
-            return False
-
-        if entry_config["ma_condition"] == "crossover":
-            if close <= ma_20:
-                if debug:
-                    print(f"[{symbol}] ❌ MA20 crossover 실패: {close:,.0f} <= {ma_20:,.0f}")
-                return False
-        elif entry_config["ma_condition"] == "proximity":
-            proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
-            if close < ma_20 * proximity_pct:
-                if debug:
-                    print(f"[{symbol}] ❌ MA20 proximity 실패: {close:,.0f} < {ma_20*proximity_pct:,.0f} ({proximity_pct*100:.0f}%)")
-                return False
-        elif entry_config["ma_condition"] == "proximity_or_above":
-            proximity_pct = entry_config.get("ma_proximity_pct", 0.97)
-            if close < ma_20 * proximity_pct:
-                if debug:
-                    print(f"[{symbol}] ❌ MA20 proximity_or_above 실패: {close:,.0f} < {ma_20*proximity_pct:,.0f} ({proximity_pct*100:.0f}%)")
-                return False
-
-        # 5. v3.1: BB 하단 체크 (Falling Knife 방지)
-        if entry_config.get("require_price_above_bb_lower") and bb_lower is not None:
-            if close < bb_lower:
-                if debug:
-                    print(f"[{symbol}] ❌ BB 하단 아래: {close:,.0f} < {bb_lower:,.0f}")
-                return False
-
-        # 6. 거래량 상한 조건 (volume_ratio: 이 이상이어야 함)
-        if entry_config.get("volume_ratio") is not None:
-            if vol_ratio is None or vol_ratio < entry_config["volume_ratio"]:
-                if debug:
-                    print(f"[{symbol}] ❌ 거래량 상한 미달: {vol_ratio:.2f} < {entry_config['volume_ratio']}")
-                return False
-
-        # 7. v3.1: 거래량 하한 조건 (volume_min_ratio: 이 미만이면 진입 금지)
-        if entry_config.get("volume_min_ratio") is not None:
-            if vol_ratio is None or vol_ratio < entry_config["volume_min_ratio"]:
-                if debug:
-                    print(f"[{symbol}] ❌ 거래량 하한 미달: {vol_ratio:.2f} < {entry_config['volume_min_ratio']}")
-                return False
-
-        # 8. v3.1: 거래량 급증 체크 (하락장 전용 - 패닉 셀링 감지)
-        if entry_config.get("volume_surge_check"):
-            vol_surge_ratio = entry_config.get("volume_surge_ratio", 2.0)
-            recent_vol_ratios = indicators.get("recent_vol_ratios", [])
-            if any(v >= vol_surge_ratio for v in recent_vol_ratios[-3:]):
-                if debug:
-                    print(f"[{symbol}] ❌ 거래량 급증 감지: {recent_vol_ratios[-3:]} (threshold: {vol_surge_ratio})")
-                return False
-
-        # 9. 횡보장 전용 BB 터치 회복 조건
-        if regime == "SIDEWAYS" and entry_config.get("bb_enabled"):
-            if not indicators.get("bb_touch_recovery", False):
-                if debug:
-                    print(f"[{symbol}] ❌ BB 터치 회복 미확인")
-                return False
-
+        eval_result = evaluate_entry_conditions(indicators, entry_config, regime)
         if debug:
-            print(f"[{symbol}] ✅ 모든 진입 조건 충족!")
-        return True
+            symbol = indicators.get("symbol", "UNKNOWN")
+            if eval_result["valid"]:
+                print(f"[{symbol}] ✅ 모든 진입 조건 충족!")
+            else:
+                print(f"[{symbol}] ❌ {eval_result['reason']}")
+        return bool(eval_result["valid"])
 
     def get_adjusted_exit_config(self, entry_regime: str, current_regime: str) -> Dict:
         """

@@ -28,8 +28,9 @@ def test_strategy_entry_signal_regime_logic():
     indicators_bull = {
         "regime": "BULL",
         "rsi": 40,
-        "rsi_short": 41,
-        "rsi_short_prev": 39,
+        "rsi_short": 43,
+        "rsi_short_prev": 41,
+        "rsi_short_min_lookback": 39,
         "ma_trend": 1000,
         "close": 1005, # crossover
         "vol_ratio": 1.5
@@ -42,10 +43,33 @@ def test_strategy_entry_signal_regime_logic():
         "rsi": 35,
         "rsi_short": 31,
         "rsi_short_prev": 29,
+        "rsi_short_min_lookback": 28,
         "ma_trend": 1000,
         "close": 980, # proximity (97%이상)
+        "vol_ratio": 0.5,
     }
     assert strategy.check_entry_signal(indicators_bear) is True
+
+def test_strategy_entry_signal_sideways_bb_touch_recovery_required():
+    config = StrategyConfig()
+    strategy = MeanReversionStrategy(config)
+
+    indicators_sideways_fail = {
+        "regime": "SIDEWAYS",
+        "rsi": 40,
+        "rsi_short": 42,
+        "rsi_short_prev": 41,
+        "rsi_short_min_lookback": 38,
+        "ma_trend": 1000,
+        "close": 980,
+        "vol_ratio": 0.5,
+        "bb_lower": 970,
+        "bb_touch_recovery": False,
+    }
+    assert strategy.check_entry_signal(indicators_sideways_fail) is False
+
+    indicators_sideways_ok = {**indicators_sideways_fail, "bb_touch_recovery": True}
+    assert strategy.check_entry_signal(indicators_sideways_ok) is True
 
 def test_strategy_exit_rsi_conditional():
     config = StrategyConfig()

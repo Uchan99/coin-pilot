@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from src.common.indicators import (
     calculate_rsi, calculate_ma, calculate_bb, 
-    calculate_volume_ratio, InsufficientDataError
+    calculate_volume_ratio, get_all_indicators, InsufficientDataError
 )
 from tests.fixtures.candle_data import get_oversold_candles
 
@@ -44,3 +44,18 @@ def test_calculate_volume_ratio():
     ratio = calculate_volume_ratio(volumes, period=20)
     
     assert ratio == 2.0
+
+def test_get_all_indicators_includes_lookback_fields():
+    df = get_oversold_candles(count=120)
+    indicators = get_all_indicators(
+        df,
+        rsi_short_recovery_lookback=5,
+        bb_touch_lookback=30
+    )
+
+    assert "rsi_short_min_lookback" in indicators
+    assert "rsi_short_recovery_lookback" in indicators
+    assert indicators["rsi_short_recovery_lookback"] == 5
+    assert "bb_touch_recovery" in indicators
+    assert "bb_touch_lookback" in indicators
+    assert indicators["bb_touch_lookback"] == 30

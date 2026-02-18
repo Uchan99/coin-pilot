@@ -107,7 +107,7 @@ class AgentRunner:
             return is_approved, reasoning
             
         except asyncio.TimeoutError:
-            print(f"[!] AI Agent Timeout (20s) for {symbol}. Falling back to REJECT.")
+            print(f"[!] AI Agent Timeout (40s) for {symbol}. Falling back to REJECT.")
             await self._log_decision(
                 symbol, strategy_name, "REJECT",
                 "AI Analysis Timed Out (Conservative Fallback)", None,

@@ -2,7 +2,7 @@ from typing import Dict, Any
 from langchain_core.prompts import ChatPromptTemplate
 from src.agents.state import AgentState
 from src.agents.structs import AnalystDecision
-from src.agents.prompts import ANALYST_SYSTEM_PROMPT
+from src.agents.prompts import ANALYST_SYSTEM_PROMPT, get_analyst_prompt
 from src.agents.factory import get_analyst_llm
 import os
 
@@ -14,10 +14,11 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", ANALYST_SYSTEM_PROMPT),
-        ("human", "현재 시장 상황을 분석하여 매수 승인 여부를 결정해주세요.\n\n"
-                  "심볼: {symbol}\n"
-                  "현재 지표 (1분봉 기준): {indicators}\n"
-                  "최근 1시간봉 캔들 (최대 24개): {market_context}")
+        ("human", "{analyst_prompt}\n\n"
+                  "[참고: 원시 입력]\n"
+                  "- 심볼: {symbol}\n"
+                  "- 현재 지표 (1분봉 기준): {indicators}\n"
+                  "- 최근 1시간봉 캔들 (최대 24개): {market_context}")
     ])
     
     chain = prompt | structured_llm
@@ -25,7 +26,8 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     result: AnalystDecision = await chain.ainvoke({
         "symbol": state["symbol"],
         "indicators": state["indicators"],
-        "market_context": state["market_context"]
+        "market_context": state["market_context"],
+        "analyst_prompt": get_analyst_prompt(state["indicators"])
     })
     
     # 분석 결과 업데이트

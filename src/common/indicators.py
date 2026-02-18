@@ -226,8 +226,14 @@ def calculate_volume_ratios(volume_series: pd.Series, period: int = 20) -> pd.Se
     return vol_ratios.fillna(0.0)
 
 
-def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
-                       rsi_period: int = 14, rsi_short_period: int = 7) -> Dict:
+def get_all_indicators(
+    df: pd.DataFrame,
+    ma_period: int = 20,
+    rsi_period: int = 14,
+    rsi_short_period: int = 7,
+    rsi_short_recovery_lookback: int = 5,
+    bb_touch_lookback: int = 30
+) -> Dict:
     """
     전략 수행에 필요한 모든 보조 지표를 한 번에 계산하여 마지막 행의 값을 반환합니다.
 
@@ -243,8 +249,10 @@ def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
     # 1. RSI (14) - 중기 과매도 판단용
     rsi_series = calculate_rsi(df['close'], period=rsi_period)
 
-    # 2. RSI (7) - 단기 모멘텀 반전 감지용 (현재 + 이전값 필요)
+    # 2. RSI (7) - 단기 모멘텀 반전 감지용
     rsi_short_series = calculate_rsi(df['close'], period=rsi_short_period)
+    lookback = max(2, int(rsi_short_recovery_lookback))
+    rsi_short_min_lookback = float(rsi_short_series.tail(lookback).min())
 
     # 3. MA (추세 필터용)
     ma_trend_series = calculate_ma(df['close'], period=ma_period)
@@ -260,12 +268,24 @@ def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
     # 최근 5캔들의 거래량 비율 리스트 (volume_surge_check에서 사용)
     recent_vol_ratios = vol_ratios_series.tail(5).tolist()
 
+    # 7. BB 하단 터치 후 복귀 여부 (1분봉 기준 canonical 경로)
+    bb_input = pd.DataFrame({
+        "close": df["close"],
+        "bb_lower": bb_df["BBL"]
+    }).dropna()
+    bb_touch_recovery = check_bb_touch_recovery(
+        bb_input,
+        lookback=max(1, int(bb_touch_lookback))
+    )
+
     # 마지막 시점의 데이터를 딕셔너리로 구성
     return {
         # RSI 듀얼 타임프레임
         "rsi": float(rsi_series.iloc[-1]),              # RSI(14) 현재
         "rsi_short": float(rsi_short_series.iloc[-1]),  # RSI(7) 현재
         "rsi_short_prev": float(rsi_short_series.iloc[-2]) if len(rsi_short_series) >= 2 else None,  # RSI(7) 이전 (상향돌파 감지용)
+        "rsi_short_min_lookback": rsi_short_min_lookback,  # 최근 N캔들 RSI(7) 최저점
+        "rsi_short_recovery_lookback": lookback,
 
         # MA 추세
         "ma_trend": float(ma_trend_series.iloc[-1]),
@@ -275,6 +295,8 @@ def get_all_indicators(df: pd.DataFrame, ma_period: int = 20,
         "bb_lower": float(bb_df['BBL'].iloc[-1]),
         "bb_mid": float(bb_df['BBM'].iloc[-1]),
         "bb_upper": float(bb_df['BBU'].iloc[-1]),
+        "bb_touch_recovery": bb_touch_recovery,
+        "bb_touch_lookback": max(1, int(bb_touch_lookback)),
 
         # 거래량
         "vol_ratio": vol_ratio,

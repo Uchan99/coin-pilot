@@ -41,6 +41,25 @@ class MetricsExporter:
             'Total number of trades executed'
         )
 
+        # AI 분석 요청 횟수 (Counter)
+        self.ai_requests = Counter(
+            'coinpilot_ai_requests_total',
+            'Total number of AI analysis requests'
+        )
+
+        # AI pre-filter로 스킵된 횟수 (Counter)
+        self.ai_prefilter_skips = Counter(
+            'coinpilot_ai_prefilter_skips_total',
+            'Total number of signals skipped by AI pre-filter'
+        )
+
+        # AI 입력 컨텍스트 캔들 길이 (Histogram)
+        self.ai_context_candles = Histogram(
+            'coinpilot_ai_context_candles',
+            'Number of hourly candles provided to AI market context',
+            buckets=[0, 4, 8, 12, 16, 20, 24, 30]
+        )
+
         # 현재 변동성 지수 (Gauge: 변동성 모델에서 업데이트)
         self.volatility_index = Gauge(
             'coinpilot_volatility_index',

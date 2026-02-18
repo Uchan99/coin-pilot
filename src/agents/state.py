@@ -11,7 +11,7 @@ class AgentState(TypedDict):
     # 입력 데이터
     symbol: str
     strategy_name: str
-    market_context: Dict[str, Any] # OHLCV Summary
+    market_context: List[Dict[str, Any]] # OHLCV Summary
     indicators: Dict[str, Any]    # RSI, BB, MA 등
     
     # 분석 결과
