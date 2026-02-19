@@ -310,6 +310,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
+| `docs/troubleshooting/prometheus_grafana_monitoring_runbook.md` | Prometheus/Grafana 점검 및 활용 Runbook |
 
 ### 8.6 프로젝트 상태
 
