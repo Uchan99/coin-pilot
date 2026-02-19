@@ -48,6 +48,7 @@ class TestDailyReporter:
             "date": "2024-01-01",
             "total_pnl": 100.0,
             "trade_count": 5,
+            "sell_trade_count": 3,
             "win_rate": 0.6,
             "mdd": 5.0
         }
@@ -70,4 +71,5 @@ class TestDailyReporter:
             args = mock_notifier.send_webhook.call_args[0]
             assert args[0] == "/webhook/daily-report"
             assert args[1]["summary"] == "Great trading day!"
-            assert "100.00 USDT" in args[1]["pnl"]
+            assert args[1]["pnl"] == "100 KRW"
+            assert args[1]["win_rate"] == "60.0%"
