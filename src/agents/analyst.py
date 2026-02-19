@@ -42,11 +42,16 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     # 분석 결과 업데이트
     # V1.2 정책: confidence < 60 이면 강제 REJECT
     final_decision = result.decision
-    final_reasoning = result.reasoning or "Analyst returned empty reasoning."
+    final_reasoning = (result.reasoning or "").strip()
+    if not final_reasoning:
+        final_reasoning = (
+            f"Analyst reasoning missing from model output "
+            f"(decision={result.decision}, confidence={result.confidence})."
+        )
     
     if result.decision == "CONFIRM" and result.confidence < 60:
         final_decision = "REJECT"
-        final_reasoning = f"[Low Confidence: {result.confidence}] {result.reasoning}"
+        final_reasoning = f"[Low Confidence: {result.confidence}] {final_reasoning}"
     
     return {
         "analyst_decision": {
