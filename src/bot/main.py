@@ -232,7 +232,8 @@ async def bot_loop():
                                 signal_info = {
                                     **indicators,
                                     "exit_reason": exit_reason,
-                                    "regime": pos["regime"]
+                                    "regime": pos["regime"],
+                                    "entry_avg_price": float(pos["avg_price"]),
                                 }
                                 
                                 success = await executor.execute_order(
@@ -425,6 +426,8 @@ async def bot_loop():
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.analytics.volatility_model import VolatilityModel
+from src.analytics.post_exit_tracker import track_post_exit_prices_job
+from src.analytics.exit_performance import ExitPerformanceAnalyzer
 
 # ... existing code ...
 
@@ -523,6 +526,28 @@ async def daily_reporter_job():
         traceback.print_exc()
 
 
+async def weekly_exit_report_job():
+    """
+    매주 일요일 22:00 KST (13:00 UTC)에 exit 성과 주간 리포트 생성/전송.
+    """
+    print("[Scheduler] Generating Weekly Exit Report...")
+    try:
+        from src.common.notification import notifier
+
+        analyzer = ExitPerformanceAnalyzer(get_db_session)
+        payload = await analyzer.build_weekly_report_payload(days=7, min_samples=20)
+        ok = await notifier.send_webhook("/webhook/weekly-exit-report", payload)
+
+        if ok:
+            print("[Scheduler] Weekly Exit Report sent successfully.")
+        else:
+            print("[Scheduler] Weekly Exit Report send failed (webhook not accepted).")
+    except Exception as e:
+        print(f"[Scheduler] Weekly Exit Report Failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 # FastAPI App Setup for Health & Metrics
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -539,6 +564,20 @@ async def lifespan(app: FastAPI):
     # 매일 22:00 KST (13:00 UTC)에 일간 리포트 전송
     scheduler.add_job(daily_reporter_job, 'cron', hour=13, minute=0, timezone=timezone.utc,
                       misfire_grace_time=7200, coalesce=True)
+    # 10분마다 SELL post-exit 가격 추적
+    scheduler.add_job(track_post_exit_prices_job, 'interval', minutes=10,
+                      misfire_grace_time=300, coalesce=True)
+    # 매주 일요일 22:00 KST (13:00 UTC)에 주간 Exit 성과 리포트 전송
+    scheduler.add_job(
+        weekly_exit_report_job,
+        'cron',
+        day_of_week='sun',
+        hour=13,
+        minute=0,
+        timezone=timezone.utc,
+        misfire_grace_time=7200,
+        coalesce=True,
+    )
     scheduler.start()
     
     # 서버 기동 직후 즉시 레짐 업데이트 1회 실행

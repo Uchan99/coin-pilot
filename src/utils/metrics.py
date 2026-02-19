@@ -60,6 +60,16 @@ class MetricsExporter:
             buckets=[0, 4, 8, 12, 16, 20, 24, 30]
         )
 
+        # 매도 후 가격 추적 성공/실패 횟수
+        self.post_exit_tracked = Counter(
+            'coinpilot_post_exit_tracked_total',
+            'Total number of post-exit price points tracked successfully'
+        )
+        self.post_exit_missed = Counter(
+            'coinpilot_post_exit_missed_total',
+            'Total number of post-exit price points missed due to missing market data'
+        )
+
         # 현재 변동성 지수 (Gauge: 변동성 모델에서 업데이트)
         self.volatility_index = Gauge(
             'coinpilot_volatility_index',

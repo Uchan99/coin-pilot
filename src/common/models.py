@@ -47,6 +47,7 @@ class TradingHistory(Base):
     regime = Column(String(10), nullable=True)  # 진입 시 레짐
     high_water_mark = Column(Numeric(20, 8), nullable=True)  # 청산 시점 최고가
     exit_reason = Column(String(30), nullable=True)  # 청산 사유
+    post_exit_prices = Column(JSONB, nullable=True)  # 매도 후 1h/4h/12h/24h 추적 가격
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
 

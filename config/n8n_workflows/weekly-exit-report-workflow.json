@@ -1,0 +1,60 @@
+{
+  "name": "CoinPilot - Weekly Exit Report",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "weekly-exit-report",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a5be9f91-cf0a-4b2d-955b-3d1d67d2b111",
+      "name": "Webhook - Weekly Exit Report",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "weekly-exit-report"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/REPLACE_THIS_WITH_YOUR_WEBHOOK_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"content\": `📊 ${$json.title || 'CoinPilot Weekly Exit Report'}\\n기간: ${$json.period_start || '-'} ~ ${$json.period_end || '-'}\\nSELL 샘플: ${$json.total_sells ?? 0}건\\n\\n요약:\\n${$json.summary || '요약 없음'}\\n\\n제안:\\n${(($json.suggestions || []).map((s, i) => `${i + 1}. ${s}`).join('\\n')) || '없음'}` } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c2d45f31-e6f4-4966-9d44-fb2d9e34a222",
+      "name": "Send Discord Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Weekly Exit Report": {
+      "main": [
+        [
+          {
+            "node": "Send Discord Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {}
+}
