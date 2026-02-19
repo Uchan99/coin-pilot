@@ -259,8 +259,8 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `detect_regime()` threshold 버그 수정 | ✅ | 2026-02-12 | 위 문서 참조 |
 | 백테스트 코드 v3.1 조건 동기화 | ✅ | 2026-02-12 | 위 문서 참조 |
 | 전략 레짐 신뢰성 개선 + 운영 핫픽스(Phase 1~3A) | ✅ | 2026-02-18~19 | `docs/work-result/13_strategy_regime_phase1_implementation_result.md` |
-| Trade Count 분리 핫픽스 계획 수립 | 🛠️ 진행중 | 2026-02-19 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` |
-| 매도 후 사후 분석 강화 계획 수립 | 📋 계획 | 2026-02-19 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` |
+| Trade Count 분리 핫픽스 구현 완료 | ✅ | 2026-02-19 | `docs/work-result/14_trade_count_split_hotfix_result.md` |
+| 매도 후 사후 분석 강화(Phase 1~3) 구현 완료 | ✅ | 2026-02-19 | `docs/work-result/15_post_exit_analysis_phase1_implementation_result.md` |
 
 ### 8.3 핵심 기능 구현 현황
 
@@ -276,6 +276,9 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | SQL Agent | 자연어 → SQL 변환 | ✅ | `src/agents/sql_agent.py` |
 | RAG Agent | 문서/규칙 검색 | ✅ | `src/agents/rag_agent.py` |
 | Daily Reporter | 일간 리포트 LLM 생성 → Discord | ✅ | `src/agents/daily_reporter.py` |
+| Post-Exit Tracker | 매도 후 1h/4h/12h/24h 가격 추적 | ✅ | `src/analytics/post_exit_tracker.py` |
+| Exit Performance Analyzer | 주간 집계/튜닝 제안 생성 | ✅ | `src/analytics/exit_performance.py` |
+| Exit Analysis Dashboard | 매도 성과 시각화/제안 확인 | ✅ | `src/dashboard/pages/07_exit_analysis.py` |
 | Volatility Model | GARCH → 포지션 사이징 | ✅ | `src/analytics/volatility_model.py` |
 | Prometheus Metrics | 시스템 관측성 | ✅ | `src/utils/metrics.py` |
 | Grafana Dashboards | 메트릭 시각화 | ✅ | `deploy/monitoring/grafana-provisioning/` |
@@ -305,6 +308,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-result/12_daily_report_fix.md` | Daily Report 복구 |
 | `docs/work-result/12_strategy_parameter_report.md` | 파라미터 튜닝 구현 |
 | `docs/work-result/14_trade_count_split_hotfix_result.md` | 14번 Trade Count 분리 핫픽스 구현 결과 |
+| `docs/work-result/15_post_exit_analysis_phase1_implementation_result.md` | 15번 Post-exit 분석 Phase 1~3 구현 결과 |
 | `docs/work-plans/12_strategy_parameter_tuning.md` | 파라미터 튜닝 계획 (확정) |
 | `docs/work-plans/13_strategy_regime_reliability_plan.md` | 전략 레짐 신뢰성 개선/핫픽스 계획 |
 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
@@ -317,14 +321,14 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 
 | 항목 | 결과 |
 |------|------|
-| **Charter 대비 구현률** | **97%** (핵심 기능 100%, 고급 기능 Future) |
+| **Charter 대비 구현률** | **99%** (핵심 기능 100%, 고급 기능 Future) |
 | **전략 버전** | v3.3 (레짐 기반 적응형 + 신뢰성/가드레일 강화) |
 | **프로덕션 준비 상태** | ✅ Ready (운영 중) |
-| **현재 초점** | 14번 Trade Count 분리 핫픽스 구현 → 15번 Post-exit 분석 강화 착수 |
+| **현재 초점** | 16번 Overview 가독성 개선 + 17/18 계획(챗봇 고도화/클라우드 마이그레이션) 준비 |
 
-### 8.7 예정 변경 (14번 핫픽스 반영 예정)
+### 8.7 적용 완료 (14번 핫픽스 반영)
 
-`14_post_exit_trade_count_split_hotfix` 완료 시, `daily_risk_state`의 거래 카운트 정의를 아래처럼 표준화한다.
+`14_post_exit_trade_count_split_hotfix`를 반영하여, `daily_risk_state`의 거래 카운트 정의를 아래처럼 표준화했다.
 
 | 필드 | 의미 | 증가 시점 | 주 사용처 |
 |------|------|----------|----------|
@@ -346,5 +350,11 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 3. 신규 work-plan이 실행 단계로 진입하면 "현재 초점"과 "문서 참고" 섹션에 링크를 추가한다.
 4. 트러블슈팅으로 시작된 변경은 관련 troubleshooting 문서를 Charter의 참조 목록에 연결한다.
 
+### 8.9 변경 이력 (요약)
+
+| 날짜 | 변경 요약 |
+|------|----------|
+| 2026-02-19 | 14번 Trade Count 분리 핫픽스 및 15번 Post-exit 분석 강화(Phase 1~3, 주간 리포트/Exit 분석 대시보드 포함) 완료 상태 반영 |
+
 ---
-*최종 업데이트: 2026-02-19 by Codex (GPT-5)*
+*최종 업데이트: 2026-02-19 (15번 완료 반영) by Codex (GPT-5)*
