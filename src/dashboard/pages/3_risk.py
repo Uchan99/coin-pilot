@@ -8,13 +8,16 @@ st.title("🛡️ Risk Monitor")
 # Week 6 목표: "손절 한도", "거래 횟수 제한" 등 리스크 규칙 준수 여부 시각화
 
 # 1. Daily Risk State 조회 (오늘 날짜 기준)
-# models.py: daily_risk_state (date, total_pnl, trade_count, consecutive_losses, is_trading_halted)
+# models.py: daily_risk_state
+# (date, total_pnl, buy_count, sell_count, trade_count, consecutive_losses, is_trading_halted)
 risk_df = get_data_as_dataframe("SELECT * FROM daily_risk_state ORDER BY date DESC LIMIT 1")
 
 # 기본값 설정
 current_loss_pct = 0.0
 current_pnl = 0.0
 trade_count = 0
+buy_count = 0
+sell_count = 0
 consecutive_losses = 0
 is_halted = False
 loss_limit = -5.0 # -5%
@@ -30,6 +33,8 @@ if not risk_df.empty:
     
     current_pnl = float(row['total_pnl'])
     trade_count = int(row['trade_count'])
+    buy_count = int(row['buy_count']) if 'buy_count' in row else 0
+    sell_count = int(row['sell_count']) if 'sell_count' in row else 0
     consecutive_losses = int(row['consecutive_losses'])
     is_halted = bool(row['is_trading_halted'])
 
@@ -65,15 +70,31 @@ with col1:
         st.error("🚨 Daily Loss Limit Reached! (Trading Halted)")
 
 with col2:
-    st.markdown("#### 🔢 Daily Trade Count")
+    st.markdown("#### 🔢 Daily Buy Count")
     # Progress Bar로 표현
-    # trade_limit = 10
-    progress = min(trade_count / trade_limit, 1.0)
+    # 리스크 제한은 BUY 기준
+    progress = min(buy_count / trade_limit, 1.0)
     st.progress(progress)
-    st.metric("Trade Count", f"{trade_count} / {trade_limit}")
+    st.metric("Buy Count", f"{buy_count} / {trade_limit}")
     
-    if trade_count >= trade_limit:
-        st.warning("⚠️ Max Trade Count Reached")
+    if buy_count >= trade_limit:
+        st.warning("⚠️ Max Buy Count Reached")
+
+st.markdown("#### 📊 Fill Counts (Today)")
+col_fill1, col_fill2, col_fill3 = st.columns(3)
+total_fills = buy_count + sell_count
+with col_fill1:
+    st.metric("BUY Fills", f"{buy_count}")
+with col_fill2:
+    st.metric("SELL Fills", f"{sell_count}")
+with col_fill3:
+    st.metric("Total Fills", f"{total_fills}")
+
+if trade_count != total_fills:
+    st.warning(
+        f"Trade count mismatch detected: trade_count={trade_count}, "
+        f"buy_count+sell_count={total_fills}"
+    )
 
 st.markdown("---")
 

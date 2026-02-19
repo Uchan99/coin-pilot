@@ -244,7 +244,7 @@ async def bot_loop():
                                 if success:
                                     # 리스크 상태 업데이트 (PnL 반영)
                                     pnl = (current_price - pos["avg_price"]) * pos["quantity"]
-                                    await risk_manager.update_after_trade(session, pnl)
+                                    await risk_manager.update_after_trade(session, pnl, side="SELL")
                                     # Redis의 HWM 삭제
                                     if redis_client:
                                         await redis_client.delete(f"position:{symbol}:hwm")
@@ -344,6 +344,11 @@ async def bot_loop():
                                                     signal_info
                                                 )
                                                 if success:
+                                                    await risk_manager.update_after_trade(
+                                                        session,
+                                                        Decimal("0"),
+                                                        side="BUY",
+                                                    )
                                                     metrics.trade_count.inc()
                                                 else:
                                                     bot_action = "SKIP"

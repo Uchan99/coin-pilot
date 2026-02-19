@@ -69,7 +69,14 @@ class RiskManager:
         state = result.scalar_one_or_none()
         
         if not state:
-            state = DailyRiskState(date=today, total_pnl=0, trade_count=0, consecutive_losses=0)
+            state = DailyRiskState(
+                date=today,
+                total_pnl=0,
+                buy_count=0,
+                sell_count=0,
+                trade_count=0,
+                consecutive_losses=0,
+            )
             session.add(state)
             await session.flush() # ID 등 반영
         return state
@@ -167,7 +174,7 @@ class RiskManager:
             return False, f"3연패로 인한 쿨다운 중입니다. (남은 시간: {remain.total_seconds()/60:.1f}분)"
 
         # 4. 일일 최대 거래 횟수 확인
-        if state.trade_count >= self.max_daily_trades:
+        if state.buy_count >= self.max_daily_trades:
             return False, f"일일 최대 거래 횟수({self.max_daily_trades}회)를 초과했습니다."
 
         # 5. 일일 최대 손실 확인
@@ -232,28 +239,38 @@ class RiskManager:
         
         print(f"[!] Risk Violation: {v_type} - {desc}")
 
-    async def update_after_trade(self, session: AsyncSession, pnl: Decimal):
+    async def update_after_trade(self, session: AsyncSession, pnl: Decimal, side: str = "SELL"):
         """
         매매 종료 후 리스크 상태를 업데이트합니다. (PnL 반영, 연패 계산, 쿨다운 등)
         """
         state = await self.get_daily_state(session)
-        state.total_pnl += pnl
+
+        normalized_side = (side or "SELL").upper()
+        if normalized_side == "BUY":
+            state.buy_count += 1
+            state.trade_count += 1
+            await session.flush()
+            return
+
+        # Default/legacy path: SELL 처리
+        state.sell_count += 1
         state.trade_count += 1
-        
+        state.total_pnl += pnl
+
         if pnl < 0:
             state.consecutive_losses += 1
             # 3연패 시 2시간 쿨다운 설정
             if state.consecutive_losses >= 3:
                 state.cooldown_until = datetime.now(timezone.utc) + timedelta(hours=self.cooldown_hours)
                 state.consecutive_losses = 0 # 쿨다운 진입 후 초기화
-                
+
                 # n8n 쿨다운 알림 발송
                 asyncio.create_task(notifier.send_webhook("/webhook/risk", {
                     "type": "COOLDOWN",
                     "message": f"3연패로 인해 {self.cooldown_hours}시간 동안 거래를 중단합니다.",
                     "level": "CRITICAL"
                 }))
-                
+
                 print(f"[!] 3 consecutive losses detected. Cooldown for {self.cooldown_hours} hours.")
         else:
             state.consecutive_losses = 0 # 수익 발생 시 연패 초기화

@@ -93,6 +93,8 @@ class DailyRiskState(Base):
 
     date = Column(Date, primary_key=True, default=lambda: datetime.now(timezone.utc).date())
     total_pnl = Column(Numeric(20, 8), default=0, nullable=False)
+    buy_count = Column(Integer, default=0, nullable=False)
+    sell_count = Column(Integer, default=0, nullable=False)
     trade_count = Column(Integer, default=0, nullable=False)
     consecutive_losses = Column(Integer, default=0, nullable=False)
     cooldown_until = Column(DateTime(timezone=True), nullable=True)

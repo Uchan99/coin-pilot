@@ -304,6 +304,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-result/11_notification_and_timezone_improvements.md` | v3.1 정교화 및 알림 개선 |
 | `docs/work-result/12_daily_report_fix.md` | Daily Report 복구 |
 | `docs/work-result/12_strategy_parameter_report.md` | 파라미터 튜닝 구현 |
+| `docs/work-result/14_trade_count_split_hotfix_result.md` | 14번 Trade Count 분리 핫픽스 구현 결과 |
 | `docs/work-plans/12_strategy_parameter_tuning.md` | 파라미터 튜닝 계획 (확정) |
 | `docs/work-plans/13_strategy_regime_reliability_plan.md` | 전략 레짐 신뢰성 개선/핫픽스 계획 |
 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
