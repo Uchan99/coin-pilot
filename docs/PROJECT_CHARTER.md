@@ -1,4 +1,4 @@
-# CoinPilot Project Plan v3.1
+# CoinPilot Project Plan v3.3
 **Kubernetes 기반 자율 가상화폐 매매 AI 에이전트**
 *(Rule-Based Core + AI-Assisted Decision System)*
 
@@ -32,27 +32,32 @@
 | **Assistant** | RAG Agent | 리스크 이벤트 감지 (거래 중단) | 보조 (비활성 가능) |
 | **Assistant** | Volatility Model | 변동성 예측 → 포지션 크기 조절 | 보조 (선택적) |
 
-### 2.2 의사결정 흐름 (v3.0 업데이트)
+### 2.2 의사결정 흐름 (v3.3 업데이트)
 **"AI가 실패해도 시스템은 동작한다"**가 핵심 원칙입니다.
 
-**매매 실행 Flow (v3.0):**
+**매매 실행 Flow (현재 운영 기준):**
 ```
 [시장 데이터] → [레짐 감지 (1시간 주기)] → [Rule Engine: 레짐별 조건 충족?]
+  → [Risk Manager: 진입 가능?] → [AI Pre-filter/Guardrails]
   → [AI Analyst: 신호 신뢰성 검증] → [AI Guardian: 리스크 검토]
-  → [Risk Manager: 진입 가능?] → [Executor: 주문 실행]
+  → [Executor: 주문 실행]
 ```
 
 * **AI 검증 2단계:**
-    * **Market Analyst:** Rule Engine 통과 신호의 기술적 신뢰성 판단 (CONFIRM/REJECT, confidence < 80 시 강제 REJECT)
+    * **Market Analyst:** Rule Engine 통과 신호의 기술적 신뢰성 판단 (CONFIRM/REJECT, confidence < 60 시 강제 REJECT)
     * **Risk Guardian:** 거시적 리스크 및 심리 상태 검토 (SAFE/WARNING)
-    * AI Timeout(20초) 또는 에러 시 → 보수적으로 REJECT (Fallback 설계)
+    * AI Timeout(40초) 또는 에러 시 → 보수적으로 REJECT (Fallback 설계)
+* **AI 호출 보호 장치:**
+    * 심볼별 REJECT 쿨다운(5/10/15분)
+    * 시간/일 호출 상한
+    * 크레딧 부족/연속 에러 시 글로벌 블록
 * **보조 Agent:**
     * **SQL Agent:** 자연어 질의 → SQL 변환 → 지표 조회
     * **RAG Agent:** 문서/규칙 검색, 리스크 이벤트 감지
     * **Volatility Model:** GARCH 기반 변동성 예측 → 포지션 사이징
 
 ## 3. 트레이딩 전략
-### 3.1 채택 전략: Adaptive Mean Reversion (v3.1)
+### 3.1 채택 전략: Adaptive Mean Reversion (v3.3)
 마켓 레짐(BULL/SIDEWAYS/BEAR)을 감지하고 각 상황에 맞는 진입/청산 조건을 동적으로 적용합니다.
 과매도 구간 반등을 노리되, Rule Engine은 느슨한 필터로 후보를 생성하고 AI Agent가 엄격하게 2차 판단합니다.
 
@@ -64,18 +69,18 @@
 | **BEAR** | MA50 < MA200 - 2% | 하락장 (데드크로스) |
 | **UNKNOWN** | 데이터 부족 | 신규 거래 보류 |
 
-**진입 조건 (Long) - v3.1 (레짐 기반 적응형)**
+**진입 조건 (Long) - v3.3 (레짐 기반 적응형)**
 | 조건 | BULL | SIDEWAYS | BEAR |
 | :--- | :--- | :--- | :--- |
-| **RSI (14)** | < 50 | < 45 | < 45 |
-| **RSI (7) Trigger** | < 45 | < 40 | < 35 |
-| **RSI (7) Recover** | ≥ 45 | ≥ 40 | ≥ 35 |
-| **RSI (7) 반등폭** | ≥ 2pt | ≥ 2pt | ≥ 2pt |
-| **MA 조건** | MA20 돌파 | MA20 근접 (97%) | MA20 근접 or 돌파 |
-| **거래량 상한** | ≥ 1.2배 | - | - |
-| **거래량 하한** | - | ≥ 0.2배 | ≥ 0.1배 |
+| **RSI (14)** | < 50 | < 48 | < 42 |
+| **RSI (7) Trigger** | < 42 | < 40 | < 30 |
+| **RSI (7) Recover** | ≥ 42 | ≥ 42 | ≥ 30 |
+| **RSI (7) 반등폭** | ≥ 2pt | ≥ 3pt | ≥ 2pt |
+| **MA 조건** | MA20 돌파 | MA20 근접 (98.5%) | MA20 근접(97%) or 돌파 |
+| **거래량 상한** | ≥ 1.0배 | - | - |
+| **거래량 하한** | - | ≥ 0.4배 | ≥ 0.2배 |
 | **BB 하단 방어** | - | 가격 > BB 하단 | 가격 > BB 하단 |
-| **BB 터치 회복** | - | 필수 | - |
+| **BB 터치 회복** | - | 필수 (연속 유지 조건 포함) | - |
 | **거래량 급증 체크** | - | - | 2배 이상 시 보류 |
 | **포지션 비중** | 100% | 80% | 50% |
 
@@ -108,7 +113,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | :--- | :--- | :--- |
 | **단일 포지션 한도** | 총 자산의 5% | 주문 거부 |
 | **일일 최대 손실** | -5% | 당일 거래 중단 |
-| **일일 최대 거래** | 10회 | 당일 거래 중단 |
+| **일일 최대 신규 진입(BUY)** | 10회 | 당일 신규 진입 중단 |
 | **쿨다운** | 3연패 시 | 2시간 거래 중단 |
 | **최소 거래 간격** | 30분 | 주문 지연 |
 
@@ -119,7 +124,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 * **역할:** Rule Engine이 포착한 진입 신호의 기술적 신뢰성 검증
 * **입력:** 심볼, 지표(RSI, MA, BB, 거래량), 레짐 정보
 * **출력:** CONFIRM/REJECT + confidence(0-100) + 추론 근거
-* **정책:** confidence < 80 → 강제 REJECT
+* **정책:** confidence < 60 → 강제 REJECT
 * **구현:** `src/agents/analyst.py`
 
 **B. Risk Guardian (리스크 검토)**
@@ -129,7 +134,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 * **구현:** `src/agents/guardian.py`
 
 **워크플로우:** `Analyst → (CONFIRM인 경우만) → Guardian → 최종 결정`
-**Timeout:** 20초 (초과 시 보수적으로 REJECT)
+**Timeout:** 40초 (초과 시 보수적으로 REJECT)
 
 ### 4.2 보조 Agent (챗봇/조회용)
 
@@ -149,7 +154,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 * **Agent Memory:** 성공/실패 패턴을 Vector DB(pgvector)에 저장해 유사 상황 시 참조 (인프라 준비 완료, 구현 대기)
 * **EvalOps:** AI 판단의 사후 평가 체계 (규칙 기반 → 추후 LLM Judge 확장)
 * **Self-Reflection:** Critic Agent가 Analyst 결정의 규칙 준수 여부 2차 검증 (검토 중)
-* 상세 계획: `docs/work-plans/13_ai_enhancement-plan.md` 참조
+* 관련 계획: `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` 및 후속 AI 개선 계획 문서 참조
 
 ## 5. 기술 스택
 | 구분 | 기술 | 선정 이유 |
@@ -158,7 +163,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Rule Engine** | 자체 구현 (Python) | 테스트 용이성, 명확성 |
 | **AI Framework** | LangChain, LangGraph | 워크플로우 관리 |
 | **Model** | GARCH / PyTorch | 변동성 예측용 |
-| **LLM** | Claude 3.5 Haiku (Dev) / Claude 4.5 Sonnet (Prod) | 비용 효율성 및 고성능 추론 최적화 |
+| **LLM** | Claude Haiku 4.5 (Dev) / Claude Sonnet 4.5 (Prod) | 비용 효율성 및 고성능 추론 최적화 |
 | **Backend** | FastAPI | 비동기 API |
 | **Database** | PostgreSQL 16 | TimescaleDB (Time-series) + pgvector (Vector) |
 | **Vector DB** | pgvector | PostgreSQL 내장 확장 (ChromaDB 대체) |
@@ -208,7 +213,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
   * Phase 2: Volatility Model + 백테스팅 리포트 조회
   * Phase 3: 뉴스 RAG 확장 + 일간 리포트 자동 생성
   * Phase 4: MCP 연동 + 거래 실행 권한 (Optional)
-  * 상세 계획: `docs/work-plans/chatbot-advancement.md` 참조
+  * 상세 계획: `docs/work-plans/9_chatbot-advancement.md` 참조
 * **MCP (Model Context Protocol)**: 챗봇 및 외부 LLM 클라이언트용 표준 인터페이스
   * 도입 시기: Week 8 이후 필요 시 검토
   * 장점: 재사용성, 표준화
@@ -253,6 +258,9 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | v3.1 파라미터 튜닝 (RSI/거래량 완화) | ✅ | 2026-02-12 | `docs/work-result/12_strategy_parameter_report.md` |
 | `detect_regime()` threshold 버그 수정 | ✅ | 2026-02-12 | 위 문서 참조 |
 | 백테스트 코드 v3.1 조건 동기화 | ✅ | 2026-02-12 | 위 문서 참조 |
+| 전략 레짐 신뢰성 개선 + 운영 핫픽스(Phase 1~3A) | ✅ | 2026-02-18~19 | `docs/work-result/13_strategy_regime_phase1_implementation_result.md` |
+| Trade Count 분리 핫픽스 계획 수립 | 🛠️ 진행중 | 2026-02-19 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` |
+| 매도 후 사후 분석 강화 계획 수립 | 📋 계획 | 2026-02-19 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` |
 
 ### 8.3 핵심 기능 구현 현황
 
@@ -297,16 +305,44 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-result/12_daily_report_fix.md` | Daily Report 복구 |
 | `docs/work-result/12_strategy_parameter_report.md` | 파라미터 튜닝 구현 |
 | `docs/work-plans/12_strategy_parameter_tuning.md` | 파라미터 튜닝 계획 (확정) |
-| `docs/work-plans/13_ai_enhancement-plan.md` | AI 고도화 계획 (초안, 재계획 예정) |
+| `docs/work-plans/13_strategy_regime_reliability_plan.md` | 전략 레짐 신뢰성 개선/핫픽스 계획 |
+| `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
+| `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
+| `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
+| `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
 
 ### 8.6 프로젝트 상태
 
 | 항목 | 결과 |
 |------|------|
 | **Charter 대비 구현률** | **97%** (핵심 기능 100%, 고급 기능 Future) |
-| **전략 버전** | v3.1 (레짐 기반 적응형 + 파라미터 튜닝) |
+| **전략 버전** | v3.3 (레짐 기반 적응형 + 신뢰성/가드레일 강화) |
 | **프로덕션 준비 상태** | ✅ Ready (운영 중) |
-| **현재 초점** | 파라미터 튜닝 효과 모니터링 → Phase 2 레짐 MA 조정 검토 |
+| **현재 초점** | 14번 Trade Count 분리 핫픽스 구현 → 15번 Post-exit 분석 강화 착수 |
+
+### 8.7 예정 변경 (14번 핫픽스 반영 예정)
+
+`14_post_exit_trade_count_split_hotfix` 완료 시, `daily_risk_state`의 거래 카운트 정의를 아래처럼 표준화한다.
+
+| 필드 | 의미 | 증가 시점 | 주 사용처 |
+|------|------|----------|----------|
+| `buy_count` | 당일 신규 진입 체결 수 | BUY 성공 시 | 일일 거래 제한(`MAX_DAILY_TRADES`) |
+| `sell_count` | 당일 청산 체결 수 | SELL 성공 시 | 청산 추적/운영 모니터링 |
+| `trade_count` | 총 체결 수(`buy_count + sell_count`) | BUY/SELL 성공 시 | 하위 호환, 대시보드 보조 지표 |
+
+적용 원칙:
+1. 리스크 차단 기준은 `buy_count`를 사용한다.
+2. 대시보드는 `BUY/SELL/Total`을 분리 노출한다.
+3. 향후 리포트/분석은 목적에 맞는 카운트 필드를 명시적으로 사용한다.
+
+### 8.8 Charter 운영 원칙
+
+앞으로 개발 시 아래 원칙으로 `PROJECT_CHARTER.md`를 함께 유지한다.
+
+1. 정책/임계값 변경(예: timeout, confidence, 리스크 한도)은 구현과 같은 날 Charter에 반영한다.
+2. 아키텍처 흐름 변경(예: RiskManager ↔ AI 순서)은 Flow 다이어그램/설명 동시 수정한다.
+3. 신규 work-plan이 실행 단계로 진입하면 "현재 초점"과 "문서 참고" 섹션에 링크를 추가한다.
+4. 트러블슈팅으로 시작된 변경은 관련 troubleshooting 문서를 Charter의 참조 목록에 연결한다.
 
 ---
-*최종 업데이트: 2026-02-12 by Claude Code (Operator Role)*
+*최종 업데이트: 2026-02-19 by Codex (GPT-5)*

@@ -326,3 +326,160 @@ PYTHONPATH=. .venv/bin/pytest -q tests/test_bot_reason_consistency.py tests/test
 - 테스트 20건 전수 통과
 - 설정 기반 롤백 경로(pre-filter disable, YAML 복원, `kubectl rollout undo`) 확보됨
 - 남은 항목은 배포 후 24h/72h 운영 지표 점검 및 리포트 작성
+
+---
+
+## 10. 추가 구현 결과: Phase 3-A (2026-02-19)
+
+운영 모니터링에서 확인된 “AI 호출량 과다” 대응을 위해 Phase 3-A 범위를 우선 구현했다.
+
+### 10.1 SIDEWAYS Rule 강화
+
+- 파일: `src/config/strategy.py`, `config/strategy_v3.yaml`
+- 변경:
+  - `rsi_7_recover`: `40 -> 42`
+  - `min_rsi_7_bounce_pct`: `2.0 -> 3.0`
+  - `ma_proximity_pct`: `0.97 -> 0.985`
+  - `volume_min_ratio`: `0.3 -> 0.4`
+  - `bb_recovery_sustain_candles: 2` 추가
+
+효과:
+- SIDEWAYS 후보 생성 문턱을 상향해 AI 호출량 감소 유도.
+
+### 10.2 BB Recovery 유지 조건 구현
+
+- 파일: `src/common/indicators.py`, `src/bot/main.py`
+- 변경:
+  - `check_bb_touch_recovery(..., sustain_candles)` 확장
+  - “터치 후 마지막 N캔들 연속 BB 하단 위 유지” 조건 반영
+  - `get_all_indicators()`가 `bb_recovery_sustain_candles`를 입력/반환
+
+효과:
+- 하단 터치 직후 단발성 반등 노이즈를 줄이고, 복귀 확인 품질을 강화.
+
+### 10.3 AI Guardrail 구현 (호출량/에러 보호)
+
+- 신규 파일: `src/agents/guardrails.py`
+- 연동 파일: `src/bot/main.py`, `src/engine/executor.py`
+
+구현 항목:
+1. 심볼별 REJECT 단계형 쿨다운
+- 1차 5분, 2차 10분, 3차 이상 15분 (30분 창)
+
+2. 글로벌 차단(circuit breaker)
+- 저크레딧 에러 감지 시 일정 시간 AI 호출 차단
+- 연속 AI 에러 streak 임계치 초과 시 차단
+
+3. 시간/일 호출 상한
+- 시간당 20회, 일일 120회 기본값
+
+4. 가드레일 업데이트 경로
+- AI 승인/거절 결과에 따라 Redis 키 갱신
+- 다음 호출 전에 block/cooldown/budget 확인
+
+### 10.4 테스트 보강 및 결과
+
+- 신규 테스트: `tests/agents/test_guardrails.py`
+- 수정 테스트:
+  - `tests/test_strategy_v3_logic.py`
+  - `tests/test_bot_reason_consistency.py`
+  - `tests/test_indicators.py`
+
+실행 명령:
+```bash
+PYTHONPATH=. .venv/bin/pytest -q tests/agents/test_guardrails.py tests/test_bot_reason_consistency.py tests/test_strategy_v3_logic.py tests/test_indicators.py tests/agents/test_context_features.py tests/test_agents.py
+```
+
+결과:
+- `24 passed in 68.20s`
+
+### 10.5 후속 핫픽스 예정 (운영 관측 반영)
+
+추가 모니터링에서 아래 이슈가 확인되어 별도 핫픽스로 분리했다.
+
+1. 실제 bot pod가 `LLM_MODE=prod`로 실행되어 Sonnet 사용 지속
+2. `Object of type bool_ is not JSON serializable`로 루프 rollback 발생 가능성
+3. `AnalystDecision.reasoning` 누락 응답으로 validation 에러 발생
+
+세부 조치 계획은 다음 문서에 반영:
+- `docs/work-plans/13_strategy_regime_reliability_plan.md` 섹션 11 (운영 핫픽스 계획)
+
+---
+
+## 11. 추가 구현 결과: Dashboard History TypeError 핫픽스 (2026-02-19)
+
+모니터링 중 History 탭에서 아래 오류가 재현됨:
+
+`TypeError: 'str' object cannot be interpreted as an integer`
+
+원인:
+- Streamlit 현재 런타임에서 `st.dataframe()`/`st.plotly_chart()`의 `width` 인자에 문자열(`"stretch"`) 전달 시 타입 에러 발생
+- 기존 대시보드 페이지들에서 공통적으로 `width="stretch"`를 사용하고 있었음
+
+조치:
+- 대시보드 전체 페이지에서 `width="stretch"`를 `use_container_width=True`로 일괄 교체
+
+반영 파일:
+- `src/dashboard/pages/1_overview.py`
+- `src/dashboard/pages/2_market.py`
+- `src/dashboard/pages/3_risk.py`
+- `src/dashboard/pages/4_history.py`
+
+검증:
+- 코드 기준 `src/dashboard/pages` 내 `width="stretch"` 사용 0건 확인
+- History 탭 포함 전체 페이지에서 동일 타입 오류 재발 가능성 제거
+
+---
+
+## 12. 추가 구현 결과: SELL 경로 안정성 핫픽스 및 점검 (2026-02-19)
+
+요청사항:
+- 보유 포지션 기반 매도 트리거 경로(`positions` -> `check_exit_signal` -> `SELL`)의 누락/오류 여부 점검
+- 실제 운영 중 예외 가능 지점 보완
+
+### 12.1 점검 결론
+
+- 매도 트리거를 위한 상태 저장/조회 경로는 구현 완료 상태
+  - 보유 포지션: `positions` 테이블
+  - 진입 시 포지션 생성/갱신, 청산 시 포지션 차감/삭제
+  - 청산 사유(`exit_reason`) 거래 이력 저장
+- 다만, 운영 안정성 관점에서 아래 2개 핫픽스를 반영함
+
+### 12.2 핫픽스 반영 사항
+
+1. Decimal/float 혼합 연산 예외 방지
+- 파일: `src/bot/main.py`
+- 대상: `build_status_reason()`, Redis status의 `position.pnl_pct`
+- 조치:
+  - 연산 전 값을 `float`로 정규화
+  - 0 나눗셈 방어 로직 추가
+
+2. SELL 성공 직후 상태 동기화
+- 파일: `src/bot/main.py`
+- 조치:
+  - 매도 성공 시 `bot_reason`을 청산 완료 메시지로 즉시 설정
+  - 동일 루프 내 `pos = None`으로 상태 동기화
+  - 상태 스트림(`bot:status:{symbol}`)에서 `has_position`/`pnl_pct`가 즉시 일관되도록 보정
+
+### 12.3 SELL 경로 정책 판단 (AI 적용 여부)
+
+- 현재 정책 유지 권장: SELL은 AI 비경유
+- 근거:
+  - 손절/청산은 지연 없이 즉시 집행되어야 리스크 제어가 안정적임
+  - SELL에 AI 게이트를 두면 API 지연/에러 시 손실 확대 위험이 큼
+  - 최근 크레딧/호출량 이슈와도 방향이 맞지 않음
+- 권장 운영:
+  - SELL 실행 경로는 규칙 기반 즉시 집행 유지
+  - AI는 사후 분석(리포트/진단) 용도로만 비차단 사용
+
+### 12.4 검증
+
+실행 명령:
+```bash
+PYTHONPATH=. .venv/bin/pytest -q tests/test_bot_reason_consistency.py tests/test_strategy_v3_logic.py tests/test_indicators.py
+.venv/bin/python -m py_compile src/bot/main.py
+```
+
+결과:
+- `13 passed in 1.60s`
+- `py_compile` 통과

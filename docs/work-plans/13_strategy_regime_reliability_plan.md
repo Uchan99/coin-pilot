@@ -332,4 +332,175 @@ Phase 3 중간 검증 결과:
 
 ---
 
+## 10. 추가 개발 계획 (2026-02-19, 운영 이슈 반영)
 
+배경:
+- 약 8시간 모니터링에서 `Entry Signal -> AI Decision`이 과다 발생.
+- 실제 거래 발생은 제한적이었고, AI 호출 누적으로 Anthropic 크레딧 소진 후 연속 에러 발생.
+- 현재 `minikube`는 임시 중지 상태에서 재정비 진행.
+
+### 10.1 SIDEWAYS Rule 강화안 (핵심)
+
+목표:
+- SIDEWAYS 후보 신호를 줄여 AI 호출량을 강하게 낮춤.
+- “반등 초기 노이즈”보다 “반등 확인” 신호 위주로 후보를 재정의.
+
+적용 계획:
+1. `RSI7 recover` 상향
+- 현재: `40`
+- 변경안: `42~44` (1차 42 적용 후 24h 관측)
+
+2. `min_rsi_7_bounce_pct` 상향
+- 현재: `2.0`
+- 변경안: `3.0`
+
+3. BB recovery 품질 조건 추가
+- `bb_touch_recovery` 외에 “복귀 후 유지” 조건 추가
+- 예: 최근 2개 캔들 연속으로 `close > bb_lower` 만족 시만 통과
+
+4. MA proximity 타이트닝
+- 현재: `ma_proximity_pct = 0.97`
+- 변경안: `0.985` (MA20 대비 이격 허용폭 축소)
+
+5. 거래량 하한 상향
+- 현재: `volume_min_ratio = 0.3`
+- 변경안: `0.4~0.5` (1차 0.4)
+
+6. 동일 심볼 재시도 쿨다운
+- AI REJECT 이후 동일 심볼 신규 AI 호출 단계형 제한
+- 1차 REJECT: 5분
+- 단기 연속 REJECT(30분 내 2회): 10분
+- 단기 연속 REJECT(30분 내 3회 이상): 15분 (상한)
+- Redis key(`ai:reject:cooldown:{symbol}`) 기반 구현
+
+### 10.2 AI 비용/안정성 보호 장치 (즉시)
+
+1. 글로벌 Circuit Breaker
+- 저크레딧 에러(예: `credit balance is too low`) 감지 시 AI 호출 즉시 중단
+- 일정 시간(예: 60분) AI 강제 skip
+
+2. 호출 상한
+- 시간당/일일 AI 호출 상한 설정
+- 예: `MAX_AI_CALLS_PER_HOUR=20`, `MAX_AI_CALLS_PER_DAY=120`
+
+3. 연속 AI 에러 차단
+- 연속 N회(예: 5회) 에러 시 자동 쿨다운
+
+4. 모델 운영 모드
+- 개발/관측 단계는 `LLM_MODE=dev`(Haiku) 기본
+- Sonnet은 품질 검증 구간에서 제한적으로 사용
+
+### 10.3 구현 순서
+
+1. Phase 3-A (Rule/호출량 제어)
+- SIDEWAYS 강화 파라미터 적용
+- 단계형 REJECT 쿨다운(5/10/15분) + 글로벌 circuit breaker + 호출 상한 적용
+
+2. Phase 3-B (관측/리포트)
+- `agent_decisions` 시간대별/심볼별 집계 쿼리 문서화
+- `ai_requests`, `ai_prefilter_skips`, `ai_context_candles` 대시보드 확인
+
+3. Phase 3-C (파라미터 재튜닝)
+- 24h 결과 기반으로 SIDEWAYS 파라미터 2차 조정
+
+### 10.4 검증 기준 (재배포 후 24h)
+
+1. AI 호출량
+- 목표: baseline 대비 50% 이상 감소
+
+2. 효율
+- `AI Decisions / BUY` 비율 유의미 개선
+
+3. 안정성
+- 저크레딧/AI 에러 발생 시 즉시 차단 동작 확인
+
+4. 성과
+- Entry 0 고착 재발 없이, 과도한 후보도 방지
+
+### 10.5 트러블슈팅 기록 계획
+
+아래 항목을 `docs/troubleshooting/13_strategy_regime_cost_spike_and_ai_credit_exhaustion.md`로 기록:
+- 현상: SIDEWAYS 신호 과다, AI Decision 급증, 크레딧 소진
+- 증거: `agent_decisions`/bot 로그 시계열
+- 원인: Rule 완화 + 차단장치 부재 + 재시도 누적
+- 조치: Rule 강화 + circuit breaker + 호출 상한 + Haiku 전환
+- 결과: 24h/72h 전후 비교 지표
+
+---
+
+## 11. 운영 핫픽스 계획 (2026-02-19)
+
+최근 4시간 모니터링에서 아래 3개 이슈가 확인되어, 재배포 전 즉시 수정한다.
+
+### 11.1 이슈 A: LLM 모드 불일치 (Haiku 미적용)
+
+현상:
+- 의도는 `LLM_MODE=dev`(Haiku)였으나, 실제 bot pod env는 `LLM_MODE=prod`.
+- `agent_decisions.model_used`가 `claude-sonnet-4-5-20250929`로 기록됨.
+
+조치:
+1. `k8s/apps/bot-deployment.yaml`의 `LLM_MODE`를 `dev`로 고정.
+2. rollout restart 후 pod env 재검증.
+3. 런타임 검증 명령으로 실제 모델명 확인:
+   - `python -c "from src.agents.factory import get_analyst_llm; print(get_analyst_llm().model)"`
+
+완료 기준:
+- bot pod env에서 `LLM_MODE=dev`
+- 신규 `agent_decisions.model_used`가 Haiku 모델명으로 기록
+
+### 11.2 이슈 B: BUY 실행 로그와 DB 미반영 불일치
+
+현상:
+- 로그에 `Order Executed: BUY ...`가 출력되지만 `trading_history/positions` 반영이 0건.
+- 동시 로그: `Critical Bot Loop Error: Object of type bool_ is not JSON serializable`
+
+원인 가설:
+- 루프 말단 `json.dumps(status_data)`에서 `numpy.bool_` 직렬화 실패 발생
+- `get_db_session()` 컨텍스트가 해당 예외로 rollback되어 같은 세션의 주문 반영이 취소됨
+
+조치:
+1. Redis 상태 payload 직렬화 안전화:
+   - `numpy` scalar/bool을 Python 기본형으로 변환 후 `json.dumps` 수행
+   - 필요 시 `default=` 핸들러로 np 타입 강제 캐스팅
+2. 상태 전송 실패는 트랜잭션 롤백을 유발하지 않도록 분리:
+   - status 직렬화/전송 예외를 반드시 로컬에서 absorb
+3. 주문 체결/DB 반영 검증:
+   - `Order Executed` 로그 직후 `trading_history` 증가 여부 확인
+
+완료 기준:
+- `Object of type bool_ is not JSON serializable` 재발 0건
+- `Order Executed`와 `trading_history` 증가가 일치
+
+### 11.3 이슈 C: AnalystDecision validation 에러 (`reasoning` 누락)
+
+현상:
+- `AI Error: 1 validation error for AnalystDecision ... reasoning Field required`
+- 최근 4시간 기준 반복 발생
+
+원인:
+- 모델 응답이 간헐적으로 `decision/confidence`만 반환하고 `reasoning` 누락
+- Pydantic strict schema 파싱 실패
+
+조치:
+1. Analyst 단계 fallback 보강:
+   - `reasoning` 누락 시 기본 문구 주입
+   - structured parse 실패 시 보수적 REJECT + 표준 에러 reason 반환
+2. 프롬프트에 `reasoning 필수` 요구 강화 문구 추가
+
+완료 기준:
+- `AnalystDecision` validation 에러 발생률 유의미 감소(목표 0~1건/24h)
+
+### 11.4 실행 순서 (핫픽스)
+
+1. `LLM_MODE=dev` 배포 설정 반영
+2. JSON 직렬화/트랜잭션 롤백 방지 수정
+3. Analyst reasoning 누락 fallback 수정
+4. 재배포 후 1~2시간 smoke 모니터링
+
+### 11.5 핫픽스 검증 체크리스트
+
+- [ ] `kubectl exec deployment/bot -- env`에서 `LLM_MODE=dev` 확인
+- [ ] `agent_decisions.model_used`가 Haiku로 기록되는지 확인
+- [ ] `Critical Bot Loop Error: bool_ is not JSON serializable` 0건
+- [ ] `Order Executed: BUY` 로그와 `trading_history` 증가 일치
+- [ ] `AnalystDecision reasoning Field required` 에러 0건
