@@ -57,13 +57,13 @@ def test_strategy_entry_signal_sideways_bb_touch_recovery_required():
     indicators_sideways_fail = {
         "regime": "SIDEWAYS",
         "rsi": 40,
-        "rsi_short": 42,
+        "rsi_short": 44,
         "rsi_short_prev": 41,
-        "rsi_short_min_lookback": 38,
+        "rsi_short_min_lookback": 39,
         "ma_trend": 1000,
-        "close": 980,
+        "close": 990,
         "vol_ratio": 0.5,
-        "bb_lower": 970,
+        "bb_lower": 980,
         "bb_touch_recovery": False,
     }
     assert strategy.check_entry_signal(indicators_sideways_fail) is False

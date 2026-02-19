@@ -169,7 +169,7 @@ if not df_candles.empty:
         height=600
     )
     
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, use_container_width=True)
     
     # 4. 최근 데이터 표시
     last_candle = df_candles.iloc[-1]

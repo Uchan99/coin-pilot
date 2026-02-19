@@ -4,7 +4,6 @@ from src.agents.state import AgentState
 from src.agents.structs import AnalystDecision
 from src.agents.prompts import ANALYST_SYSTEM_PROMPT, get_analyst_prompt
 from src.agents.factory import get_analyst_llm
-import os
 
 async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     """시장 분석가 노드: 지표 기반 진입 타당성 검토"""
@@ -23,17 +22,27 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     
     chain = prompt | structured_llm
     
-    result: AnalystDecision = await chain.ainvoke({
-        "symbol": state["symbol"],
-        "indicators": state["indicators"],
-        "market_context": state["market_context"],
-        "analyst_prompt": get_analyst_prompt(state["indicators"])
-    })
+    try:
+        result: AnalystDecision = await chain.ainvoke({
+            "symbol": state["symbol"],
+            "indicators": state["indicators"],
+            "market_context": state["market_context"],
+            "analyst_prompt": get_analyst_prompt(state["indicators"])
+        })
+    except Exception as e:
+        # Structured output 파싱 실패(예: reasoning 누락) 시 보수적 거절
+        return {
+            "analyst_decision": {
+                "decision": "REJECT",
+                "confidence": 0,
+                "reasoning": f"Analyst output validation failed: {str(e)}"
+            }
+        }
     
     # 분석 결과 업데이트
     # V1.2 정책: confidence < 60 이면 강제 REJECT
     final_decision = result.decision
-    final_reasoning = result.reasoning
+    final_reasoning = result.reasoning or "Analyst returned empty reasoning."
     
     if result.decision == "CONFIRM" and result.confidence < 60:
         final_decision = "REJECT"

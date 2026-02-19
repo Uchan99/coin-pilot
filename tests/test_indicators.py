@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from src.common.indicators import (
     calculate_rsi, calculate_ma, calculate_bb, 
-    calculate_volume_ratio, get_all_indicators, InsufficientDataError
+    calculate_volume_ratio, get_all_indicators, check_bb_touch_recovery, InsufficientDataError
 )
 from tests.fixtures.candle_data import get_oversold_candles
 
@@ -59,3 +59,21 @@ def test_get_all_indicators_includes_lookback_fields():
     assert "bb_touch_recovery" in indicators
     assert "bb_touch_lookback" in indicators
     assert indicators["bb_touch_lookback"] == 30
+
+
+def test_check_bb_touch_recovery_with_sustain():
+    df = pd.DataFrame(
+        {
+            "close": [100, 97, 99, 101],
+            "bb_lower": [98, 98, 98, 98],
+        }
+    )
+    assert check_bb_touch_recovery(df, lookback=3, sustain_candles=2) is True
+
+    df_fail = pd.DataFrame(
+        {
+            "close": [100, 97, 99, 97.5],
+            "bb_lower": [98, 98, 98, 98],
+        }
+    )
+    assert check_bb_touch_recovery(df_fail, lookback=3, sustain_candles=2) is False

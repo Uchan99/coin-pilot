@@ -58,7 +58,7 @@ if not df.empty:
             "total_value": "Value (KRW)",
             "status": "Status",
         },
-        width="stretch",
+        use_container_width=True,
         hide_index=True
     )
     
@@ -69,14 +69,14 @@ if not df.empty:
     with chart_col1:
         # Side 분포 (Pie Chart)
         fig_side = px.pie(df, names='side', title='Buy/Sell Ratio', hole=0.4)
-        st.plotly_chart(fig_side, width="stretch")
+        st.plotly_chart(fig_side, use_container_width=True)
         
     with chart_col2:
         # Status 분포 (Bar Chart)
         status_counts = df['status'].value_counts().reset_index()
         status_counts.columns = ['status', 'count']
         fig_status = px.bar(status_counts, x='status', y='count', title='Order Status', color='status')
-        st.plotly_chart(fig_status, width="stretch")
+        st.plotly_chart(fig_status, use_container_width=True)
 
 else:
     st.info("검색된 거래 내역이 없습니다.")

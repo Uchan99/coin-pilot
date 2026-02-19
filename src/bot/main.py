@@ -8,7 +8,6 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 import pandas as pd
 import numpy as np
-import json
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from prometheus_client import make_asgi_app
@@ -31,6 +30,8 @@ from src.agents.context_features import (
     compute_bear_context_features,
     should_run_ai_analysis,
 )
+from src.agents.guardrails import should_block_ai_call, mark_ai_call_started
+from src.common.json_utils import dumps_json
 
 # Graceful Shutdown Handler
 SHUTDOWN = False
@@ -52,9 +53,12 @@ def build_status_reason(indicators: Dict, pos: Dict, config, risk_valid: bool = 
     regime = indicators.get("regime", "UNKNOWN")
     
     if pos:
-        pnl_pct = (indicators["close"] - pos["avg_price"]) / pos["avg_price"] * 100
-        hwm = pos.get("high_water_mark", pos["avg_price"])
-        return f"[{regime}] 포지션 보유 중 (수익률: {pnl_pct:.2f}%, HWM 대비: {(indicators['close']-hwm)/hwm*100:.2f}%)"
+        close = float(indicators.get("close", 0.0))
+        avg_price = float(pos["avg_price"])
+        hwm = float(pos.get("high_water_mark") or pos["avg_price"])
+        pnl_pct = ((close - avg_price) / avg_price * 100) if avg_price else 0.0
+        hwm_delta_pct = ((close - hwm) / hwm * 100) if hwm else 0.0
+        return f"[{regime}] 포지션 보유 중 (수익률: {pnl_pct:.2f}%, HWM 대비: {hwm_delta_pct:.2f}%)"
 
     if not risk_valid:
         return f"[{regime}] 진입 보류: {risk_reason}"
@@ -174,7 +178,7 @@ async def bot_loop():
                                         "reason": f"데이터 부족: {len(df)} lines",
                                         "indicators": {}
                                     }
-                                    await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                                    await redis_client.set(f"bot:status:{symbol}", dumps_json(status_data), ex=300)
                                 except Exception:
                                     pass
                             continue
@@ -200,6 +204,7 @@ async def bot_loop():
                             ma_period=regime_entry_config.get("ma_period", 20),
                             rsi_short_recovery_lookback=regime_entry_config.get("rsi_7_recovery_lookback", 5),
                             bb_touch_lookback=regime_entry_config.get("bb_touch_lookback", 30),
+                            bb_recovery_sustain_candles=regime_entry_config.get("bb_recovery_sustain_candles", 1),
                         )
                         indicators["regime"] = regime
                         indicators["symbol"] = symbol  # 디버깅용
@@ -245,6 +250,10 @@ async def bot_loop():
                                         await redis_client.delete(f"position:{symbol}:hwm")
                                     print(f"[+] {symbol} Trade Closed. Reason: {exit_reason}, PnL: {pnl:,.0f} KRW")
                                     metrics.trade_count.inc()
+                                    bot_reason = f"[{regime}] 포지션 청산 완료: {exit_reason}"
+                                    pos = None
+                                else:
+                                    bot_reason = f"[{regime}] 매도 실행 실패: {exit_reason}"
                             else:
                                 # 청산 안 됐을 때 HWM 업데이트 (Redis)
                                 if redis_client and indicators.get("new_hwm"):
@@ -256,8 +265,7 @@ async def bot_loop():
                                             updated_at=datetime.now(timezone.utc)
                                         )
                                     )
-                            
-                            bot_reason = build_status_reason(indicators, pos, config)
+                                bot_reason = build_status_reason(indicators, pos, config)
 
                         else:
                             # [Case B] 포지션 미보유 -> 진입(Entry) 체크
@@ -310,23 +318,36 @@ async def bot_loop():
                                             metrics.ai_prefilter_skips.inc()
                                             print(f"[-] {symbol} AI PreFilter Rejected: {prefilter_reason}")
                                         else:
-                                            signal_info = {
-                                                **ai_indicators,
-                                                "market_context": market_context,
-                                                "regime": regime
-                                            }
-                                            metrics.ai_requests.inc()
-                                            success = await executor.execute_order(
-                                                session, symbol, "BUY", 
-                                                current_price, quantity, 
-                                                strategy.name, 
-                                                signal_info
+                                            ai_blocked, ai_block_reason = await should_block_ai_call(
+                                                redis_client,
+                                                symbol,
+                                                regime_entry_config,
                                             )
-                                            if success:
-                                                metrics.trade_count.inc()
-                                            else:
+                                            if ai_blocked:
                                                 bot_action = "SKIP"
-                                                bot_reason = "AI Rejected or Execution Failed"
+                                                bot_reason = f"AI Guardrail Blocked: {ai_block_reason}"
+                                                metrics.ai_prefilter_skips.inc()
+                                                print(f"[-] {symbol} AI Guardrail Blocked: {ai_block_reason}")
+                                            else:
+                                                await mark_ai_call_started(redis_client)
+                                                signal_info = {
+                                                    **ai_indicators,
+                                                    "market_context": market_context,
+                                                    "regime": regime,
+                                                    "entry_config": regime_entry_config,
+                                                }
+                                                metrics.ai_requests.inc()
+                                                success = await executor.execute_order(
+                                                    session, symbol, "BUY", 
+                                                    current_price, quantity, 
+                                                    strategy.name, 
+                                                    signal_info
+                                                )
+                                                if success:
+                                                    metrics.trade_count.inc()
+                                                else:
+                                                    bot_action = "SKIP"
+                                                    bot_reason = "AI Rejected or Execution Failed"
                                 else:
                                     # 리스크 관리로 인한 거부
                                     bot_action = "SKIP"
@@ -352,14 +373,28 @@ async def bot_loop():
                                     "has_position": bool(pos),
                                     "avg_price": float(pos["avg_price"]) if pos else None,
                                     "quantity": float(pos["quantity"]) if pos else None,
-                                    "pnl_pct": float((current_price - pos["avg_price"])/pos["avg_price"]*100) if pos else 0.0,
+                                    "pnl_pct": (
+                                        float(
+                                            (
+                                                (float(current_price) - float(pos["avg_price"]))
+                                                / float(pos["avg_price"])
+                                                * 100
+                                            )
+                                        )
+                                        if pos and float(pos["avg_price"]) != 0
+                                        else 0.0
+                                    ),
                                     "regime": pos.get("regime") if pos else None
                                 },
                                 "action": bot_action,
                                 "reason": bot_reason
                             }
                             try:
-                                await redis_client.set(f"bot:status:{symbol}", json.dumps(status_data), ex=300)
+                                await redis_client.set(
+                                    f"bot:status:{symbol}",
+                                    dumps_json(status_data),
+                                    ex=300
+                                )
                             except Exception:
                                 pass
 

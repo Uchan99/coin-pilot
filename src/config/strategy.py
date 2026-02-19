@@ -58,7 +58,16 @@ class StrategyConfig:
                 "volume_ratio": 1.0,           # 상한 조건
                 "volume_min_ratio": None,      # 하한 조건 미적용
                 "ai_prefilter_enabled": True,
-                "ai_prefilter_min_context_candles": 12
+                "ai_prefilter_min_context_candles": 12,
+                "ai_reject_cooldown_min_1": 5,
+                "ai_reject_cooldown_min_2": 10,
+                "ai_reject_cooldown_min_3": 15,
+                "ai_reject_cooldown_window_min": 30,
+                "ai_max_calls_per_hour": 20,
+                "ai_max_calls_per_day": 120,
+                "ai_credit_block_minutes": 60,
+                "ai_error_streak_threshold": 5,
+                "ai_error_block_minutes": 30
             },
             "exit": {
                 "take_profit_pct": 0.05, "stop_loss_pct": 0.03, "trailing_stop_pct": 0.03,
@@ -69,16 +78,26 @@ class StrategyConfig:
         },
         "SIDEWAYS": {
             "entry": {
-                "rsi_14_max": 48, "rsi_7_trigger": 40, "rsi_7_recover": 40,
+                "rsi_14_max": 48, "rsi_7_trigger": 40, "rsi_7_recover": 42,
                 "rsi_7_recovery_lookback": 5,
-                "min_rsi_7_bounce_pct": 2.0,
-                "ma_condition": "proximity", "ma_period": 20, "ma_proximity_pct": 0.97,
+                "min_rsi_7_bounce_pct": 3.0,
+                "ma_condition": "proximity", "ma_period": 20, "ma_proximity_pct": 0.985,
                 "bb_enabled": True,
+                "bb_recovery_sustain_candles": 2,
                 "require_price_above_bb_lower": True,  # BB 하단 아래 진입 금지
                 "volume_ratio": None,           # 상한 조건 미적용
-                "volume_min_ratio": 0.3,        # 하한 조건: 최소 30%
+                "volume_min_ratio": 0.4,        # 하한 조건: 최소 40%
                 "ai_prefilter_enabled": True,
-                "ai_prefilter_min_context_candles": 12
+                "ai_prefilter_min_context_candles": 12,
+                "ai_reject_cooldown_min_1": 5,
+                "ai_reject_cooldown_min_2": 10,
+                "ai_reject_cooldown_min_3": 15,
+                "ai_reject_cooldown_window_min": 30,
+                "ai_max_calls_per_hour": 20,
+                "ai_max_calls_per_day": 120,
+                "ai_credit_block_minutes": 60,
+                "ai_error_streak_threshold": 5,
+                "ai_error_block_minutes": 30
             },
             "exit": {
                 "take_profit_pct": 0.03, "stop_loss_pct": 0.04, "trailing_stop_pct": 0.025,
@@ -103,7 +122,16 @@ class StrategyConfig:
                 "ai_prefilter_min_context_candles": 12,
                 "ai_prefilter_max_downtrend_ratio": 0.85,
                 "ai_prefilter_min_rebound_pct": 0.4,
-                "ai_prefilter_min_volume_recovery_ratio": 0.7
+                "ai_prefilter_min_volume_recovery_ratio": 0.7,
+                "ai_reject_cooldown_min_1": 5,
+                "ai_reject_cooldown_min_2": 10,
+                "ai_reject_cooldown_min_3": 15,
+                "ai_reject_cooldown_window_min": 30,
+                "ai_max_calls_per_hour": 20,
+                "ai_max_calls_per_day": 120,
+                "ai_credit_block_minutes": 60,
+                "ai_error_streak_threshold": 5,
+                "ai_error_block_minutes": 30
             },
             "exit": {
                 "take_profit_pct": 0.03, "stop_loss_pct": 0.05, "trailing_stop_pct": 0.02,

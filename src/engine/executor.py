@@ -7,6 +7,9 @@ from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.common.models import AccountState, Position, TradingHistory
+from src.common.db import get_redis_client
+from src.agents.guardrails import update_ai_guardrails_after_decision
+from src.common.json_utils import to_builtin
 
 class PaperTradingExecutor:
     """
@@ -64,6 +67,8 @@ class PaperTradingExecutor:
         (BUY 주문 시 AI 에이전트의 2차 검증을 수행합니다.)
         """
         try:
+            safe_signal_info = to_builtin(signal_info or {})
+
             # 0. AI 에이전트 검증 (BUY 주문인 경우에만 수행)
             if side == "BUY":
                 from src.agents.runner import runner
@@ -72,14 +77,36 @@ class PaperTradingExecutor:
                 is_approved, reasoning = await runner.run(
                     symbol=symbol,
                     strategy_name=strategy_name,
-                    market_context=signal_info.get("market_context", {}),
-                    indicators=signal_info
+                    market_context=safe_signal_info.get("market_context", {}),
+                    indicators=safe_signal_info
                 )
                 
                 if not is_approved:
                     print(f"[-] Trade Rejected by AI Agent: {reasoning}")
+                    try:
+                        redis_client = await get_redis_client()
+                    except Exception:
+                        redis_client = None
+                    await update_ai_guardrails_after_decision(
+                        redis_client=redis_client,
+                        symbol=symbol,
+                        approved=False,
+                        reasoning=reasoning,
+                        cfg=safe_signal_info.get("entry_config", {}),
+                    )
                     return False
                 print(f"[+] Trade Approved by AI Agent: {reasoning}")
+                try:
+                    redis_client = await get_redis_client()
+                except Exception:
+                    redis_client = None
+                await update_ai_guardrails_after_decision(
+                    redis_client=redis_client,
+                    symbol=symbol,
+                    approved=True,
+                    reasoning=reasoning,
+                    cfg=safe_signal_info.get("entry_config", {}),
+                )
 
             # 1. 잔고 조회 및 업데이트
             current_balance = await self.get_balance(session)
@@ -99,7 +126,7 @@ class PaperTradingExecutor:
                 existing_pos = res.scalar_one_or_none()
                 
                 # 레짐 정보 및 초기 HWM 설정
-                regime = signal_info.get("regime")
+                regime = safe_signal_info.get("regime")
                 
                 if existing_pos:
                     # 평균 단가 계산 및 수량 업데이트
@@ -150,10 +177,10 @@ class PaperTradingExecutor:
                 quantity=quantity,
                 status="FILLED",
                 strategy_name=strategy_name,
-                signal_info=signal_info,
-                regime=signal_info.get("regime"),
-                high_water_mark=signal_info.get("new_hwm") or price,
-                exit_reason=signal_info.get("exit_reason") if side == "SELL" else None,
+                signal_info=safe_signal_info,
+                regime=safe_signal_info.get("regime"),
+                high_water_mark=safe_signal_info.get("new_hwm") or price,
+                exit_reason=safe_signal_info.get("exit_reason") if side == "SELL" else None,
                 executed_at=datetime.now(timezone.utc)
             )
             session.add(history)

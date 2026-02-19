@@ -187,7 +187,7 @@ def detect_regime(ma50: Optional[float], ma200: Optional[float],
     else:
         return "SIDEWAYS"   # 횡보장: 차이가 임계값 이내
 
-def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3) -> bool:
+def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3, sustain_candles: int = 1) -> bool:
     """
     최근 N캔들 내 볼린저밴드 하단 터치 후 현재 복귀 여부 판정
 
@@ -198,14 +198,16 @@ def check_bb_touch_recovery(df: pd.DataFrame, lookback: int = 3) -> bool:
     Returns:
         True이면 BB 하단 터치 후 복귀 확인
     """
-    if len(df) < lookback + 1:
+    sustain = max(1, int(sustain_candles))
+    lb = max(1, int(lookback))
+    if len(df) < max(lb, sustain + 1):
         return False
 
-    recent = df.tail(lookback + 1)
-    # 직전 N캔들 중 BB 하단 이하 터치가 있었는지
-    touched = any(recent['close'].iloc[:-1] <= recent['bb_lower'].iloc[:-1])
-    # 현재 캔들은 BB 하단 위에 있는지
-    recovered = recent['close'].iloc[-1] > recent['bb_lower'].iloc[-1]
+    recent = df.tail(lb)
+    # 마지막 sustain 캔들을 제외한 직전 구간에서 BB 하단 터치가 있었는지
+    touched = any(recent["close"].iloc[:-sustain] <= recent["bb_lower"].iloc[:-sustain])
+    # 최근 sustain 캔들 모두 BB 하단 위에서 유지되는지
+    recovered = all(recent["close"].iloc[-sustain:] > recent["bb_lower"].iloc[-sustain:])
     return touched and recovered
 
 def calculate_volume_ratios(volume_series: pd.Series, period: int = 20) -> pd.Series:
@@ -232,7 +234,8 @@ def get_all_indicators(
     rsi_period: int = 14,
     rsi_short_period: int = 7,
     rsi_short_recovery_lookback: int = 5,
-    bb_touch_lookback: int = 30
+    bb_touch_lookback: int = 30,
+    bb_recovery_sustain_candles: int = 1,
 ) -> Dict:
     """
     전략 수행에 필요한 모든 보조 지표를 한 번에 계산하여 마지막 행의 값을 반환합니다.
@@ -275,7 +278,8 @@ def get_all_indicators(
     }).dropna()
     bb_touch_recovery = check_bb_touch_recovery(
         bb_input,
-        lookback=max(1, int(bb_touch_lookback))
+        lookback=max(1, int(bb_touch_lookback)),
+        sustain_candles=max(1, int(bb_recovery_sustain_candles)),
     )
 
     # 마지막 시점의 데이터를 딕셔너리로 구성
@@ -297,6 +301,7 @@ def get_all_indicators(
         "bb_upper": float(bb_df['BBU'].iloc[-1]),
         "bb_touch_recovery": bb_touch_recovery,
         "bb_touch_lookback": max(1, int(bb_touch_lookback)),
+        "bb_recovery_sustain_candles": max(1, int(bb_recovery_sustain_candles)),
 
         # 거래량
         "vol_ratio": vol_ratio,
