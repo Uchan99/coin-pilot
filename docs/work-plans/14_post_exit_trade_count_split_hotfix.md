@@ -31,6 +31,29 @@
 
 ---
 
+## 2.5 기술 스택 선택 이유 및 대안 비교
+
+### 선택 기술
+- PostgreSQL 스키마 확장(`daily_risk_state` 컬럼 추가)
+- SQLAlchemy 모델 확장
+- 기존 RiskManager/Bot/Dashboard 경로 수정
+
+### 선택 이유
+1. 현재 운영 데이터와 코드 경로를 그대로 활용해 핫픽스 반영 속도가 가장 빠름
+2. 신규 인프라 도입 없이 정합성 문제를 해결 가능
+3. 롤백이 단순함(코드/컬럼 단위)
+
+### 대안 비교
+1. `trade_count`만 유지하고 BUY/SELL 모두 카운트
+- 장점: 구현 단순
+- 단점: 리스크 제한 용도(BUY)와 운영 가시성 용도(BUY+SELL)를 분리할 수 없음
+
+2. 별도 집계 테이블 신설
+- 장점: 분석 확장성 높음
+- 단점: 핫픽스 범위를 초과하며 마이그레이션/동기화 복잡도 증가
+
+---
+
 ## 3. 구현 범위
 
 ### 3.1 DB/모델 확장
@@ -39,9 +62,11 @@
 - `daily_risk_state`에 컬럼 추가
   - `buy_count INTEGER DEFAULT 0 NOT NULL`
   - `sell_count INTEGER DEFAULT 0 NOT NULL`
+- `get_daily_state()` 신규 레코드 생성 경로에서 `buy_count=0`, `sell_count=0` 명시 초기화
 
 **수정 파일**
 - `src/common/models.py`
+- `src/engine/risk_manager.py`
 - `migrations/v3_2_1_trade_count_split.sql` (신규)
 
 **완료 기준**
@@ -85,8 +110,9 @@
 - `3_risk.py`에서 다음 지표 표시
   - `Buy Count (today)`
   - `Sell Count (today)`
-  - `Total Fills` (`trade_count` 또는 `buy_count + sell_count`)
+  - `Total Fills` (표시 기준: `buy_count + sell_count` 우선, `trade_count`는 하위 호환/검증용)
 - 기존 `Trade Count` 카드 문구를 의미가 명확한 형태로 교체
+- 정합성 점검: `trade_count != buy_count + sell_count`일 때 경고 배지 또는 점검 로그 노출
 
 **수정 파일**
 - `src/dashboard/pages/3_risk.py`
@@ -120,7 +146,7 @@ kubectl exec -i -n coin-pilot-ns db-0 -- psql -U postgres -d coinpilot < migrati
 
 ### 5.1 코드/테스트
 
-- `tests/engine/test_risk_manager_trade_counts.py` (신규)
+- `tests/test_risk_manager_trade_counts.py` (신규, 현행 테스트 트리 구조 기준)
   - BUY 호출 시 `buy_count`, `trade_count` 증가
   - SELL 호출 시 `sell_count`, `trade_count` 증가
   - `MAX_DAILY_TRADES`가 `buy_count` 기준으로 차단되는지 검증
@@ -167,3 +193,52 @@ ALTER TABLE daily_risk_state DROP COLUMN IF EXISTS sell_count;
 4. `src/bot/main.py` 업데이트
 5. `src/dashboard/pages/3_risk.py` 업데이트
 6. 테스트 코드 및 `docs/work-result/14_trade_count_split_hotfix_result.md`
+
+---
+
+## Claude Code Review
+
+**검증일**: 2026-02-19
+**검증 기준**: 현행 코드 대비 계획 정합성, 구현 가능성, 리스크
+
+### 코드 크로스 체크 결과
+
+| # | 항목 | 판정 | 비고 |
+|---|------|------|------|
+| 1 | `DailyRiskState` 모델에 `buy_count`/`sell_count` 미존재 확인 | ✅ 확인 | 현재 `trade_count`, `consecutive_losses`, `cooldown_until`, `is_trading_halted`, `total_pnl`만 존재 (models.py:87-100) |
+| 2 | `update_after_trade()` 시그니처 확장 (`side` 파라미터) | ✅ 타당 | 현재 `(session, pnl)` → `(session, pnl, side="SELL")` 하위 호환 유지. risk_manager.py:235 |
+| 3 | `check_order_validity()`에서 `trade_count` 기준 제한 | ✅ 확인 | L170: `state.trade_count >= self.max_daily_trades` → `buy_count`로 전환 필요 |
+| 4 | `update_after_trade` 호출이 SELL 시에만 존재 | ✅ 확인 | bot/main.py:247 — BUY 성공 시 호출 없음. 계획대로 BUY 경로 추가 필요 |
+| 5 | `trade_count` 하위 호환 유지 | ✅ 타당 | BUY/SELL 모두 `trade_count += 1` 동시 증가로 기존 대시보드 호환 |
+| 6 | 마이그레이션 SQL | ✅ 안전 | `ADD COLUMN IF NOT EXISTS` + `DEFAULT 0` — 무중단 적용 가능 |
+
+### Major Findings
+
+없음. 핫픽스 범위가 명확하고 구현 경로가 정확히 식별되어 있음.
+
+### Minor Findings
+
+1. **`get_daily_state()` 초기화 경로** (risk_manager.py:72): 새 DailyRiskState 생성 시 `buy_count=0`, `sell_count=0` 초기값도 명시해야 함. 모델 default가 있더라도 명시적 초기화 권장.
+
+2. **`trade_count` 정합성 보장**: `buy_count + sell_count`와 `trade_count`가 불일치할 가능성이 있음 (예: 수동 DB 수정, 과거 데이터). 대시보드에서 `Total Fills`를 `trade_count` vs `buy_count + sell_count` 중 어느 것을 표시할지 명확히 결정 필요.
+
+3. **테스트 파일 위치**: 계획서에 `tests/engine/test_risk_manager_trade_counts.py`로 되어 있으나, 기존 테스트 구조(`tests/` 하위)와 일치하는지 확인 필요.
+
+### 종합 판정: **PASS** ✅
+
+P0 핫픽스로서 범위가 적절하고, 기존 코드 경로 분석이 정확함. 구현 진행 가능.
+
+### 리뷰 반영 결정 (2026-02-19)
+
+1. `get_daily_state()` 초기화 경로 명시: **반영 완료** (`3.1` 보강)
+2. `trade_count` 정합성/표시 기준 명확화: **반영 완료** (`3.4` 보강)
+3. 테스트 파일 경로 구조 정합화: **반영 완료** (`5.1` 경로 수정)
+
+### Round 2 최종 검증 (2026-02-19)
+
+**판정: APPROVED** ✅ — 미해결 항목 없음. 구현 착수 가능.
+
+- Minor 3건 모두 계획서 본문에 반영 확인 완료
+  - `get_daily_state()` 초기화 명시 (3.1:L65)
+  - `Total Fills` 표시 기준 + 정합성 점검 로직 (3.4:L113-115)
+  - 테스트 경로 `tests/test_risk_manager_trade_counts.py` (5.1:L149)

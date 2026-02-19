@@ -43,6 +43,29 @@
 
 ---
 
+## 2.3 기술 스택 선택 이유 및 대안 비교
+
+### 선택 기술
+- PostgreSQL(JSONB) 기반 `post_exit_prices` 저장
+- Scheduler 주기 작업(10분)으로 시점별 백필
+- 기존 Analytics/DailyReporter 재사용
+
+### 선택 이유
+1. 시계열 후속 데이터를 기존 거래 레코드와 함께 관리해 조회/분석 경로 단순화
+2. 배치형 수집으로 실시간 의사결정 경로에 부하를 주지 않음
+3. 기존 Scheduler/DB 인프라 재사용으로 운영 복잡도 최소화
+
+### 대안 비교
+1. 별도 시계열 DB/이벤트 스트림 도입
+- 장점: 고빈도 확장에 유리
+- 단점: 현재 규모 대비 과설계, 운영비/복잡도 상승
+
+2. 조회 시점에 실시간 재계산
+- 장점: 저장 스키마 단순
+- 단점: 과거 시점 재현이 어렵고 일관된 비교 지표 확보가 어려움
+
+---
+
 ## 3. 구현 범위
 
 ### Phase 1. 매도 후 가격 추적 (Post-Exit Price Tracker) — P0
@@ -54,6 +77,8 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
 
 **변경 내용**
 - `TradingHistory`에 `post_exit_prices` JSONB 컬럼 추가.
+- `TradingHistory.executed_at`을 추적 기준 시각으로 사용하고, legacy 데이터(`executed_at IS NULL`)는 `created_at`을 fallback 기준으로 사용.
+- SELL 저장 시 `signal_info.entry_avg_price`를 함께 기록하여 Phase 2 PnL 계산 정확도 확보.
 - 저장 포맷:
 ```json
 {
@@ -70,6 +95,7 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
 
 **완료 기준**
 - SELL 거래 레코드에 `post_exit_prices` 컬럼이 존재하고, 초기값은 `NULL`.
+- 신규 SELL 레코드에서 `executed_at`과 `signal_info.entry_avg_price`가 함께 저장됨.
 
 #### 3.2 Post-Exit Tracker Scheduler Job
 
@@ -77,8 +103,8 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
 - 새로운 Scheduler job `track_post_exit_prices_job()` 구현.
 - 실행 주기: **10분마다** (1h/4h/12h/24h 각 시점의 도래 여부를 체크).
 - 로직:
-  1. `TradingHistory`에서 `side='SELL'` AND `executed_at IS NOT NULL` AND `post_exit_prices`가 미완성인 레코드 조회.
-  2. 각 레코드의 `executed_at` 기준으로 1h/4h/12h/24h 경과 여부 확인.
+  1. `TradingHistory`에서 `side='SELL'` AND `(executed_at IS NOT NULL OR created_at IS NOT NULL)` AND `post_exit_prices`가 미완성인 레코드 조회.
+  2. 각 레코드의 기준시각(`COALESCE(executed_at, created_at)`) 기준으로 1h/4h/12h/24h 경과 여부 확인.
   3. 경과한 시점에 대해 `MarketData`에서 해당 시점의 close price 조회.
   4. `change_pct = (post_price - exit_price) / exit_price * 100` 계산.
   5. `post_exit_prices` JSONB 업데이트 (부분 업데이트, 기존 시점 데이터 보존).
@@ -114,8 +140,8 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
 
 **변경 내용**
 - `_fetch_daily_data()`에서 SELL 거래의 실제 PnL 계산:
-  - 매칭 로직: 동일 symbol의 직전 BUY 거래 `price`와 SELL `price` 비교.
-  - 또는 SELL 체결 이력에 `entry_avg_price`를 명시 저장하여 직접 계산(권장).
+  - 1순위: SELL 레코드의 `signal_info.entry_avg_price`를 사용한 직접 계산.
+  - fallback: 동일 symbol의 직전 BUY 거래 `price`와 SELL `price` 매칭.
 - `win_rate` 하드코딩(0.0) 제거 → 실제 계산 값 사용.
 - `PerformanceAnalytics.calculate_win_rate()` 연동.
 
@@ -225,6 +251,7 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
   2. `generate_tuning_suggestions()`으로 제안 생성.
   3. LLM으로 요약 정리.
   4. n8n 웹훅으로 Discord 전송 (`/webhook/weekly-exit-report`).
+  5. n8n 워크플로우에 `weekly-exit-report` 엔드포인트 신규 등록(기존 trade/ai-decision/risk/daily-report와 분리).
 
 **수정 파일**
 - `src/bot/main.py` (Scheduler job 등록)
@@ -244,7 +271,7 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
   - 파라미터 튜닝 제안 텍스트 표시
 
 **수정 파일**
-- `src/dashboard/pages/7_exit_analysis.py` (신규, 기존 `5_system.py`/`06_chatbot.py`와 번호 충돌 회피)
+- `src/dashboard/pages/07_exit_analysis.py` (신규, 기존 페이지 네이밍 zero-padding 정렬 규칙 준수)
 
 **완료 기준**
 - 대시보드에서 exit 성과를 시각적으로 확인 가능.
@@ -256,6 +283,7 @@ Phase 2, 3의 전제 조건이므로 최우선 구현.
 ```
 Phase 1 (P0)
   ├── 3.1 모델 확장 + migration
+  ├── executed_at fallback/backfill + entry_avg_price 저장 경로 반영
   ├── 3.2 Tracker job 구현
   └── 3.3 메트릭 추가
   → 배포 후 24h 데이터 수집 확인
@@ -354,3 +382,66 @@ Phase 3 (P2) — 최소 2~4주 데이터 축적 후 착수
 3. Phase 3: `exit_performance.py` + 주간 리포트 job + 대시보드 페이지
 4. 각 Phase별 테스트 코드
 5. `docs/work-result/15_post_exit_analysis_result.md` 결과 문서
+
+---
+
+## Claude Code Review
+
+**검증일**: 2026-02-19
+**검증 기준**: 현행 코드 대비 계획 정합성, 구현 가능성, 데이터 경로 정합성
+
+### 코드 크로스 체크 결과
+
+| # | 항목 | 판정 | 비고 |
+|---|------|------|------|
+| 1 | `TradingHistory` 모델에 `post_exit_prices` 미존재 확인 | ✅ 확인 | 현재 JSONB 컬럼: `signal_info`만 존재. 추가 가능 (models.py:46) |
+| 2 | SELL 시 `exit_price` 접근 경로 | ✅ 확인 | bot/main.py:238-243에서 SELL 체결 시 `current_price` 사용. `TradingHistory.price`에 저장됨 |
+| 3 | `entry_avg_price` 접근 가능성 | ⚠️ 주의 | SELL 시 `pos["avg_price"]`는 bot/main.py:246에서 PnL 계산에 사용되나, `TradingHistory`에는 미저장. 계획서 3.4에서 executor.py 수정 필요성을 정확히 식별함 |
+| 4 | `DailyReporter` win_rate 하드코딩 | ✅ 확인 | 계획서 배경 분석 정확 |
+| 5 | `PerformanceAnalytics` 미사용 | ✅ 확인 | `src/analytics/performance.py` 존재하나 DailyReporter에서 import 없음 |
+| 6 | `MarketData` 시점 조회 가능성 | ✅ 확인 | 1분 캔들 저장 중이므로 1h/4h/12h/24h 시점 데이터 조회 가능. ±5분 허용 정책 적절 |
+| 7 | Scheduler 인프라 존재 여부 | ✅ 확인 | bot/main.py에 기존 스케줄러 루프 존재, job 추가 가능 |
+
+### Major Findings
+
+1. **`TradingHistory.executed_at` 컬럼 부재 가능성**: 계획서 3.2에서 `executed_at IS NOT NULL` 조건을 사용하나, 현재 모델에는 `created_at`만 존재 (models.py:50). `executed_at` 대신 `created_at`을 사용하거나, 별도 컬럼 추가가 필요. 마이그레이션 스크립트에 반영 필요.
+
+2. **SELL 시 `entry_avg_price` 저장 누락**: Phase 2(3.4)에서 executor.py 수정을 언급했으나, 이것은 Phase 1 마이그레이션과 함께 추가하는 것이 효율적. Phase 1에서 `signal_info`에 `entry_avg_price` 포함 여부를 사전 확인할 것 — 현재 bot/main.py:232-236에서 `signal_info`에 exit_reason과 regime만 포함하고 avg_price는 미포함.
+
+### Minor Findings
+
+1. **n8n 웹훅 엔드포인트 신규 필요**: Phase 3에서 `/webhook/weekly-exit-report` 사용. 현재 n8n에 등록된 4개 엔드포인트(trade, ai-decision, risk, daily-report)와 별도로 추가 설정 필요. 계획서에 n8n 설정 작업이 누락됨.
+
+2. **대시보드 페이지 번호**: `7_exit_analysis.py`로 계획했으나, 현재 `06_chatbot.py`까지 존재. Streamlit은 파일명 정렬 기준이므로 `07_exit_analysis.py` 형태로 zero-padding 통일 권장.
+
+3. **Phase 간 데이터 의존**: Phase 2의 `avg_post_1h_pct`가 Phase 1 데이터에 의존하는데, Phase 1 배포 후 최소 24h 데이터 축적이 필요. 계획서에 "1주일 뒤 착수 권장"으로 명시되어 있어 적절하나, Phase 2 독립 동작(post_exit_prices 없이 exit_breakdown만 표시) 명시가 잘 되어 있음 (3.5).
+
+### 종합 판정: **PASS (조건부)** ✅
+
+전반적으로 잘 구성된 3-Phase 계획. `executed_at` 컬럼 이슈(Major #1)와 `entry_avg_price` 저장 타이밍(Major #2)을 Phase 1 구현 시 함께 해결하면 문제 없음.
+
+### 리뷰 반영 결정 (2026-02-19)
+
+1. `executed_at` 기준 시각 이슈: **반영 완료**
+- `executed_at` 우선 + `created_at` fallback(`COALESCE`)로 명시 (`3.1`, `3.2`)
+
+2. `entry_avg_price` 저장 타이밍: **반영 완료**
+- Phase 1에서 `signal_info.entry_avg_price` 저장으로 선반영 (`3.1`, `4`)
+
+3. n8n 웹훅 엔드포인트 작업 누락: **반영 완료**
+- `weekly-exit-report` 워크플로우 등록 작업 명시 (`3.9`)
+
+4. 대시보드 파일명 zero-padding: **반영 완료**
+- `07_exit_analysis.py`로 수정 (`3.10`)
+
+### Round 2 최종 검증 (2026-02-19)
+
+**판정: APPROVED** ✅ — 미해결 항목 없음. 구현 착수 가능.
+
+- Major 2건 반영 확인 완료
+  - `executed_at` 우선 + `created_at` fallback COALESCE (3.1:L80, 3.2:L106-107)
+  - `signal_info.entry_avg_price` Phase 1 선반영 (3.1:L81, 완료기준:L98)
+- Minor 3건 반영 확인 완료
+  - n8n `weekly-exit-report` 엔드포인트 등록 명시 (3.9:L251)
+  - `07_exit_analysis.py` zero-padding (3.10:L274)
+  - Phase 1 작업순서에 `executed_at fallback + entry_avg_price` 명시 (4:L286)
