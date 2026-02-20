@@ -2,6 +2,41 @@
 **Kubernetes 기반 자율 가상화폐 매매 AI 에이전트**
 *(Rule-Based Core + AI-Assisted Decision System)*
 
+## Operating Rules (Documentation Workflow)
+
+0) Source of Truth
+- 본 문서는 프로젝트 운영의 Source of Truth이다.
+- 작업 수행/모니터링 과정에서 “정의/정책/운영 규칙/범위” 변경이 필요해지면:
+  - 반드시 본 문서를 수정하고
+  - Changelog에 날짜/사유/영향/관련 문서(Plan/Result/Troubleshooting)를 기록한다.
+
+1) Work docs are mandatory (Plan → Code → Result)
+- Start every task by reading this charter.
+- Create a work plan before coding:
+  - docs/work-plans/<NN>_<topic>_plan.md
+- After implementation, write a work result:
+  - docs/work-result/<NN>_<topic>_result.md
+  - Phase 단위 구현인 경우 Phase 2+는 동일 Result 파일 하단에 이어서 기록한다.
+
+2) Troubleshooting is mandatory for incidents
+- 모니터링/운영/버그/장애가 발생하면:
+  - docs/troubleshooting/<NN>_<topic>.md 로 별도 기록한다.
+- 트러블슈팅 과정에서 계획 변경/코드 수정/검증 절차 변경이 생기면:
+  - 해당 plan/result 문서도 함께 갱신하고, 필요 시 Charter도 갱신한다.
+
+3) Traceability (문서 간 연결은 필수)
+- Result는 반드시 해당 Plan을 링크한다.
+- Troubleshooting은 관련 Plan/Result를 링크한다.
+- Plan이 사고/이슈에서 시작된 경우 Troubleshooting을 링크한다.
+
+4) Architecture decision must be explicit
+- Plan/Result에 “왜 이 아키텍처인가 + 대안(가능하면 3개) + 이점/트레이드오프/완화”를 명시한다.
+- Result에는 실제 관측된 효과(좋았던 점/아쉬웠던 점/계획 대비 변경점)를 요약한다.
+
+5) Korean comments for non-trivial code are required
+- 비단순 로직(전략/수식/캐시/동시성/예외 처리/리스크 제어 등)은
+  - 한국어 주석으로 intent/why, invariants, edge cases, failure modes를 충분히 설명한다.
+
 ## 1. 설계 철학
 ### 1.1 핵심 전제: 예측이 아닌 반응
 본 프로젝트는 "AI로 가격을 예측하여 수익을 낸다"는 비현실적인 목표를 배제합니다. 대신, 시장 상태에 체계적으로 반응하는 **룰 기반 시스템**을 구축하고, AI는 이를 보조합니다.
