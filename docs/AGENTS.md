@@ -4,9 +4,17 @@
 - Always start from templates in docs/templates/.
   - work-plan.template.md / work-result.template.md / troubleshooting.template.md
 - Naming (preferred; keep legacy files as-is):
-  - work-plans: <NN>_<topic>_plan.md
-  - work-result: <NN>_<topic>_result.md
-  - troubleshooting: <NN>_<topic>.md
+  - independent work-plans: <NN>_<topic>_plan.md
+  - epic subtask work-plans: <EPIC>-<subNN>_<topic>_plan.md
+  - independent work-result: <NN>_<topic>_result.md
+  - epic subtask work-result: <EPIC>-<subNN>_<topic>_result.md
+  - independent troubleshooting: <NN>_<topic>.md
+  - epic subtask troubleshooting: <EPIC>-<subNN>_<topic>.md
+
+## Numbering policy
+- Keep top-level `<NN>` numbers for independent work streams only.
+- If the task belongs to an existing epic, use `<EPIC>-<subNN>` numbering.
+- Subtask numbering should be sequential and stable (do not renumber completed subtasks unless conflict repair is required).
 
 ## Required headers (recommended for consistency)
 - Plan: 작성일 / 상태 / 우선순위 / 관련 문서(Plan→Charter 필수)

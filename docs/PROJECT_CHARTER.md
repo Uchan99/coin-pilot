@@ -13,16 +13,25 @@
 1) Work docs are mandatory (Plan → Code → Result)
 - Start every task by reading this charter.
 - Create a work plan before coding:
-  - docs/work-plans/<NN>_<topic>_plan.md
+  - Independent work: docs/work-plans/<NN>_<topic>_plan.md
+  - Epic subtask: docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md
 - After implementation, write a work result:
-  - docs/work-result/<NN>_<topic>_result.md
+  - Independent work: docs/work-result/<NN>_<topic>_result.md
+  - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
   - Phase 단위 구현인 경우 Phase 2+는 동일 Result 파일 하단에 이어서 기록한다.
 
 2) Troubleshooting is mandatory for incidents
 - 모니터링/운영/버그/장애가 발생하면:
-  - docs/troubleshooting/<NN>_<topic>.md 로 별도 기록한다.
+  - Independent: docs/troubleshooting/<NN>_<topic>.md
+  - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
+  - 위 두 형식 중 하나로 별도 기록한다.
 - 트러블슈팅 과정에서 계획 변경/코드 수정/검증 절차 변경이 생기면:
   - 해당 plan/result 문서도 함께 갱신하고, 필요 시 Charter도 갱신한다.
+
+2.1) Numbering policy (required)
+- 최상위 번호(`<NN>`)는 독립 작업 스트림에만 사용한다.
+- 기존 에픽의 파생 작업은 `<EPIC>-<subNN>` 형식을 사용한다. (예: `17-01_...`, `17-02_...`)
+- 에픽 파생 작업에 신규 최상위 번호를 부여하지 않는다.
 
 3) Traceability (문서 간 연결은 필수)
 - Result는 반드시 해당 Plan을 링크한다.
@@ -390,6 +399,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 날짜 | 변경 요약 |
 |------|----------|
 | 2026-02-19 | 14번 Trade Count 분리 핫픽스 및 15번 Post-exit 분석 강화(Phase 1~3, 주간 리포트/Exit 분석 대시보드 포함) 완료 상태 반영 |
+| 2026-02-20 | 문서 네이밍 정책에 에픽-서브태스크 체계(`<EPIC>-<subNN>`) 추가, 17번 파생 문서를 17-xx로 정리하는 운영 기준 반영 (관련: `docs/work-plans/19_epic_subtask_doc_structure_refactor_plan.md`) |
 
 ---
-*최종 업데이트: 2026-02-19 (15번 완료 반영) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-20 (문서 체계 정책 업데이트 반영) by Codex (GPT-5)*

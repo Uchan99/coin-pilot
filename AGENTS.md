@@ -7,16 +7,24 @@
 
 ## Required workflow (documents are mandatory)
 1) Before coding, write a plan:
-   - docs/work-plans/<NN>_<topic>_plan.md (preferred)
+   - Independent work: docs/work-plans/<NN>_<topic>_plan.md
+   - Epic subtask: docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md
    - (legacy allowed) weekN_<topic>.md
 2) Implement following the plan.
    - If the plan changes, update the plan and add a change-log entry in that plan.
 3) After coding, write a result report:
-   - docs/work-result/<NN>_<topic>_result.md
+   - Independent work: docs/work-result/<NN>_<topic>_result.md
+   - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
    - If phased, append Phase 2+ at the bottom of the same result file.
 4) If issues arise (monitoring/bug/ops):
-   - docs/troubleshooting/<NN>_<topic>.md
+   - Independent work: docs/troubleshooting/<NN>_<topic>.md
+   - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
    - Link it from the related plan/result, and record any charter updates.
+
+## Numbering policy (required)
+- Keep independent streams on top-level numeric IDs (`18_`, `29_`, ...).
+- When work is a subtask of an existing epic, keep the epic prefix (`17-01_`, `17-02_`, ...).
+- Do not create a new top-level number for work that is clearly part of an existing epic.
 
 ## Traceability (required)
 - Plan/Result/Troubleshooting must reference each other when applicable:
