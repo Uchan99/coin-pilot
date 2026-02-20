@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from src.dashboard.utils.db_connector import get_data_as_dataframe
+from src.dashboard.components.floating_chat import render_floating_chat
 
 st.title("🛡️ Risk Monitor")
 
@@ -128,3 +129,5 @@ if not audit_df.empty:
     st.dataframe(audit_df, use_container_width=True)
 else:
     st.info("Risk 이벤트 기록이 없습니다. (Clean!)")
+
+render_floating_chat()

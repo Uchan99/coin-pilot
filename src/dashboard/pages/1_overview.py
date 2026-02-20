@@ -9,6 +9,7 @@ from src.dashboard.utils.formatters import (
     format_pct,
     format_qty,
 )
+from src.dashboard.components.floating_chat import render_floating_chat
 
 st.title("📊 Overview")
 
@@ -91,6 +92,7 @@ st.subheader("보유 자산 (활성 포지션)")
 
 if positions_df.empty:
     st.info("현재 보유 중인 포지션이 없습니다. (No Active Positions)")
+    render_floating_chat()
     st.stop()
 
 calc_df = positions_df.copy()
@@ -166,3 +168,5 @@ st.dataframe(
     use_container_width=True,
     hide_index=True,
 )
+
+render_floating_chat()

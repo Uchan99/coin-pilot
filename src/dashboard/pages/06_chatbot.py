@@ -1,50 +1,38 @@
 import streamlit as st
-import asyncio
-from src.agents.router import process_chat
 
-st.set_page_config(
-    page_title="AI Chatbot | CoinPilot",
-    page_icon="💬",
-    layout="wide"
+from src.dashboard.components.floating_chat import append_message, ask_assistant, get_shared_history
+
+st.set_page_config(page_title="AI Chatbot | CoinPilot", page_icon="💬", layout="wide")
+
+st.title("💬 AI Trading Assistant")
+st.markdown(
+    """
+**CoinPilot AI**에게 물어보세요.
+- 💰 **포트폴리오 조회**: "현재 잔고/포지션 상태 알려줘"
+- 📈 **시장 해석**: "현재 비트코인 시장 어떻게 봐?"
+- 🧭 **전략 리뷰**: "최근 매매 기준으로 장단점 분석해줘"
+- 🛡️ **리스크 진단**: "지금 레짐에서 주의할 위험이 뭐야?"
+"""
 )
 
-st.title("💬 AI Financial Assistant")
-st.markdown("""
-**CoinPilot AI**에게 물어보세요!  
-- 💰 **자산 조회**: "현재 잔고 얼마야?", "비트코인 가격 알려줘"
-- 📚 **지식 검색**: "이 프로젝트의 아키텍처는?", "손절 규칙이 뭐야?"
-""")
+if st.button("대화 초기화"):
+    st.session_state.pop("assistant_chat_history", None)
+    st.session_state.pop("assistant_chat_cache", None)
+    st.session_state.pop("assistant_chat_session_id", None)
+    st.rerun()
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
+history = get_shared_history()
+for message in history:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# React to user input
 if prompt := st.chat_input("질문을 입력하세요..."):
-    # Display user message in chat message container
     st.chat_message("user").markdown(prompt)
-    # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    append_message("user", prompt)
 
-    # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        
-        with st.spinner("AI가 생각 중입니다..."):
-            try:
-                # Run async agent loop in sync streamlit environment
-                response = asyncio.run(process_chat(prompt))
-                full_response = response
-                message_placeholder.markdown(full_response)
-            except Exception as e:
-                full_response = f"⚠️ 에러가 발생했습니다: {str(e)}"
-                message_placeholder.error(full_response)
-        
-    # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
+        with st.spinner("AI가 분석 중입니다..."):
+            response = ask_assistant(prompt)
+        st.markdown(response)
+
+    append_message("assistant", response)

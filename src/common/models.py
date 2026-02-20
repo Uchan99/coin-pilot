@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy import Column, BigInteger, String, Numeric, DateTime, JSON, Text, ForeignKey, Integer, Date, Boolean, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 from pgvector.sqlalchemy import Vector
 
@@ -157,3 +157,69 @@ class AgentDecision(Base):
     price_at_decision = Column(Numeric(20, 8), nullable=True)  # 결정 시점 가격
     regime = Column(String(10), nullable=True)     # 결정 시점 레짐
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class NewsArticle(Base):
+    """
+    RSS에서 수집한 뉴스 원본/정규화 데이터를 저장하는 테이블.
+    - content_hash unique로 중복 기사 재적재를 방지
+    - symbols 배열은 심볼 기반 조회 성능을 위해 GIN 인덱스 사용 예정
+    """
+    __tablename__ = "news_articles"
+    __table_args__ = (
+        UniqueConstraint("content_hash", name="uq_news_articles_content_hash"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    source = Column(String(50), nullable=False)
+    feed_url = Column(Text, nullable=False)
+    article_url = Column(Text, nullable=True)
+    title = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    symbols = Column(ARRAY(String(20)), nullable=False, default=list)
+    risk_signal_score = Column(Numeric(6, 2), nullable=False, default=0)
+    risk_drivers = Column(JSONB, nullable=True)
+    content_hash = Column(String(64), nullable=False)
+    ingested_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class NewsSummary(Base):
+    """
+    일정 시간창(window) 기준으로 심볼별 뉴스 요약을 저장하는 테이블.
+    """
+    __tablename__ = "news_summaries"
+    __table_args__ = (
+        UniqueConstraint("symbol", "window_start", "window_end", name="uq_news_summaries_symbol_window"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    window_start = Column(DateTime(timezone=True), nullable=False)
+    window_end = Column(DateTime(timezone=True), nullable=False)
+    summary_text = Column(Text, nullable=False)
+    key_points = Column(JSONB, nullable=True)
+    article_count = Column(Integer, nullable=False, default=0)
+    model_used = Column(String(50), nullable=False, default="rss-rule-v1")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class NewsRiskScore(Base):
+    """
+    심볼별 뉴스 위험 점수(0~100)와 등급을 저장하는 테이블.
+    챗봇/리스크 진단에서 최신 점수를 조회해 사용한다.
+    """
+    __tablename__ = "news_risk_scores"
+    __table_args__ = (
+        UniqueConstraint("symbol", "window_start", "window_end", name="uq_news_risk_scores_symbol_window"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    window_start = Column(DateTime(timezone=True), nullable=False)
+    window_end = Column(DateTime(timezone=True), nullable=False)
+    risk_score = Column(Numeric(6, 2), nullable=False)
+    risk_level = Column(String(10), nullable=False)
+    drivers = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

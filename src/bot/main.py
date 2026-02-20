@@ -428,6 +428,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.analytics.volatility_model import VolatilityModel
 from src.analytics.post_exit_tracker import track_post_exit_prices_job
 from src.analytics.exit_performance import ExitPerformanceAnalyzer
+from src.agents.news.rss_news_pipeline import (
+    news_ingest_rss_job,
+    news_summarize_and_score_job,
+)
 
 # ... existing code ...
 
@@ -557,6 +561,26 @@ async def weekly_exit_report_job():
         traceback.print_exc()
 
 
+async def news_ingest_job():
+    """RSS 뉴스 수집 스케줄러 래퍼."""
+    try:
+        await news_ingest_rss_job()
+    except Exception as e:
+        print(f"[Scheduler] RSS ingest job failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+async def news_summary_job():
+    """RSS 뉴스 요약/위험점수 집계 스케줄러 래퍼."""
+    try:
+        await news_summarize_and_score_job()
+    except Exception as e:
+        print(f"[Scheduler] RSS summarize job failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 # FastAPI App Setup for Health & Metrics
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -587,10 +611,28 @@ async def lifespan(app: FastAPI):
         misfire_grace_time=7200,
         coalesce=True,
     )
+    # RSS 뉴스 수집/요약 (RSS-Only: 외부 유료 API 미사용)
+    scheduler.add_job(
+        news_ingest_job,
+        'interval',
+        minutes=int(os.getenv("NEWS_RSS_INGEST_INTERVAL_MIN", "10")),
+        misfire_grace_time=300,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        news_summary_job,
+        'interval',
+        minutes=int(os.getenv("NEWS_RSS_SUMMARY_INTERVAL_MIN", "30")),
+        misfire_grace_time=300,
+        coalesce=True,
+    )
     scheduler.start()
     
     # 서버 기동 직후 즉시 레짐 업데이트 1회 실행
     asyncio.create_task(update_regime_job())
+    # 서버 기동 직후 뉴스 파이프라인도 1회 실행
+    asyncio.create_task(news_ingest_job())
+    asyncio.create_task(news_summary_job())
     
     print("[*] Scheduler started (Regime job added).")
     

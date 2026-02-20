@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from src.dashboard.utils.db_connector import get_data_as_dataframe
+from src.dashboard.components.floating_chat import render_floating_chat
 
 st.title("📜 Trade History")
 
@@ -80,3 +81,5 @@ if not df.empty:
 
 else:
     st.info("검색된 거래 내역이 없습니다.")
+
+render_floating_chat()

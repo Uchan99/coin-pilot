@@ -5,6 +5,7 @@ import os
 import requests
 from src.dashboard.utils.db_connector import get_data_as_dataframe, get_engine
 from sqlalchemy import text
+from src.dashboard.components.floating_chat import render_floating_chat
 
 st.title("⚙️ System Health")
 
@@ -96,3 +97,5 @@ else:
 # 3. Manual Refresh
 if st.button("Refresh Status"):
     st.rerun()
+
+render_floating_chat()

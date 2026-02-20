@@ -1,5 +1,6 @@
 import streamlit as st
 from src.dashboard.utils.db_connector import check_db_connection
+from src.dashboard.components.floating_chat import render_floating_chat
 
 # 1. 페이지 설정 (가장 먼저 실행되어야 함)
 st.set_page_config(
@@ -57,3 +58,5 @@ with col2:
 
 st.markdown("---")
 st.caption("Developed by Antigravity & User | Week 6 Dashboard Polish")
+
+render_floating_chat()

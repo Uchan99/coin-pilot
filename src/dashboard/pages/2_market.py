@@ -5,6 +5,7 @@ import json
 import redis
 import datetime
 from src.dashboard.utils.db_connector import get_data_as_dataframe
+from src.dashboard.components.floating_chat import render_floating_chat
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -182,3 +183,5 @@ if not df_candles.empty:
 else:
     st.warning(f"No data found for {selected_symbol}. Collector가 켜져 있는지 확인하세요.")
     st.code("kubectl get pods -l app=collector", language="bash")
+
+render_floating_chat()

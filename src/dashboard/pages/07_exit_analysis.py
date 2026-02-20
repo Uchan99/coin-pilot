@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.analytics.exit_performance import ExitPerformanceAnalyzer
+from src.dashboard.components.floating_chat import render_floating_chat
 from src.dashboard.utils.db_connector import get_data_as_dataframe
 
 
@@ -254,3 +255,5 @@ st.dataframe(
     use_container_width=True,
     hide_index=True,
 )
+
+render_floating_chat()
