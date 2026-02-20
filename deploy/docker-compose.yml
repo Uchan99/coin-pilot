@@ -67,6 +67,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
+      VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
 
   dashboard:
     build:

@@ -59,6 +59,8 @@ spec:
               value: "http://n8n:5678"
             - name: PAPER_BALANCE
               value: "10000000"
+            - name: VOLATILITY_HIGH_THRESHOLD
+              value: "2.0"
           resources:
             requests:
               memory: "256Mi"

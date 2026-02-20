@@ -495,14 +495,23 @@ async def retrain_volatility_job():
 
             # 2. 모델 학습
             model = VolatilityModel()
-            
+
+            # 고변동성 임계값 (환경변수 기반, 기본 2.0)
+            try:
+                volatility_threshold = float(os.getenv("VOLATILITY_HIGH_THRESHOLD", "2.0"))
+            except Exception:
+                volatility_threshold = 2.0
+
             # GARCH fitting
             vol = model.fit_predict(df['close'])
-            is_high = vol > 2.0
-            
+            is_high = vol > volatility_threshold
+
             # 3. 상태 업데이트
-            model.update_volatility_state(vol, threshold=2.0)
-            print(f"[Scheduler] Retraining Complete. High Volatility: {is_high} (Vol: {vol:.4f})")
+            model.update_volatility_state(vol, threshold=volatility_threshold)
+            print(
+                f"[Scheduler] Retraining Complete. High Volatility: {is_high} "
+                f"(Vol: {vol:.4f}, Threshold: {volatility_threshold:.4f})"
+            )
             
     except Exception as e:
         print(f"[Scheduler] Retraining Failed: {e}")

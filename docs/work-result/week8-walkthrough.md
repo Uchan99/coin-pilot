@@ -218,6 +218,32 @@ deploy/monitoring/
 │       └── coinpilot-overview.json    # ← 구버전 (2 패널)
 └── dashboards/
     ├── coinpilot-overview.json        # ← 신버전 (API Latency 포함)
+
+---
+
+## 2026-02-19 Follow-up Patch (Volatility Threshold Externalization)
+
+### 배경
+- `retrain_volatility_job()`에서 고변동성 임계값(`threshold=2.0`)이 하드코딩되어 운영 중 조정이 어려웠음.
+
+### 변경 사항
+1. `src/bot/main.py`
+- `VOLATILITY_HIGH_THRESHOLD` 환경변수 도입 (기본값 `2.0`)
+- 파싱 실패 시 안전 fallback `2.0`
+- 로그에 임계값 출력 추가:
+  - `(Vol: x.xxxx, Threshold: y.yyyy)`
+
+2. `k8s/apps/bot-deployment.yaml`
+- bot 컨테이너 환경변수 추가:
+  - `VOLATILITY_HIGH_THRESHOLD=2.0`
+
+3. `deploy/docker-compose.yml`
+- bot 환경변수 추가:
+  - `VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}`
+
+### 효과
+- 코드 변경 없이 운영 환경에서 임계값 튜닝 가능
+- 기존 동작과의 하위 호환 유지(미설정 시 `2.0`)
     └── coinpilot-trades.json          # ← 신규
 ```
 
@@ -427,4 +453,3 @@ kubectl get svc -n coin-pilot-ns
 
 모든 이슈가 해결되었으며, 현재 Minikube 상에서 시스템이 정상 가동 중입니다.
 수고하셨습니다! 🚀
-
