@@ -18,6 +18,7 @@ from src.agents.tools.risk_diagnosis_tool import run_risk_diagnosis_tool
 from src.agents.tools.sell_timing_tool import run_sell_timing_tool
 from src.agents.tools.strategy_policy_tool import run_strategy_policy_tool
 from src.agents.tools.strategy_review_tool import run_strategy_review_tool
+from src.agents.tools.trade_history_tool import run_trade_history_tool
 from src.common.async_utils import run_async_safely
 
 SAFETY_DISCLAIMER = "이 답변은 참고용 분석이며 투자 권유가 아닙니다. 최종 결정은 본인 판단과 리스크 한도 기준으로 진행하세요."
@@ -76,6 +77,7 @@ SCENARIO_REQUIRED_INTENTS = {
     "market_outlook",
     "strategy_policy",
     "strategy_review",
+    "trade_history",
     "risk_diagnosis",
     "sell_timing_advice",
     "action_recommendation",
@@ -104,6 +106,7 @@ class IntentDecision(BaseModel):
         "market_outlook",
         "strategy_policy",
         "strategy_review",
+        "trade_history",
         "risk_diagnosis",
         "sell_timing_advice",
         "action_recommendation",
@@ -115,6 +118,7 @@ class IntentDecision(BaseModel):
             "Use db_query for SQL-like data lookup, doc_search for policy/architecture docs, "
             "portfolio_status for asset/position summary, market_outlook for market interpretation, "
             "strategy_policy for rule explanation, strategy_review for trade performance coaching, "
+            "trade_history for last sell/filled trade detail and realized pnl check, "
             "risk_diagnosis for risk status check, sell_timing_advice for position exit timing guidance, "
             "action_recommendation for buy/entry/hold decision guidance, and general_chat otherwise."
         ),
@@ -187,6 +191,22 @@ def _classify_intent_fast_path(message: str) -> str | None:
         "정리할까",
         "매도하는 게",
     ]
+    trade_history_keywords = [
+        "마지막 sell",
+        "마지막 매도",
+        "최근 sell",
+        "최근 매도",
+        "마지막 체결",
+        "최근 체결",
+        "체결 내역",
+        "트레이드 히스토리",
+        "trade history",
+        "손해본거",
+        "수익난거",
+        "마지막 손익",
+        "얼마에 사서",
+        "얼마에 팔았",
+    ]
     strategy_policy_keywords = [
         "매도 전략",
         "청산 전략",
@@ -206,6 +226,9 @@ def _classify_intent_fast_path(message: str) -> str | None:
     sql_keywords = ["sql", "쿼리", "수익률", "거래내역", "price", "pnl", "balance", "count"]
 
     # 매도 타이밍/전략 설명은 사용자 기대가 뚜렷하므로 우선순위를 가장 높게 둡니다.
+    if any(k in text for k in trade_history_keywords):
+        return "trade_history"
+
     if any(k in text for k in sell_timing_keywords):
         return "sell_timing_advice"
 
@@ -464,6 +487,47 @@ async def portfolio_node(state: AgentState):
     return {"response": "\n".join(lines)}
 
 
+async def trade_history_node(state: AgentState):
+    _ = state
+    data = await asyncio.to_thread(run_trade_history_tool)
+
+    if data["status"] != "OK":
+        return {"response": f"{data.get('message', '거래 이력 조회에 실패했습니다.')}\n{SAFETY_DISCLAIMER}"}
+
+    lines = [f"최근 체결 요약: 총 {data['filled_count']}건, SELL {data['sell_count']}건"]
+    last_sell = data.get("last_sell")
+    if not last_sell:
+        lines.append("최근 SELL 체결이 없어 마지막 SELL 정보를 표시할 수 없습니다.")
+        lines.append(SAFETY_DISCLAIMER)
+        return {"response": "\n".join(lines)}
+
+    pnl_krw = last_sell.get("realized_pnl_krw")
+    pnl_pct = last_sell.get("realized_pnl_pct")
+    if pnl_krw is not None and pnl_pct is not None:
+        realized_text = f"{_format_krw(pnl_krw)} ({pnl_pct:+.2f}%)"
+    else:
+        realized_text = "계산 불가(entry_avg_price 데이터 없음)"
+
+    lines.extend(
+        [
+            "마지막 SELL 상세:",
+            f"- 시각(KST): {last_sell.get('filled_at_kst')}",
+            f"- 심볼: {last_sell.get('symbol')}",
+            f"- 매도가: {_format_krw(last_sell.get('sell_price') or 0.0)}",
+            f"- 수량: {last_sell.get('quantity') or 0.0:.8f}",
+            (
+                f"- 추정 매수가: {_format_krw(last_sell.get('entry_avg_price') or 0.0)}"
+                if last_sell.get("entry_avg_price") is not None
+                else "- 추정 매수가: 데이터 없음"
+            ),
+            f"- 실현 손익: {realized_text}",
+            f"- 레짐/청산사유: {last_sell.get('regime')} / {last_sell.get('exit_reason')}",
+        ]
+    )
+    lines.append(SAFETY_DISCLAIMER)
+    return {"response": "\n".join(lines)}
+
+
 async def market_outlook_node(state: AgentState):
     query = str(state["messages"][-1].content)
     symbol = _infer_symbol(query)
@@ -707,6 +771,7 @@ async def general_node(state: AgentState):
             "안녕하세요. CoinPilot AI 트레이딩 비서입니다.\n"
             "아래 유형의 질문을 지원합니다:\n"
             "- 포트폴리오 현황 (잔고/포지션/평가액)\n"
+            "- 체결 이력/마지막 SELL (매수가/매도가/실현손익)\n"
             "- 시장 해석 (레짐/모멘텀/변동성)\n"
             "- 전략 규칙 설명 (매도/청산 정책)\n"
             "- 전략 리뷰 (장점/약점/개선안)\n"
@@ -723,6 +788,7 @@ def create_chat_graph():
     workflow.add_node("sql_agent", sql_node)
     workflow.add_node("rag_agent", rag_node)
     workflow.add_node("portfolio_tool", portfolio_node)
+    workflow.add_node("trade_history", trade_history_node)
     workflow.add_node("market_outlook", market_outlook_node)
     workflow.add_node("strategy_policy", strategy_policy_node)
     workflow.add_node("strategy_review", strategy_review_node)
@@ -743,6 +809,7 @@ def create_chat_graph():
             "db_query": "sql_agent",
             "doc_search": "rag_agent",
             "portfolio_status": "portfolio_tool",
+            "trade_history": "trade_history",
             "market_outlook": "market_outlook",
             "strategy_policy": "strategy_policy",
             "strategy_review": "strategy_review",
@@ -756,6 +823,7 @@ def create_chat_graph():
     workflow.add_edge("sql_agent", END)
     workflow.add_edge("rag_agent", END)
     workflow.add_edge("portfolio_tool", END)
+    workflow.add_edge("trade_history", END)
     workflow.add_edge("market_outlook", END)
     workflow.add_edge("strategy_policy", END)
     workflow.add_edge("strategy_review", END)

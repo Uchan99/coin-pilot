@@ -1,7 +1,7 @@
 # 17. AI 트레이딩 비서(챗봇) 고도화 계획
 
 **작성일**: 2026-02-19  
-**상태**: Draft  
+**상태**: Completed (Phase 0~5, 뉴스는 RSS-Only 경로 반영)  
 **우선순위**: P1 (운영 생산성/의사결정 보조 강화)
 
 ---
@@ -368,6 +368,18 @@
 4. (옵션) 뉴스 RAG 배치 연동
 5. 결과 문서 + Charter 반영
 
+### 10.1 하위 작업 인덱스 (에픽-서브태스크)
+
+1. `17-01`: `docs/work-plans/17-01_chatbot_consultant_intent_sell_strategy_plan.md`
+2. `17-02`: `docs/work-plans/17-02_chatbot_buy_action_intent_fix_plan.md`
+3. `17-03`: `docs/work-plans/17-03_news_rag_rss_only_implementation_plan.md`
+4. `17-04`: `docs/work-plans/17-04_manifest_image_tag_alignment_plan.md`
+5. `17-05`: `docs/work-plans/17-05_news_summary_readability_improvement_plan.md`
+6. `17-06`: `docs/work-plans/17-06_latest_single_tag_operation_plan.md`
+7. `17-07`: `docs/work-plans/17-07_latest_dual_redeploy_script_plan.md`
+8. `17-08`: `docs/work-plans/17-08_phase5_chat_guardrails_and_model_tiering_plan.md`
+9. `17-09`: `docs/work-plans/17-09_doc_numbering_conflict_fix_plan.md`
+
 ---
 
 ## 11. 리뷰 코멘트 반영 이력
@@ -513,3 +525,48 @@
 **즉시 착수 가능 항목:**
 - Phase 2~3 (분석형 라우팅 + 전략 리뷰): 기존 `06_chatbot.py` + `router.py` 확장으로 시작 가능
 - Phase 5 (가드레일): 기존 `guardrails.py` 패턴 재사용으로 빠르게 구현 가능
+
+---
+
+## 12. 구현 진행 로그
+
+### 2026-02-20 — Codex 착수/1차 반영
+
+1. Phase 0 반영
+- 챗봇 LLM 경로를 `factory.py` 기반으로 통합 (`router.py`, `sql_agent.py`, `rag_agent.py`)
+- Streamlit `asyncio.run()` 제거, 공용 동기 래퍼(`src/common/async_utils.py`) 도입
+- SQL Agent read-only URL + DML/DDL 정규식 차단(실행 직전 가드) 반영
+
+2. Phase 1 반영
+- `src/dashboard/components/floating_chat.py` 신규
+- 주요 대시보드 페이지(`app.py`, `1~5`, `07`)에 공통 Assistant 삽입
+- `06_chatbot.py`를 상세 모드로 유지하되 공통 대화 상태/실행기 재사용으로 통합
+
+3. Phase 2~3 Core 반영
+- Router intent 확장: `market_outlook`, `strategy_review`, `risk_diagnosis`, `action_recommendation`, `portfolio_status`
+- Tooling 추가:
+  - `portfolio_tool.py`
+  - `market_outlook_tool.py`
+  - `strategy_review_tool.py` (FIFO 기반 realized PnL)
+  - `risk_diagnosis_tool.py`
+- 그래프 compile 싱글톤 캐시 적용
+
+4. Deferred
+- Phase 4A/4B 뉴스 RAG(소스/스키마/비용 설계 및 구현)는 본 착수 범위에서 제외
+
+### 2026-02-20 — Phase 4 RSS Only 구현 착수/완료
+
+- 관련 상세 계획: `docs/work-plans/17-03_news_rag_rss_only_implementation_plan.md`
+- 결정: 유료 뉴스 API는 제외하고 RSS Only로 고정
+- 반영 범위:
+  1. 뉴스 수집/요약/리스크 점수 테이블 및 배치 파이프라인
+  2. 챗봇 시장 브리핑/행동 제안의 뉴스 리스크 반영
+- 비고: LLM 기반 뉴스 요약은 비용 정책 확정 전까지 규칙 기반 요약으로 운영
+
+### 2026-02-20 — Phase 5 비용/안전 가드레일 구현 완료
+
+- 관련 상세 계획: `docs/work-plans/17-08_phase5_chat_guardrails_and_model_tiering_plan.md`
+- 반영 범위:
+  1. 모델 계층화: 고난도 전략 리뷰에 한해 `premium_review` 모델(기본 Sonnet) 조건부 승격
+  2. 백엔드 공통 호출 통제: 세션 쿨다운, 동일 질의 캐시(TTL/LRU), 입력/출력 길이 예산
+  3. 공통 안전 후처리: 안전 고지문 누락 방지 + 시나리오 해석 문구 강제
