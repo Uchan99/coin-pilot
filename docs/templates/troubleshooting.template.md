@@ -1,11 +1,11 @@
-# <NN>. <제목> 트러블슈팅 / 핫픽스
+# <NN 또는 EPIC-subNN>. <제목> 트러블슈팅 / 핫픽스
 
 작성일: <YYYY-MM-DD>
 상태: Investigating | Fixed | Verified
 우선순위: P0 | P1 | P2
 관련 문서:
-- Plan: docs/work-plans/<NN>_<topic>_plan.md (있다면)
-- Result: docs/work-result/<NN>_<topic>_result.md (있다면)
+- Plan: docs/work-plans/<NN>_<topic>_plan.md 또는 docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md (있다면)
+- Result: docs/work-result/<NN>_<topic>_result.md 또는 docs/work-result/<EPIC>-<subNN>_<topic>_result.md (있다면)
 - Charter update 필요: YES | NO
 
 ---

@@ -1,9 +1,9 @@
-# <NN>. <제목> 트러블슈팅
+# <NN 또는 EPIC-subNN>. <제목> 작업 계획
 
 **작성일**: <YYYY-MM-DD>  
 **작성자**: <name or tool>  
 **상태**: Planned | Investigating | Fixed | Verified  
-**관련 계획 문서**: `docs/work-plans/<NN>_<topic>_plan.md` (있다면)  
+**관련 계획 문서**: `docs/work-plans/<NN>_<topic>_plan.md` 또는 `docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md` (있다면)  
 
 ---
 

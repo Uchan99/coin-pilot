@@ -1,12 +1,12 @@
-# <NN>. <제목> 구현 결과
+# <NN 또는 EPIC-subNN>. <제목> 구현 결과
 
 작성일: <YYYY-MM-DD>
 작성자: <name>
-관련 계획서: docs/work-plans/<NN>_<topic>_plan.md
+관련 계획서: docs/work-plans/<NN>_<topic>_plan.md 또는 docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md
 상태: Implemented | Verified | Partial
 완료 범위: Phase 1 | Phase 1~2 | Phase 1~3
 선반영/추가 구현: 없음 | 있음(Phase <n> 일부/전부)
-관련 트러블슈팅(있다면): docs/troubleshooting/<NN>_<topic>.md
+관련 트러블슈팅(있다면): docs/troubleshooting/<NN>_<topic>.md 또는 docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
 
 ---
 
