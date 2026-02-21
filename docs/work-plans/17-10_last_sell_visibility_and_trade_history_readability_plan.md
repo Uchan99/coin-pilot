@@ -1,7 +1,7 @@
 # 17-10. 마지막 SELL 가시성 개선 및 Trade History 가독성 향상 계획
 
 **작성일**: 2026-02-20  
-**상태**: In Progress  
+**상태**: Completed (2026-02-20)  
 **우선순위**: P0
 
 ---
@@ -95,3 +95,6 @@ PYTHONPATH=. .venv/bin/pytest -q tests/agents/test_router_intent.py tests/agents
 ### 2026-02-20
 
 1. 계획서 작성
+2. `trade_history` intent/tool 및 Trade History 상세 손익 컬럼이 코드 기준 반영됨을 확인
+3. 테스트(`test_router_intent`, `test_trade_history_tool`) 보강 및 통과 확인
+4. `마지막 매매 결과가 어떻게돼?` 질의를 `trade_history` intent로 고정 분류하도록 키워드 보강

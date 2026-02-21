@@ -379,6 +379,8 @@
 7. `17-07`: `docs/work-plans/17-07_latest_dual_redeploy_script_plan.md`
 8. `17-08`: `docs/work-plans/17-08_phase5_chat_guardrails_and_model_tiering_plan.md`
 9. `17-09`: `docs/work-plans/17-09_doc_numbering_conflict_fix_plan.md`
+10. `17-10`: `docs/work-plans/17-10_last_sell_visibility_and_trade_history_readability_plan.md`
+11. `17-11`: `docs/work-plans/17-11_trade_history_korean_labels_and_layout_plan.md`
 
 ---
 
@@ -570,3 +572,19 @@
   1. 모델 계층화: 고난도 전략 리뷰에 한해 `premium_review` 모델(기본 Sonnet) 조건부 승격
   2. 백엔드 공통 호출 통제: 세션 쿨다운, 동일 질의 캐시(TTL/LRU), 입력/출력 길이 예산
   3. 공통 안전 후처리: 안전 고지문 누락 방지 + 시나리오 해석 문구 강제
+
+### 2026-02-20 — 17-10 마지막 SELL/Trade History 가시성 개선 완료
+
+- 관련 상세 계획: `docs/work-plans/17-10_last_sell_visibility_and_trade_history_readability_plan.md`
+- 반영 범위:
+  1. `trade_history` intent/tool 기반 마지막 SELL 손익 응답 경로 코드 반영 상태 확인
+  2. Trade History 페이지 매수가/매도가/실현손익/수익률 컬럼 노출 상태 확인
+  3. 회귀 방지 테스트 보강
+
+### 2026-02-20 — 17-11 Trade History 한국어화/가독성 개선 완료
+
+- 관련 상세 계획: `docs/work-plans/17-11_trade_history_korean_labels_and_layout_plan.md`
+- 반영 범위:
+  1. Trade History 필터/컬럼/차트 라벨 한국어화
+  2. 기본/상세 보기 모드 추가로 가로 폭 압박 완화
+  3. `FILLED` 상태 의미 안내 문구 추가

@@ -40,6 +40,8 @@
 7. `17-07`: `docs/work-result/17-07_latest_dual_redeploy_script_result.md`
 8. `17-08`: `docs/work-result/17-08_phase5_chat_guardrails_and_model_tiering_result.md`
 9. `17-09`: `docs/work-result/17-09_doc_numbering_conflict_fix_result.md`
+10. `17-10`: `docs/work-result/17-10_last_sell_visibility_and_trade_history_readability_result.md`
+11. `17-11`: `docs/work-result/17-11_trade_history_korean_labels_and_layout_result.md`
 
 ---
 

@@ -31,6 +31,16 @@ def test_fast_path_buy_decision_intent():
     assert intent == "action_recommendation"
 
 
+def test_fast_path_trade_history_intent():
+    intent = _classify_intent_fast_path("마지막 SELL이 뭐야? 얼마에 사서 얼마에 팔았어?")
+    assert intent == "trade_history"
+
+
+def test_fast_path_trade_history_intent_last_trade_result():
+    intent = _classify_intent_fast_path("마지막 매매 결과가 어떻게돼?")
+    assert intent == "trade_history"
+
+
 def test_infer_symbol_aliases():
     assert _infer_symbol("비트코인 시장 알려줘") == "KRW-BTC"
     assert _infer_symbol("ETH 전망") == "KRW-ETH"
