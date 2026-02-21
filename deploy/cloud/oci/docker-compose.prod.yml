@@ -1,0 +1,149 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg15
+    container_name: coinpilot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: coinpilot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - ../../db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - coinpilot_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coinpilot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    container_name: coinpilot-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - coinpilot_redis_data:/data
+
+  collector:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/collector.Dockerfile
+    image: collector:latest
+    container_name: coinpilot-collector
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      REDIS_URL: redis://redis:6379/0
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+
+  bot:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/bot.Dockerfile
+    image: bot:latest
+    container_name: coinpilot-bot
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      n8n:
+        condition: service_started
+    expose:
+      - "8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODE: ${LLM_MODE:-dev}
+      LLM_MODEL: ${LLM_MODEL:-claude-3-5-haiku-20241022}
+      N8N_URL: ${N8N_URL:-http://n8n:5678}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
+      VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
+
+  dashboard:
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/dashboard.Dockerfile
+    image: dashboard:latest
+    container_name: coinpilot-dashboard
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: coinpilot-n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      TZ: ${TZ:-Asia/Seoul}
+    volumes:
+      - coinpilot_n8n_data:/home/node/.n8n
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: coinpilot-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - coinpilot_prometheus_data:/prometheus
+    depends_on:
+      bot:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: coinpilot-grafana
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../../monitoring/grafana-provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./monitoring/grafana/provisioning/dashboards/provider.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro
+      - ../../monitoring/grafana-provisioning/dashboards:/var/lib/grafana/dashboards:ro
+      - coinpilot_grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+
+volumes:
+  coinpilot_db_data:
+  coinpilot_redis_data:
+  coinpilot_n8n_data:
+  coinpilot_prometheus_data:
+  coinpilot_grafana_data:

@@ -1,7 +1,7 @@
 # 18. 클라우드 마이그레이션(가성비 최적화) 계획
 
 **작성일**: 2026-02-19  
-**상태**: Draft  
+**상태**: In Progress (2026-02-21)  
 **우선순위**: P1 (상시 운영 안정성 + 비용 최적화)
 
 ---
@@ -484,3 +484,37 @@ Major 4건(n8n/monitoring compose 누락, 환경변수 불일치, 데이터 마�
 - Azure AKS Pricing: https://azure.microsoft.com/en-au/pricing/details/kubernetes-service
 - Azure AKS Tier 문서: https://learn.microsoft.com/azure/aks/free-standard-pricing-tiers
 - Azure B-series VM: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/series/
+
+---
+
+## 13. Prometheus/Grafana 운영 체크리스트 (실행 단계 추가)
+
+아래 체크리스트는 "연결은 되어 있으나 실사용이 미숙한 상태"를 빠르게 벗어나기 위한 최소 운영 절차다.
+
+### 13.1 일일 점검 (5분)
+1. Prometheus `Status > Targets`에서 `coinpilot-core`가 `UP`인지 확인
+2. Prometheus Explore에서 `up` 쿼리 결과 확인
+3. Grafana 대시보드에서 아래 4개 지표 최근 6시간 추세 확인
+   - `coinpilot_active_positions`
+   - `coinpilot_total_pnl`
+   - `coinpilot_trade_count_total`
+   - `coinpilot_api_latency_seconds_sum / coinpilot_api_latency_seconds_count`
+
+### 13.2 이상 징후 확인
+1. `up == 0` 발생 시 bot 컨테이너/네트워크 우선 점검
+2. `coinpilot_api_latency_seconds_*` 급등 시 거래소 API 지연 여부 확인
+3. `coinpilot_trade_count_total` 장시간 변화 없음 + bot health 실패 동반 시 봇 동작 중단 의심
+
+### 13.3 주간 운영 리뷰
+1. 7일 기준 평균 API 지연 및 최대치 기록
+2. 알림 실패(n8n webhook 실패) 로그 건수 기록
+3. VM 자원(CPU/MEM/Disk) 사용률을 월 비용과 함께 기록해 스펙 조정 근거 확보
+
+---
+
+## 14. 계획 변경 이력
+
+### 2026-02-21
+1. 상태를 `Draft`에서 `In Progress`로 변경
+2. Prometheus/Grafana 실사용 가이드를 `13. 운영 체크리스트`로 추가
+3. 18번 산출물 구현(Compose/백업/Runbook/Result) 착수 기준을 명시

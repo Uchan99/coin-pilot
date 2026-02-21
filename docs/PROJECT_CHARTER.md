@@ -305,6 +305,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 전략 레짐 신뢰성 개선 + 운영 핫픽스(Phase 1~3A) | ✅ | 2026-02-18~19 | `docs/work-result/13_strategy_regime_phase1_implementation_result.md` |
 | Trade Count 분리 핫픽스 구현 완료 | ✅ | 2026-02-19 | `docs/work-result/14_trade_count_split_hotfix_result.md` |
 | 매도 후 사후 분석 강화(Phase 1~3) 구현 완료 | ✅ | 2026-02-19 | `docs/work-result/15_post_exit_analysis_phase1_implementation_result.md` |
+| 클라우드 마이그레이션 실행 산출물(Compose/Backup/Runbook) 구축 | ✅ | 2026-02-21 | `docs/work-result/18_cloud_migration_cost_optimized_result.md` |
 
 ### 8.3 핵심 기능 구현 현황
 
@@ -357,9 +358,12 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-plans/13_strategy_regime_reliability_plan.md` | 전략 레짐 신뢰성 개선/핫픽스 계획 |
 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
+| `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md` | 18번 클라우드 마이그레이션 계획(진행 중) |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
 | `docs/troubleshooting/prometheus_grafana_monitoring_runbook.md` | Prometheus/Grafana 점검 및 활용 Runbook |
+| `docs/runbooks/18_data_migration_runbook.md` | Minikube → OCI 데이터 이관 절차 Runbook |
+| `docs/work-result/18_cloud_migration_cost_optimized_result.md` | 18번 실행 산출물 구현 결과 |
 
 ### 8.6 프로젝트 상태
 
@@ -400,6 +404,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 |------|----------|
 | 2026-02-19 | 14번 Trade Count 분리 핫픽스 및 15번 Post-exit 분석 강화(Phase 1~3, 주간 리포트/Exit 분석 대시보드 포함) 완료 상태 반영 |
 | 2026-02-20 | 문서 네이밍 정책에 에픽-서브태스크 체계(`<EPIC>-<subNN>`) 추가, 17번 파생 문서를 17-xx로 정리하는 운영 기준 반영 (관련: `docs/work-plans/19_epic_subtask_doc_structure_refactor_plan.md`) |
+| 2026-02-21 | 18번 클라우드 마이그레이션 실행 단계 반영: OCI Compose 산출물, 백업 스크립트, 데이터 이관 runbook, Prometheus/Grafana 운영 체크리스트 추가 |
 
 ---
-*최종 업데이트: 2026-02-20 (문서 체계 정책 업데이트 반영) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-21 (18번 클라우드 마이그레이션 실행 산출물 반영) by Codex (GPT-5)*

@@ -1,0 +1,18 @@
+[Unit]
+Description=CoinPilot Docker Compose Stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/coin-pilot/deploy/cloud/oci
+EnvironmentFile=/opt/coin-pilot/deploy/cloud/oci/.env
+ExecStartPre=/usr/bin/docker compose -f docker-compose.prod.yml pull
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d --build
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
