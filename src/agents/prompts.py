@@ -56,16 +56,17 @@ ANALYST_USER_PROMPT_TEMPLATE = """
 [진입 신호 정보]
 - 심볼: {symbol}
 - 현재가: {close:,.0f} KRW
-- RSI(14): {rsi:.1f}
-- RSI(7): {rsi_short:.1f} (이전: {rsi_short_prev:.1f})
-- MA(20): {ma_trend:,.0f} KRW
-- 거래량 비율: {vol_ratio:.2f}x
 - AI 컨텍스트 길이(1h): {ai_context_candles} candles
 
-[BEAR 보조 요약 피처]
-- 최근 8h 하락 연속 비율: {bear_downtrend_ratio_8h:.2f}
-- 최근 8h 거래량 회복률: {bear_volume_recovery_ratio_8h:.2f}
-- 최근 8h 저점 대비 반등폭: {bear_rebound_from_recent_low_pct_8h:.2f}%
+[캔들 패턴 보조 피처 (최근 6시간)]
+- 방향성: {pattern_direction}
+- 순변화율: {net_change_pct_6h:.2f}%
+- 연속 음봉 수: {bearish_streak_6h}
+- 연속 양봉 수: {bullish_streak_6h}
+- 마지막 캔들 Body/Range: {last_body_to_range_ratio:.2f}
+- 마지막 캔들 윗꼬리 비율: {last_upper_wick_ratio:.2f}
+- 마지막 캔들 아랫꼬리 비율: {last_lower_wick_ratio:.2f}
+- 변동폭 확장 비율(마지막/이전평균): {range_expansion_ratio_6h:.2f}
 
 위 정보를 바탕으로 진입 신호의 신뢰성을 분석해주세요.
 특히 현재 {regime} 레짐에서 이 진입이 적절한지 판단해주세요.
@@ -104,13 +105,13 @@ def get_analyst_prompt(indicators: dict) -> str:
         diff_pct=_num(indicators.get("regime_diff_pct"), 0.0),
         symbol=indicators.get("symbol", "UNKNOWN"),
         close=_num(indicators.get("close"), 0.0),
-        rsi=_num(indicators.get("rsi"), 0.0),
-        rsi_short=_num(indicators.get("rsi_short"), 0.0),
-        rsi_short_prev=_num(indicators.get("rsi_short_prev"), 0.0),
-        ma_trend=_num(indicators.get("ma_trend"), 0.0),
-        vol_ratio=_num(indicators.get("vol_ratio"), 0.0),
         ai_context_candles=int(_num(indicators.get("ai_context_candles"), 0)),
-        bear_downtrend_ratio_8h=_num(indicators.get("bear_downtrend_ratio_8h"), 0.0),
-        bear_volume_recovery_ratio_8h=_num(indicators.get("bear_volume_recovery_ratio_8h"), 1.0),
-        bear_rebound_from_recent_low_pct_8h=_num(indicators.get("bear_rebound_from_recent_low_pct_8h"), 0.0),
+        pattern_direction=indicators.get("pattern_direction", "FLAT"),
+        net_change_pct_6h=_num(indicators.get("net_change_pct_6h"), 0.0),
+        bearish_streak_6h=int(_num(indicators.get("bearish_streak_6h"), 0)),
+        bullish_streak_6h=int(_num(indicators.get("bullish_streak_6h"), 0)),
+        last_body_to_range_ratio=_num(indicators.get("last_body_to_range_ratio"), 0.0),
+        last_upper_wick_ratio=_num(indicators.get("last_upper_wick_ratio"), 0.0),
+        last_lower_wick_ratio=_num(indicators.get("last_lower_wick_ratio"), 0.0),
+        range_expansion_ratio_6h=_num(indicators.get("range_expansion_ratio_6h"), 1.0),
     )
