@@ -6,7 +6,7 @@
 상태: Implemented (Phase A~C 기반 산출물)
 완료 범위: Phase A 준비 + Phase B 기반 구성 + Phase C 백업 자동화 스크립트
 선반영/추가 구현: 있음(Prometheus/Grafana 운영 체크리스트)
-관련 트러블슈팅(있다면): 없음
+관련 트러블슈팅: `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
 
 ---
 
@@ -86,6 +86,19 @@
 - 효과/의미:
   - 학습자/초보자 기준으로 중단 없는 작업 재개와 운영 실수를 줄일 수 있음
 
+### 2.6 429(TooManyRequests) 재시도 백오프 정책 보강
+- 파일/모듈:
+  - `scripts/cloud/oci_retry_launch_a1_flex.sh`
+  - `scripts/cloud/oci_retry.env.example`
+  - `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
+- 변경 내용:
+  - `InternalError/capacity` 외에 `TooManyRequests(429)`도 재시도 대상으로 추가
+  - 429는 고정 600초 대신 지수 백오프 + 지터로 재시도하도록 분기
+  - 기본값: `THROTTLE_RETRY_BASE_SECONDS=900`, `THROTTLE_RETRY_MAX_SECONDS=3600`, `THROTTLE_JITTER_MAX_SECONDS=120`
+- 효과/의미:
+  - 장시간 재시도 중 발생하는 OCI API 스로틀링으로 인한 조기 종료를 방지
+  - 재시도 간격이 유연해져 사용자/테넌시 단위 rate limit 충돌을 완화
+
 ---
 
 ## 3. 변경 파일 목록
@@ -110,6 +123,7 @@
 12) `scripts/cloud/run_oci_retry_from_env.sh`
 13) `scripts/cloud/oci_retry.env.example`
 14) `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
+15) `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
 
 ---
 
@@ -197,6 +211,7 @@
   - Prometheus/Grafana 운영 체크리스트를 계획서에 추가(실사용성 개선 목적)
   - A1.Flex capacity 부족이 반복되어 CLI 자동 재시도 방식과 runbook을 추가
   - 사용자 요청에 따라 학생용 A~Z 가이드와 재부팅 후 재개 동선을 별도 문서/스크립트로 추가
+  - 장시간 재시도 중 429로 프로세스가 종료되어, 429 전용 백오프 재시도 정책을 추가
 - 계획에서 비효율적/오류였던 점(있다면):
   - 없음
 
@@ -217,4 +232,5 @@
 - `docs/runbooks/18_data_migration_runbook.md`
 - `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
 - `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
+- `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
 - `deploy/cloud/oci/docker-compose.prod.yml`

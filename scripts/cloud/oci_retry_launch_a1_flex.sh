@@ -28,6 +28,9 @@ ASSIGN_PUBLIC_IP="${ASSIGN_PUBLIC_IP:-true}"
 # 재시도 정책
 RETRY_INTERVAL_SECONDS="${RETRY_INTERVAL_SECONDS:-600}"  # 기본 10분
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-0}"                        # 0이면 무한 재시도
+THROTTLE_RETRY_BASE_SECONDS="${THROTTLE_RETRY_BASE_SECONDS:-900}"  # 429 기본 15분
+THROTTLE_RETRY_MAX_SECONDS="${THROTTLE_RETRY_MAX_SECONDS:-3600}"   # 429 최대 60분
+THROTTLE_JITTER_MAX_SECONDS="${THROTTLE_JITTER_MAX_SECONDS:-120}"  # 429 지터(0~120초)
 
 # Discord 알림(선택)
 DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
@@ -187,6 +190,47 @@ is_retryable_capacity_error() {
   return 1
 }
 
+is_retryable_throttle_error() {
+  local msg="$1"
+  # 429 TooManyRequests는 일시적 API 스로틀링이므로 재시도 대상으로 본다.
+  if echo "$msg" | grep -Eqi \
+    "Too many requests for the user|code\"[[:space:]]*:[[:space:]]*\"TooManyRequests\"|status\"[[:space:]]*:[[:space:]]*429"; then
+    return 0
+  fi
+  return 1
+}
+
+compute_throttle_sleep_seconds() {
+  local streak="$1"
+  local exp_power
+  local exp_factor=1
+  local sleep_seconds
+  local jitter=0
+
+  exp_power=$((streak - 1))
+  # 지수 백오프는 폭증 방지를 위해 2^6까지만 확장하고, 최종 sleep은 max 값으로 상한 제어한다.
+  if [[ "$exp_power" -gt 6 ]]; then
+    exp_power=6
+  fi
+  if [[ "$exp_power" -gt 0 ]]; then
+    exp_factor=$((2 ** exp_power))
+  fi
+
+  sleep_seconds=$((THROTTLE_RETRY_BASE_SECONDS * exp_factor))
+  if [[ "$sleep_seconds" -gt "$THROTTLE_RETRY_MAX_SECONDS" ]]; then
+    sleep_seconds="$THROTTLE_RETRY_MAX_SECONDS"
+  fi
+  if [[ "$sleep_seconds" -lt "$RETRY_INTERVAL_SECONDS" ]]; then
+    sleep_seconds="$RETRY_INTERVAL_SECONDS"
+  fi
+
+  if [[ "$THROTTLE_JITTER_MAX_SECONDS" -gt 0 ]]; then
+    jitter=$((RANDOM % (THROTTLE_JITTER_MAX_SECONDS + 1)))
+  fi
+
+  echo $((sleep_seconds + jitter))
+}
+
 notify_discord() {
   local title="$1"
   local body="$2"
@@ -226,6 +270,7 @@ main() {
   notify_discord "OCI A1 Retry Started" "name=${INSTANCE_NAME}\nshape=${SHAPE}\nocpus=${OCPUS}\nmemory=${MEMORY_GBS}GB\ninterval=${RETRY_INTERVAL_SECONDS}s"
 
   local attempt=1
+  local throttle_streak=0
   while true; do
     if [[ "$MAX_ATTEMPTS" -gt 0 && "$attempt" -gt "$MAX_ATTEMPTS" ]]; then
       echo "[ERROR] reached max attempts: $MAX_ATTEMPTS" | tee -a "$log_file"
@@ -287,11 +332,27 @@ EOM
 
     # A1 무료 용량 부족 상황은 운영적으로 흔하므로 재시도 루프를 유지한다.
     if is_retryable_capacity_error "$launch_output"; then
+      throttle_streak=0
       echo "[WARN] retryable capacity error detected; sleeping ${RETRY_INTERVAL_SECONDS}s" | tee -a "$log_file"
       if [[ "$attempt" -eq 1 || $((attempt % DISCORD_NOTIFY_EVERY_N_ATTEMPTS)) -eq 0 ]]; then
         notify_discord "OCI A1 Capacity Retry" "attempt=${attempt}\nreason=capacity\nsleep=${RETRY_INTERVAL_SECONDS}s"
       fi
       sleep "$RETRY_INTERVAL_SECONDS"
+      attempt=$((attempt + 1))
+      continue
+    fi
+
+    # OCI API 스로틀링(429)은 용량 부족과 별개 이슈이므로 더 긴 백오프로 재시도한다.
+    if is_retryable_throttle_error "$launch_output"; then
+      throttle_streak=$((throttle_streak + 1))
+      local throttle_sleep_seconds
+      throttle_sleep_seconds="$(compute_throttle_sleep_seconds "$throttle_streak")"
+
+      echo "[WARN] retryable throttle error detected(429); sleeping ${throttle_sleep_seconds}s (throttle_streak=${throttle_streak})" | tee -a "$log_file"
+      if [[ "$attempt" -eq 1 || $((attempt % DISCORD_NOTIFY_EVERY_N_ATTEMPTS)) -eq 0 ]]; then
+        notify_discord "OCI A1 Throttle Retry" "attempt=${attempt}\nreason=too_many_requests(429)\nthrottle_streak=${throttle_streak}\nsleep=${throttle_sleep_seconds}s"
+      fi
+      sleep "$throttle_sleep_seconds"
       attempt=$((attempt + 1))
       continue
     fi

@@ -97,6 +97,9 @@ export OCPUS="2"
 export MEMORY_GBS="12"
 export RETRY_INTERVAL_SECONDS="600"
 export MAX_ATTEMPTS="0"
+export THROTTLE_RETRY_BASE_SECONDS="900"
+export THROTTLE_RETRY_MAX_SECONDS="3600"
+export THROTTLE_JITTER_MAX_SECONDS="120"
 export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/xxx/yyy"   # 선택
 export DISCORD_NOTIFY_EVERY_N_ATTEMPTS="10"                              # 선택
 ```
@@ -152,11 +155,19 @@ SSH 접속 예시도 함께 출력된다.
 - 정상 재시도 대상이다.
 - 스크립트가 자동으로 대기 후 반복 시도한다.
 
-### 4.2 `NotAuthorizedOrNotFound` / 권한 오류
+### 4.2 `TooManyRequests` (HTTP 429)
+- 정상 재시도 대상이다.
+- OCI API 스로틀링 상황으로 보고, 용량 부족(`RETRY_INTERVAL_SECONDS`)보다 긴 대기시간으로 자동 백오프 재시도한다.
+- 기본값:
+  - `THROTTLE_RETRY_BASE_SECONDS=900` (15분)
+  - `THROTTLE_RETRY_MAX_SECONDS=3600` (60분 상한)
+  - `THROTTLE_JITTER_MAX_SECONDS=120` (0~120초 랜덤 지터)
+
+### 4.3 `NotAuthorizedOrNotFound` / 권한 오류
 - 재시도 대상이 아니다.
 - IAM 정책/OCID 값을 먼저 점검한다.
 
-### 4.3 `InvalidParameter` / 이미지-셰이프 불일치
+### 4.4 `InvalidParameter` / 이미지-셰이프 불일치
 - 이미지가 `aarch64`인지 확인한다.
 - Shape는 `VM.Standard.A1.Flex`로 고정한다.
 

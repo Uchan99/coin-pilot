@@ -529,3 +529,5 @@ Major 4건(n8n/monitoring compose 누락, 환경변수 불일치, 데이터 마�
 2. 기존 VCN/Subnet 재사용 조건으로 인스턴스 생성 자동화 스크립트 추가
 3. private key 로컬 보관을 포함한 상세 Runbook 추가
 4. 학생 기준 A~Z 가이드 및 재부팅 후 1줄 재개 스크립트/환경파일 템플릿 추가
+5. OCI API `429 TooManyRequests`를 재시도 가능한 운영 이슈로 분류하고, 429 전용 백오프(지수+지터) 정책을 추가
+   - 관련 문서: `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`

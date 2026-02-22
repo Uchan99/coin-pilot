@@ -365,6 +365,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/runbooks/18_data_migration_runbook.md` | Minikube → OCI 데이터 이관 절차 Runbook |
 | `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md` | OCI A1.Flex 용량 부족 자동 재시도 생성 Runbook |
 | `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md` | OCI CLI 인증부터 재부팅 재개까지 학생용 A~Z 가이드 |
+| `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md` | OCI A1 재시도 중 429 스로틀링 종료 이슈 대응 기록 |
 | `docs/work-result/18_cloud_migration_cost_optimized_result.md` | 18번 실행 산출물 구현 결과 |
 
 ### 8.6 프로젝트 상태
@@ -409,6 +410,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 2026-02-21 | 18번 클라우드 마이그레이션 실행 단계 반영: OCI Compose 산출물, 백업 스크립트, 데이터 이관 runbook, Prometheus/Grafana 운영 체크리스트 추가 |
 | 2026-02-22 | Chuncheon A1.Flex `Out of capacity` 대응을 위한 OCI CLI 자동 재시도 스크립트/Runbook 반영 (기존 VCN/Subnet 재사용, 로컬 private key 보관 절차 포함) |
 | 2026-02-22 | OCI 초보자용 A~Z 가이드 및 재부팅 후 재개 래퍼 스크립트/환경파일 템플릿 반영 (`run_oci_retry_from_env.sh`, `oci_retry.env.example`) |
+| 2026-02-22 | OCI A1 자동 재시도에 `429 TooManyRequests` 백오프 정책(지수+지터) 반영 및 트러블슈팅 문서 추가 |
 
 ---
 *최종 업데이트: 2026-02-22 (A1.Flex 자동 재시도 Runbook/스크립트 반영) by Codex (GPT-5)*
