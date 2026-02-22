@@ -1,6 +1,6 @@
 # 18. 클라우드 마이그레이션(가성비 최적화) 구현 결과
 
-작성일: 2026-02-21
+작성일: 2026-02-22
 작성자: Codex (GPT-5)
 관련 계획서: docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md
 상태: Implemented (Phase A~C 기반 산출물)
@@ -61,11 +61,39 @@
 - 효과/의미:
   - "연결은 되었지만 활용 미숙" 상태에서 운영 가능한 표준 점검 루틴 확보
 
+### 2.4 A1.Flex 용량 부족 자동 재시도 자동화
+- 파일/모듈:
+  - `scripts/cloud/oci_retry_launch_a1_flex.sh`
+  - `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
+- 변경 내용:
+  - `coinpilot-ins` + `VM.Standard.A1.Flex`(2 OCPU/12GB) 고정 조건으로 launch 재시도 로직 구현
+  - 실패 원인 중 `Out of capacity for shape`만 재시도하고, 권한/파라미터 오류는 즉시 중단
+  - SSH keypair를 로컬에 생성/재사용해 private key 분실 리스크를 운영 절차로 통제
+  - `DISCORD_WEBHOOK_URL` 기반 선택적 알림(시작/진행/재시도/성공/오류) 추가
+- 효과/의미:
+  - Chuncheon 단일 AD 환경에서 수동 재시도 부담을 줄이고 성공 시점 포착 확률을 높임
+
+### 2.5 초보자 A~Z 가이드 + 재부팅 재개 동선 보강
+- 파일/모듈:
+  - `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
+  - `scripts/cloud/run_oci_retry_from_env.sh`
+  - `scripts/cloud/oci_retry.env.example`
+  - `.gitignore`
+- 변경 내용:
+  - User/Tenancy/Compartment/Subnet/AD/이미지 조회를 포함한 A~Z 튜토리얼 신규 작성
+  - 재부팅 후 `run_oci_retry_from_env.sh` 1줄 실행으로 재개 가능하도록 래퍼 스크립트 추가
+  - 민감정보 파일(`scripts/cloud/oci_retry.env`) 커밋 방지 규칙 추가
+- 효과/의미:
+  - 학습자/초보자 기준으로 중단 없는 작업 재개와 운영 실수를 줄일 수 있음
+
 ---
 
 ## 3. 변경 파일 목록
 ### 3.1 수정
 1) `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`
+2) `docs/runbooks/18_data_migration_runbook.md`
+3) `docs/PROJECT_CHARTER.md`
+4) `.gitignore`
 
 ### 3.2 신규
 1) `deploy/cloud/oci/docker-compose.prod.yml`
@@ -77,6 +105,11 @@
 7) `scripts/backup/postgres_backup.sh`
 8) `scripts/backup/redis_backup.sh`
 9) `docs/runbooks/18_data_migration_runbook.md`
+10) `scripts/cloud/oci_retry_launch_a1_flex.sh`
+11) `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
+12) `scripts/cloud/run_oci_retry_from_env.sh`
+13) `scripts/cloud/oci_retry.env.example`
+14) `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
 
 ---
 
@@ -92,6 +125,8 @@
 ### 5.1 코드/정적 검증
 - 실행 명령:
   - `bash -n deploy/cloud/oci/bootstrap.sh scripts/backup/postgres_backup.sh scripts/backup/redis_backup.sh`
+  - `bash -n scripts/cloud/oci_retry_launch_a1_flex.sh`
+  - `bash -n scripts/cloud/run_oci_retry_from_env.sh`
   - `docker compose -f deploy/cloud/oci/docker-compose.prod.yml config`
   - `rg --files deploy/cloud/oci scripts/backup docs/runbooks | sort`
 - 결과:
@@ -106,6 +141,7 @@
 - 결과:
   - 단위테스트 미실행
   - 리스크: 실제 OCI 환경에서 1회 기동 검증이 추가로 필요
+  - 추가 리스크: 작업 환경에 `oci` CLI가 없어 A1 자동 재시도 스크립트는 문법 검증까지만 수행
 
 ### 5.3 런타임/운영 반영 확인(선택)
 - 확인 방법(healthcheck, curl, kubectl 등):
@@ -159,6 +195,8 @@
   - Phase B(Compose 확장), Phase C(백업 자동화), Runbook/Result 문서 산출물 생성
 - 변경/추가된 부분(왜 바뀌었는지):
   - Prometheus/Grafana 운영 체크리스트를 계획서에 추가(실사용성 개선 목적)
+  - A1.Flex capacity 부족이 반복되어 CLI 자동 재시도 방식과 runbook을 추가
+  - 사용자 요청에 따라 학생용 A~Z 가이드와 재부팅 후 재개 동선을 별도 문서/스크립트로 추가
 - 계획에서 비효율적/오류였던 점(있다면):
   - 없음
 
@@ -177,4 +215,6 @@
 ## 12. References
 - `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`
 - `docs/runbooks/18_data_migration_runbook.md`
+- `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
+- `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
 - `deploy/cloud/oci/docker-compose.prod.yml`

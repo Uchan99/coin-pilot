@@ -128,3 +128,4 @@ sudo crontab -l | grep coinpilot
 - Plan: `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`
 - Compose: `deploy/cloud/oci/docker-compose.prod.yml`
 - Backup scripts: `scripts/backup/postgres_backup.sh`, `scripts/backup/redis_backup.sh`
+- A1 capacity retry: `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`, `scripts/cloud/oci_retry_launch_a1_flex.sh`

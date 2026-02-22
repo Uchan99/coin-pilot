@@ -256,9 +256,14 @@
 - `deploy/cloud/oci/docker-compose.prod.yml`
 - `deploy/cloud/oci/systemd/coinpilot-compose.service`
 - `deploy/cloud/oci/.env.example`
+- `scripts/cloud/oci_retry_launch_a1_flex.sh`
+- `scripts/cloud/run_oci_retry_from_env.sh`
+- `scripts/cloud/oci_retry.env.example`
 - `scripts/backup/postgres_backup.sh`
 - `scripts/backup/redis_backup.sh`
 - `docs/runbooks/18_data_migration_runbook.md`
+- `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
+- `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
 
 수정:
 - `deploy/docker-compose.yml` (환경 분리 변수 정리)
@@ -518,3 +523,9 @@ Major 4건(n8n/monitoring compose 누락, 환경변수 불일치, 데이터 마�
 1. 상태를 `Draft`에서 `In Progress`로 변경
 2. Prometheus/Grafana 실사용 가이드를 `13. 운영 체크리스트`로 추가
 3. 18번 산출물 구현(Compose/백업/Runbook/Result) 착수 기준을 명시
+
+### 2026-02-22
+1. OCI A1.Flex `Out of capacity` 대응을 위해 CLI 자동 재시도 방식 추가
+2. 기존 VCN/Subnet 재사용 조건으로 인스턴스 생성 자동화 스크립트 추가
+3. private key 로컬 보관을 포함한 상세 Runbook 추가
+4. 학생 기준 A~Z 가이드 및 재부팅 후 1줄 재개 스크립트/환경파일 템플릿 추가
