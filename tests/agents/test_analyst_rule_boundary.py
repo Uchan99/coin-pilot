@@ -1,4 +1,5 @@
 from src.agents.analyst import (
+    build_rule_boundary_reject_reasoning,
     contains_rule_revalidation_reasoning,
     extract_candle_pattern_features,
     sanitize_market_context_for_analyst,
@@ -41,6 +42,26 @@ def test_contains_rule_revalidation_reasoning_detects_rule_terms():
     assert not contains_rule_revalidation_reasoning(
         "최근 3개 음봉 연속 후 긴 윗꼬리가 출현해 상승 지속성이 약합니다."
     )
+
+
+def test_build_rule_boundary_reject_reasoning_keeps_original_detail():
+    original = (
+        "RSI가 낮고 MA20 하회 구간이라 신호를 재검증했습니다. "
+        "최근 4개 캔들의 꼬리 패턴과 거래량 변화를 함께 고려하면 변동성 확대 가능성이 큽니다."
+    )
+    merged = build_rule_boundary_reject_reasoning(original, max_len=500)
+
+    assert "룰 경계를 위반해 보수적으로 REJECT 처리" in merged
+    assert "[원본 분석 근거]" in merged
+    assert "최근 4개 캔들" in merged
+
+
+def test_build_rule_boundary_reject_reasoning_truncates_long_text():
+    long_text = "A" * 2000
+    merged = build_rule_boundary_reject_reasoning(long_text, max_len=100)
+
+    assert "...(후략)" in merged
+    assert len(merged) < 350
 
 
 def test_sanitize_market_context_for_analyst_drops_volume_and_limits_count():

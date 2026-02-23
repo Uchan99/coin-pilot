@@ -46,7 +46,7 @@
           "parameters": [
             {
               "name": "embeds",
-              "value": "={{ [ { \"title\": \"🤖 AI Decision: REJECT\", \"color\": 15158332, \"fields\": [ { \"name\": \"🪙 Symbol\", \"value\": $json[\"symbol\"], \"inline\": true }, { \"name\": \"📊 Regime\", \"value\": $json[\"regime\"], \"inline\": true }, { \"name\": \"📈 RSI\", \"value\": String($json[\"rsi\"]), \"inline\": true } ], \"description\": $json[\"reason\"].substring(0, 1500), \"footer\": { \"text\": \"CoinPilot AI Agent\" }, \"timestamp\": $json[\"timestamp\"] } ] }}"
+              "value": "={{ [ { \"title\": \"🤖 AI Decision: REJECT\", \"color\": 15158332, \"fields\": [ { \"name\": \"🪙 Symbol\", \"value\": $json[\"symbol\"], \"inline\": true }, { \"name\": \"📊 Regime\", \"value\": $json[\"regime\"], \"inline\": true }, { \"name\": \"📈 RSI\", \"value\": String($json[\"rsi\"]), \"inline\": true }, { \"name\": \"🎯 Confidence\", \"value\": String((($json[\"confidence\"] !== undefined) && ($json[\"confidence\"] !== null)) ? $json[\"confidence\"] : \"-\"), \"inline\": true } ], \"description\": $json[\"reason\"].substring(0, 1500), \"footer\": { \"text\": \"CoinPilot AI Agent\" }, \"timestamp\": $json[\"timestamp\"] } ] }}"
             }
           ]
         },

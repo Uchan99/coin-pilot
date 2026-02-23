@@ -29,6 +29,34 @@ def contains_rule_revalidation_reasoning(reasoning: str) -> bool:
     return any(term in normalized for term in RULE_REVALIDATION_TERMS)
 
 
+def build_rule_boundary_reject_reasoning(original_reasoning: str, max_len: int = 1400) -> str:
+    """
+    Rule boundary 위반으로 강제 REJECT 되더라도 운영자가 맥락을 볼 수 있게 상세 근거를 보존합니다.
+
+    왜 필요한가:
+    - 기존에는 고정 문구만 남아 디버깅/운영 판단이 어려웠습니다.
+    - 차단 정책(REJECT)은 유지하면서, 사람이 읽는 설명 품질만 복구하는 것이 목적입니다.
+
+    불변조건:
+    - 항상 Rule boundary 위반 사실은 첫 문장에 명시합니다.
+    - 원문 reasoning이 비어 있으면 대체 문구를 반환합니다.
+    - 과도하게 긴 본문은 상한으로 잘라 Discord payload 길이 폭주를 방지합니다.
+    """
+    raw = (original_reasoning or "").strip()
+    if not raw:
+        return (
+            "분석가 응답이 재시도 후에도 룰 경계를 위반해 보수적으로 REJECT 처리했습니다. "
+            "다만 원본 상세 분석 근거가 비어 있어 추가 맥락을 제공할 수 없습니다."
+        )
+
+    trimmed = raw if len(raw) <= max_len else f"{raw[:max_len].rstrip()}...(후략)"
+    return (
+        "분석가 응답이 재시도 후에도 룰 경계를 위반해 보수적으로 REJECT 처리했습니다.\n\n"
+        "[원본 분석 근거]\n"
+        f"{trimmed}"
+    )
+
+
 def sanitize_market_context_for_analyst(
     market_context: List[Dict[str, Any]], limit: int = 24
 ) -> List[Dict[str, Any]]:
@@ -192,10 +220,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
                 "analyst_decision": {
                     "decision": "REJECT",
                     "confidence": 0,
-                    "reasoning": (
-                        "Analyst reasoning violated rule boundary after retry: "
-                        "revalidated RSI/MA/volume/BB conditions."
-                    ),
+                    "reasoning": build_rule_boundary_reject_reasoning(candidate.reasoning),
                 }
             }
 
@@ -208,7 +233,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
             "analyst_decision": {
                 "decision": "REJECT",
                 "confidence": 0,
-                "reasoning": f"Analyst output validation failed: {str(validation_error)}"
+                "reasoning": f"분석가 출력 검증 실패: {str(validation_error)}"
             }
         }
     
@@ -218,13 +243,13 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     final_reasoning = (result.reasoning or "").strip()
     if not final_reasoning:
         final_reasoning = (
-            f"Analyst reasoning missing from model output "
+            f"모델 출력에 분석 사유(reasoning)가 비어 있습니다 "
             f"(decision={result.decision}, confidence={result.confidence})."
         )
     
     if result.decision == "CONFIRM" and result.confidence < 60:
         final_decision = "REJECT"
-        final_reasoning = f"[Low Confidence: {result.confidence}] {final_reasoning}"
+        final_reasoning = f"[신뢰도 부족: {result.confidence}] {final_reasoning}"
     
     return {
         "analyst_decision": {
