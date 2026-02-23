@@ -1,6 +1,6 @@
 services:
   db:
-    image: timescale/timescaledb:2.18.0-pg15
+    image: timescale/timescaledb:2.24.0-pg15
     container_name: coinpilot-db
     restart: always
     environment:
@@ -19,7 +19,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7.2.12-alpine3.21
+    image: redis:8.4.0-alpine
     container_name: coinpilot-redis
     restart: always
     ports:

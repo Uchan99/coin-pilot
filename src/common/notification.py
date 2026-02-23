@@ -1,7 +1,7 @@
 import os
 import httpx
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, List
 from datetime import datetime, timezone
 
 class NotificationManager:
@@ -15,6 +15,33 @@ class NotificationManager:
         self.secret = os.getenv("N8N_WEBHOOK_SECRET", "")
         self.timeout = 5.0
         self.max_retries = 3
+        self.base_urls = self._build_base_urls()
+
+    def _build_base_urls(self) -> List[str]:
+        """
+        웹훅 대상 URL 후보를 구성합니다.
+        컨테이너 내부에서 localhost 오설정이 자주 발생하므로 서비스 DNS를 fallback으로 둡니다.
+        """
+        raw = (self.base_url or "").strip() or "http://n8n:5678"
+        urls: List[str] = [raw]
+
+        # 컨테이너 환경에서 localhost는 자기 자신을 가리켜 n8n 연결에 실패할 수 있습니다.
+        if "localhost" in raw or "127.0.0.1" in raw:
+            urls.append("http://n8n:5678")
+
+        # 로컬 개발 환경에서 n8n 포트포워딩을 쓰는 경우를 대비한 역방향 fallback
+        if raw != "http://localhost:5678":
+            urls.append("http://localhost:5678")
+
+        # 순서 유지 + 중복 제거
+        seen = set()
+        deduped: List[str] = []
+        for u in urls:
+            if u in seen:
+                continue
+            seen.add(u)
+            deduped.append(u)
+        return deduped
 
     async def send_webhook(self, endpoint: str, data: Dict[str, Any]) -> bool:
         """
@@ -28,7 +55,6 @@ class NotificationManager:
             print("[!] N8N_WEBHOOK_SECRET is not set. Skipping notification.")
             return False
 
-        url = f"{self.base_url}{endpoint}"
         headers = {
             "X-Webhook-Secret": self.secret,
             "Content-Type": "application/json"
@@ -39,20 +65,30 @@ class NotificationManager:
             data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            for attempt in range(self.max_retries):
-                try:
-                    response = await client.post(url, json=data, headers=headers)
-                    if response.status_code == 200:
-                        return True
-                    else:
-                        print(f"[!] Notification failed (Status {response.status_code}): {response.text}")
-                except Exception as e:
-                    print(f"[!] Notification attempt {attempt + 1} error: {e}")
-                
-                if attempt < self.max_retries - 1:
-                    await asyncio.sleep(2 ** attempt) # Exponential backoff
-            
-        print(f"[!] Notification failed after {self.max_retries} attempts.")
+            for base in self.base_urls:
+                url = f"{base}{endpoint}"
+                for attempt in range(self.max_retries):
+                    try:
+                        response = await client.post(url, json=data, headers=headers)
+                        if response.status_code == 200:
+                            return True
+                        print(
+                            f"[!] Notification failed (Status {response.status_code}) "
+                            f"url={url}: {response.text}"
+                        )
+                    except Exception as e:
+                        print(
+                            f"[!] Notification attempt {attempt + 1} error "
+                            f"url={url}: {e}"
+                        )
+
+                    if attempt < self.max_retries - 1:
+                        await asyncio.sleep(2 ** attempt) # Exponential backoff
+
+        print(
+            f"[!] Notification failed after retries. endpoint={endpoint}, "
+            f"base_urls={self.base_urls}"
+        )
         return False
 
 # 싱글톤 인스턴스
