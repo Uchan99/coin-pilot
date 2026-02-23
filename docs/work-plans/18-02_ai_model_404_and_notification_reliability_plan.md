@@ -86,3 +86,4 @@
   - 계획 수립 시점에는 AI 404 + 알림 누락을 1차 범위로 정의.
   - 구현 중 compose 이미지 핀 고정에 따른 데이터 호환 이슈(Timescale/Redis) 발견.
   - 운영 연속성 유지를 위해 DB/Redis 이미지 버전 정합성 복구를 동일 작업 범위에 포함.
+  - 사용자 요구에 따라 AI Decision Discord description truncation을 `500 -> 1500`으로 확장.

@@ -40,12 +40,15 @@
 ### 2.2 Notification 전송 신뢰성 보강
 - 파일/모듈:
   - `src/common/notification.py`
+  - `config/n8n_workflows/ai_decision.json`
 - 변경 내용:
   - base URL 후보 리스트(`설정값 -> n8n -> localhost`) fallback
   - 실패 시 endpoint/url 포함 로그 출력으로 원인 추적성 강화
+  - AI Decision Discord description 길이 제한을 `500 -> 1500`으로 상향
 - 효과/의미:
   - 환경 오설정 시에도 webhook 전송 성공 확률 향상
   - 재발 시 즉시 원인 식별 가능
+  - REJECT/CONFIRM 사유 문맥 손실 감소
 
 ### 2.3 운영 데이터 호환 복구(추가)
 - 파일/모듈:
