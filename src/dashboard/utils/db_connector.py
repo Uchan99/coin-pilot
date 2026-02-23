@@ -43,7 +43,18 @@ def get_engine():
     global _engine
     if _engine is None:
         db_url = get_sync_db_url()
-        _engine = create_engine(db_url, pool_size=10, max_overflow=20)
+        # DB 재기동 후 죽은 커넥션(stale socket)을 재사용하면
+        # OperationalError(server closed connection)가 간헐적으로 발생할 수 있다.
+        # pool_pre_ping으로 커넥션 체크 후 필요 시 자동 재연결해 복원력을 높인다.
+        _engine = create_engine(
+            db_url,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            pool_timeout=10,
+            pool_use_lifo=True,
+        )
     return _engine
 
 @st.cache_data(ttl=30)
