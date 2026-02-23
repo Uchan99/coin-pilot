@@ -1,8 +1,20 @@
 # CoinPilot 데이터 흐름도 (Data Flow Reference)
 
 **작성일**: 2026-02-19
+**최종 업데이트**: 2026-02-23
 **기준 브랜치**: `dev_v2`
 **기준 커밋**: `65c0cbe`
+
+---
+
+## 0. 운영 모드 업데이트 (2026-02-23)
+
+- 기본 운영 모드가 `Minikube`에서 `Docker Compose`로 전환되었다.
+- Minikube는 레거시/검증용으로 유지하며, 일일 운영/장애 대응은 Compose 기준이다.
+- 전환 배경/비교/보안 검토 기록:
+  - `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`
+  - `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md`
+  - `docs/work-result/20_oci_paid_tier_security_and_cost_guardrails_result.md`
 
 ---
 
@@ -18,11 +30,11 @@
 └───────┼────────────────┼────────────────┼────────────────┼──────────┘
         │                │                │                │
 ┌───────▼────────────────▼────────────────▼────────────────▼──────────┐
-│                      Kubernetes (Minikube)                           │
+│       Runtime Layer (Docker Compose Primary / Minikube Legacy)       │
 │                                                                     │
 │  ┌──────────┐   ┌──────────────────────────────────┐   ┌─────────┐ │
 │  │Collector │   │            Bot (main.py)          │   │Dashboard│ │
-│  │ Pod      │   │  ┌────────┐ ┌────────┐ ┌───────┐ │   │Streamlit│ │
+│  │Container │   │  ┌────────┐ ┌────────┐ ┌───────┐ │   │Streamlit│ │
 │  │          │   │  │Strategy│ │Executor│ │Risk   │ │   │         │ │
 │  │          │   │  │Engine  │ │        │ │Manager│ │   │         │ │
 │  │          │   │  └────────┘ └────────┘ └───────┘ │   │         │ │
@@ -686,25 +698,25 @@ AgentRunner._log_decision():
 
 ---
 
-### 7.5 Kubernetes / Minikube (컨테이너 오케스트레이션)
+### 7.5 Container Runtime (Docker Compose Primary + Minikube Legacy)
 
 **선택 이유:**
-- CoinPilot은 3개의 독립 서비스(Collector, Bot, Dashboard)와 2개의 인프라(PostgreSQL, Redis)로 구성되며, 각각 독립적인 생명주기와 리소스 요구사항을 가짐.
-- K8s의 Deployment + Service 모델이 "서비스별 독립 배포 + 롤백 + 헬스 체크"를 선언적으로 관리.
-- 로컬 개발에는 Minikube를 사용하여 프로덕션과 동일한 매니페스트를 테스트.
+- 현재 단일 노드(OCI VM) 운영에서 가장 중요한 기준은 비용 효율/장애 복구 속도/운영 단순성이다.
+- Compose는 `docker compose up/ps/logs` 중심 운영으로 진입 장벽이 낮고, 리소스 오버헤드가 작다.
+- Minikube는 여전히 K8s 매니페스트 검증/회귀 테스트 용도로 활용 가능하다.
 
 **고려했던 대안:**
 
 | 대안 | 장점 | CoinPilot에서 탈락한 이유 |
 |------|------|--------------------------|
-| **Docker Compose** | 설정이 간단, 로컬 개발에 적합 | 롤링 업데이트, 자동 재시작 정책, 리소스 제한, 헬스 체크 기반 재시작 등이 네이티브로 없음. 프로덕션 확장 시 마이그레이션 비용 발생 |
-| **AWS ECS / GCP Cloud Run** | 관리형 서비스로 운영 부담 최소 | 클라우드 종속(vendor lock-in), 비용 예측이 어려움. 학습/개인 프로젝트 특성상 로컬 자원 활용이 합리적 |
-| **Bare Metal (systemd)** | 가장 가벼움, 오버헤드 최소 | 서비스 간 격리 부재, 의존성 충돌 가능, 배포/롤백이 수동 |
+| **Kubernetes(계속 기본 운영)** | 정책/확장성/배포 전략이 정교 | 현재 단일 노드/소규모 운영에서는 복잡도 대비 효익이 낮고, 포트포워딩/리소스 계층 때문에 운영 난이도 증가 |
+| **AWS ECS / GCP Cloud Run** | 관리형 서비스로 운영 부담 최소 | 클라우드 종속(vendor lock-in), 비용 예측 어려움 |
+| **Bare Metal (systemd 단독)** | 가장 가벼움, 오버헤드 최소 | 서비스 격리/재현성/의존성 관리가 불리 |
 
 **CoinPilot에서의 핵심 이점:**
-1. **`kubectl rollout undo`**: 전략 파라미터 변경 후 문제 발생 시 1개 명령어로 즉시 이전 버전 복원
-2. **Pod 재시작 정책**: Bot Pod가 비정상 종료되어도 자동 재시작 → 24/7 무중단 운영
-3. **환경변수 관리**: `LLM_MODE`, `ANTHROPIC_API_KEY` 등을 ConfigMap/Secret으로 코드와 분리 관리
+1. **Compose 기본 운영**: `docker compose ps/logs/up -d --build`로 일일 운영 단순화
+2. **보안 점검 자동화**: `preflight_security_check.sh`로 env/포트/워크플로우 가드 일괄 점검
+3. **K8s 병행 가능**: 필요 시 Minikube 원본 데이터/매니페스트를 검증할 수 있어 이행 리스크 완화
 
 ---
 
@@ -785,7 +797,7 @@ AgentRunner._log_decision():
 │  └──────────────────────┘  └────────────────────────┘  │
 │                                                         │
 │  ┌─── AI/ML ────────────┐  ┌─── 인프라 ─────────────┐  │
-│  │ LangGraph (워크플로우)│  │ Docker + K8s(Minikube) │  │
+│  │ LangGraph (워크플로우)│  │ Docker Compose + K8s   │  │
 │  │ LangChain (프롬프트) │  │ Prometheus (메트릭)    │  │
 │  │ Anthropic Claude     │  │ n8n (알림 워크플로우)  │  │
 │  │  └ Haiku / Sonnet    │  │ Streamlit (대시보드)   │  │
@@ -803,7 +815,7 @@ AgentRunner._log_decision():
 ### 8.1 검증 일시/기준
 
 - 검증 일시 (KST): 2026-02-19
-- 검증 환경: `minikube` + `coin-pilot-ns`
+- 검증 환경: `docker compose` (primary), `minikube + coin-pilot-ns` (legacy)
 - 검증 기준:
   - 문서화된 키/테이블/스케줄/모델 선택 로직이 현재 코드와 일치하는지 점검
   - 최근 핫픽스(`dumps_json`, dashboard width 대응, SELL 경로 안정화) 반영 상태 교차 확인

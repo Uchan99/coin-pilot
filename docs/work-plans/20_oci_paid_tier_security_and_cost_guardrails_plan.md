@@ -2,9 +2,10 @@
 
 **작성일**: 2026-02-22  
 **작성자**: Codex (GPT-5)  
-**상태**: Planned  
+**상태**: In Progress (2026-02-23)  
 **관련 계획 문서**: `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`  
-**관련 결과 문서(예정)**: `docs/work-result/20_oci_paid_tier_security_and_cost_guardrails_result.md`  
+**관련 하위 계획 문서**: `docs/work-plans/20-01_project_wide_security_hardening_plan.md`  
+**관련 결과 문서**: `docs/work-result/20_oci_paid_tier_security_and_cost_guardrails_result.md`  
 
 ---
 
@@ -330,3 +331,8 @@ sudo ss -tulpen | rg ':22|:80|:443|:5432|:6379|:5678|:8000|:8501|:9090|:3000'
 3. 각 항목에 Why/장점/추가 작업을 포함한 실행표 추가
 4. `docs/security/docs1.md` 기반 코드 보안 감사 트랙(구성요소/수행단계/기법/난점/사후조치) 반영
 5. 코드 보안 감사 주기 정책(PR/릴리스/월간/분기) 추가
+
+### 2026-02-23
+1. 운영 compose 보안 하드닝 반영 범위 확정(필수 env fail-fast, n8n env 접근 차단, 대시보드 접근 비밀번호)
+2. n8n webhook secret 검증 노드 표준화 범위를 모든 알림 워크플로우로 확장
+3. 배포 전 점검 자동화를 위해 `scripts/security/preflight_security_check.sh` 추가

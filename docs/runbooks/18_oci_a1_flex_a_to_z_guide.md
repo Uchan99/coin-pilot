@@ -21,6 +21,7 @@
 2. 기존 VCN/서브넷/보안규칙을 재사용
 3. `coinpilot-ins` 인스턴스를 A1.Flex(2 OCPU / 12GB)로 자동 재시도 생성
 4. 데스크톱을 껐다 켜도 1줄 명령으로 재시작
+5. 보안 기준(외부 포트 최소화/시크릿 점검)을 만족한 상태로 운영 시작
 
 ---
 
@@ -38,6 +39,14 @@
 - 인스턴스 SSH key는 로컬 PC의 `~/.ssh/coinpilot-oci/`에 저장된다.
 - API signing key는 `~/.oci/`에 저장된다.
 - 둘 다 절대 외부 공유 금지.
+
+### 1.4 외부에서 열어도 되는 포트는?
+- 기본 원칙: `22`, `80`, `443`만 외부 허용
+  - `22`: SSH 원격 접속
+  - `80`: HTTP -> HTTPS 리다이렉트/인증서 발급
+  - `443`: HTTPS 서비스
+- 아래 포트는 외부 공개 금지:
+  - `5432`, `6379`, `5678`, `8000`, `8501`, `9090`, `3000`
 
 ---
 
@@ -230,6 +239,12 @@ cd /home/syt07203/workspace/coin-pilot && ./scripts/cloud/run_oci_retry_from_env
 oci --version
 jq --version
 test -f /home/syt07203/workspace/coin-pilot/scripts/cloud/oci_retry.env && echo "env ok"
+```
+
+보안 점검(권장):
+```bash
+cd /home/syt07203/workspace/coin-pilot
+./scripts/security/preflight_security_check.sh
 ```
 
 ### 9.3 오래 켜둘 때 권장

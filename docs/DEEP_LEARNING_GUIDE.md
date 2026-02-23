@@ -1,7 +1,19 @@
-# CoinPilot v3.0 심층 학습 가이드 🚀
+# CoinPilot v3.3 심층 학습 가이드 🚀
 
 **작성일**: 2026-02-10  
+**최종 업데이트**: 2026-02-23  
 **목적**: 프로젝트를 완전히 내 것으로 만들기 위한 종합 학습 자료
+
+---
+
+## 운영 모드 업데이트 (2026-02-23)
+
+- 기본 운영 모드: **Docker Compose**
+- Minikube는 레거시/검증 모드로 유지
+- 전환 배경/비교/보안 점검 기록:
+  - `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`
+  - `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md`
+  - `docs/work-result/20_oci_paid_tier_security_and_cost_guardrails_result.md`
 
 ---
 
@@ -70,7 +82,7 @@
 |------|-----------|
 | **Quant Architecture** | 데이터 파이프라인(Collector), 백테스팅(Performance), 실행 엔진(Executor) 구현 |
 | **LLM Agent Design** | LangGraph Multi-Agent 오케스트레이션, Tool-using, Memory(pgvector) |
-| **MLOps/DevOps** | Kubernetes 배포, Prometheus/Grafana 모니터링, GitHub Actions CI/CD |
+| **MLOps/DevOps** | Docker Compose 운영, K8s 검증 자산, Prometheus/Grafana 모니터링, GitHub Actions CI/CD |
 | **Finance Domain** | 리스크 관리(Risk Manager), 성과 측정(Sharpe/MDD), GARCH 변동성 모델 |
 
 ---
@@ -88,7 +100,7 @@
 └────────┼──────────────┼────────────────┼─────────────────────┘
          │              │                │
          │    ┌─────────▼────────────────▼─────────────────┐
-         │    │    CoinPilot System (Kubernetes)           │
+         │    │ CoinPilot System (Compose Primary Runtime) │
          │    │  ┌─────────────────────────────────────┐   │
          └───▶│  │ 🟦 Collector (Data Ingestion)       │   │
               │  │   - WebSocket/REST로 시장 데이터 수집│   │
@@ -281,14 +293,15 @@ graph TD
 | 기술 | 선택 이유 | 우리 프로젝트만의 활용 |
 |------|-----------|------------------------|
 | **Docker** | 환경 격리, 재현 가능성 | 모든 서비스 컨테이너화 (Bot, Dashboard, DB, Monitoring) |
-| **Kubernetes (Minikube)** | MSA 오케스트레이션, Self-healing, 스케일링 | 7개 Pod 운영, ConfigMap/Secret 관리 |
+| **Docker Compose (Primary)** | 단일 노드 운영 단순화, 빠른 복구, 낮은 오버헤드 | `docker compose` 기반 운영/재배포 |
+| **Kubernetes (Minikube, Legacy)** | 매니페스트 검증, K8s 학습/회귀 테스트 | `coin-pilot-ns` 검증 환경 유지 |
 | **Prometheus** | 시계열 메트릭 수집 표준 | 5개 커스텀 메트릭 정의 (`coinpilot_*`) |
 | **Grafana** | 메트릭 시각화 | 2개 대시보드 (Overview, Trades) |
 | **GitHub Actions** | CI/CD 자동화 | `dev` 브랜치 push 시 pytest 자동 실행 |
 
-**💡 왜 Kubernetes를 배웠나?**
-- 로컬 Docker Compose → 실전 배포 Gap 해소
-- **포트폴리오 차별화**: 대부분의 개인 프로젝트는 로컬 실행만 가능
+**💡 왜 Compose 기본 + K8s 병행인가?**
+- 현재 단일 VM 운영에서는 Compose가 비용/운영 복잡도 측면에서 유리
+- K8s 자산은 검증/학습/향후 관리형 K8s(OKE/EKS) 전환 기반으로 유지
 
 ---
 
@@ -558,7 +571,7 @@ position_size = account_balance * 0.05 * 0.5  # 2.5%로 축소
 |---------------------|--------------------|--------------------|
 | "가격 예측 90% 정확도" 주장 | **예측 불가능성 인정, 대응 중심 설계** | 💡 현실적 접근 |
 | 수익률만 강조 | **리스크 관리 + 실패 분석 문서화** | 📊 체계적 기록 |
-| 로컬 실행 (Docker Compose) | **Kubernetes 배포 + CI/CD** | 🚀 실전 인프라 |
+| 로컬 실행 (Docker Compose) | **Compose 운영 + K8s 검증 + CI/CD** | 🚀 실전 인프라 |
 | AI가 직접 매매 | **AI 실패 시에도 동작하는 Fallback** | 🛡️ 안정성 우선 |
 | SQLAlchemy 기본 사용 | **TimescaleDB + pgvector 통합** | 🗄️ 단일 DB 전략 |
 | 단일 전략 | **Regime별 적응형 전략** | 🎯 동적 대응 |
@@ -575,7 +588,7 @@ PostgreSQL 16
 ```
 → **단일 DB로 3가지 DB 역할** (운영 복잡도 감소)
 
-**Kubernetes Native Architecture**
+**Compose 운영 + K8s 검증 자산**
 ```
 7 Pods 운영
 ├─ bot (매매 봇)
@@ -649,20 +662,26 @@ Router Agent
 - [LangChain Docs - Agents](https://python.langchain.com/docs/modules/agents/)
 - [LangGraph Tutorial](https://langchain-ai.github.io/langgraph/)
 
-#### 📕 **Kubernetes & DevOps**
+#### 📕 **Container Runtime & DevOps**
 
 **필수 개념:**
-1. **Pod, Service, Deployment**
+1. **Docker Compose 운영**
+   - 공부할 파일: `deploy/cloud/oci/docker-compose.prod.yml`
+   - 핵심: 서비스 의존성, env fail-fast, 로컬 포트 바인딩
+   - 연습: `docker compose ps`, `docker compose logs`, `docker compose up -d --build`
+   - 보안: `scripts/security/preflight_security_check.sh`로 배포 전 점검 자동화
+
+2. **K8s 매니페스트(레거시 검증)**
    - 공부할 파일: `k8s/apps/bot-deployment.yaml`
    - 핵심: `replicas`, `containerPort`, `ClusterIP`
    - 연습: `kubectl get pods`, `kubectl logs`, `kubectl exec`
 
-2. **ConfigMap & Secret**
+3. **ConfigMap & Secret**
    - 공부할 파일: `k8s/monitoring/prometheus-config-cm.yaml`, `k8s/base/secret.yaml`
    - 핵심: 환경변수 주입, Volume Mount
    - 연습: `.env` 파일을 Secret으로 변환
 
-3. **Prometheus & Grafana**
+4. **Prometheus & Grafana**
    - 공부할 파일: `src/utils/metrics.py`, `deploy/monitoring/dashboards/`
    - 핵심: `Counter`, `Gauge`, `Histogram`, Prometheus Query (PromQL)
    - 연습: 새 메트릭 추가 (예: `portfolio_diversification_score`)

@@ -74,7 +74,7 @@ SELECT timestamp + interval '9 hours' as timestamp, ...
 
 | 워크플로우 | 개선 내용 |
 |-----------|----------|
-| ai_reject.json | 신규 추가 |
+| ai_decision.json | 신규 추가 |
 | trade_notification.json | Expression 형식으로 변경 |
 | daily_report.json | Webhook 방식으로 변경 (Cron → 봇 연동) |
 | risk_alert.json | Expression 형식으로 변경 |

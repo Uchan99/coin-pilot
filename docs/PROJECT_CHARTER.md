@@ -1,5 +1,5 @@
 # CoinPilot Project Plan v3.3
-**Kubernetes 기반 자율 가상화폐 매매 AI 에이전트**
+**Compose 운영 + K8s 검증 기반 자율 가상화폐 매매 AI 에이전트**
 *(Rule-Based Core + AI-Assisted Decision System)*
 
 ## Operating Rules (Documentation Workflow)
@@ -211,7 +211,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Backend** | FastAPI | 비동기 API |
 | **Database** | PostgreSQL 16 | TimescaleDB (Time-series) + pgvector (Vector) |
 | **Vector DB** | pgvector | PostgreSQL 내장 확장 (ChromaDB 대체) |
-| **Infra** | Docker, K8s (Minikube) | MSA, Self-healing |
+| **Infra** | Docker Compose (운영), K8s/Minikube (검증) | 비용 효율 운영 + K8s 확장성 준비 |
 | **CI/CD** | GitHub Actions | 자동화 |
 
 ## 6. 개발 로드맵 (8주)
@@ -359,6 +359,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
 | `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md` | 18번 클라우드 마이그레이션 계획(진행 중) |
+| `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
 | `docs/troubleshooting/prometheus_grafana_monitoring_runbook.md` | Prometheus/Grafana 점검 및 활용 Runbook |
@@ -366,7 +367,14 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md` | OCI A1.Flex 용량 부족 자동 재시도 생성 Runbook |
 | `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md` | OCI CLI 인증부터 재부팅 재개까지 학생용 A~Z 가이드 |
 | `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md` | OCI A1 재시도 중 429 스로틀링 종료 이슈 대응 기록 |
+| `docs/work-plans/18-01_compose_system_health_schema_alignment_plan.md` | 18-01 Compose System/스키마 정합성 복구 계획 |
+| `docs/work-result/18-01_compose_system_health_schema_alignment_result.md` | 18-01 Compose System/데이터 복구 구현 결과 |
+| `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md` | 18-01 System 오류 및 데이터 공백 복구 트러블슈팅 |
 | `docs/work-result/18_cloud_migration_cost_optimized_result.md` | 18번 실행 산출물 구현 결과 |
+| `docs/work-result/20_oci_paid_tier_security_and_cost_guardrails_result.md` | 20번 보안/과금 가드레일 강화 구현 결과 |
+| `docs/work-plans/20-01_project_wide_security_hardening_plan.md` | 20-01 전역 보안 하드닝(Compose/DB/CI) 하위 계획 |
+| `docs/work-result/20-01_project_wide_security_hardening_result.md` | 20-01 전역 보안 하드닝 구현 결과 |
+| `docs/runbooks/20-01_oci_runtime_security_verification_checklist.md` | 20-01 OCI VM 런타임 보안 검증 체크리스트 |
 
 ### 8.6 프로젝트 상태
 
@@ -411,6 +419,11 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 2026-02-22 | Chuncheon A1.Flex `Out of capacity` 대응을 위한 OCI CLI 자동 재시도 스크립트/Runbook 반영 (기존 VCN/Subnet 재사용, 로컬 private key 보관 절차 포함) |
 | 2026-02-22 | OCI 초보자용 A~Z 가이드 및 재부팅 후 재개 래퍼 스크립트/환경파일 템플릿 반영 (`run_oci_retry_from_env.sh`, `oci_retry.env.example`) |
 | 2026-02-22 | OCI A1 자동 재시도에 `429 TooManyRequests` 백오프 정책(지수+지터) 반영 및 트러블슈팅 문서 추가 |
+| 2026-02-23 | 20번 스트림 착수: OCI 유료 전환 대비 보안/과금 가드레일 강화(대시보드 접근 가드, compose fail-fast, n8n webhook secret 검증, preflight 점검 스크립트) |
+| 2026-02-23 | 18-01 하위 작업: Compose System Health 오류(`agent_decisions` 누락), n8n 헬스체크 오탐, K8s→Compose 데이터 공백 복구 절차 반영 |
+| 2026-02-23 | 운영 문서 동기화: `daily-startup-guide`, `USER_MANUAL`, `Data_Flow`, `DEEP_LEARNING_GUIDE`를 Compose 기본 운영 기준으로 정합화 |
+| 2026-02-23 | 20-01 하위 작업: 전역 보안 하드닝 완료(Compose 이미지/포트/필수 env 고정, Docker non-root 전환, DB 비밀번호 폴백 제거, CI Bandit/pip-audit 추가) |
+| 2026-02-23 | 20-01 확장 반영: OCI VM 런타임 보안 점검 runbook 추가 + CI `pip-audit` advisory→blocking 상향 |
 
 ---
-*최종 업데이트: 2026-02-22 (A1.Flex 자동 재시도 Runbook/스크립트 반영) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-23 (20-01 확장 반영: 런타임 체크리스트 + CI 게이트 상향) by Codex (GPT-5)*

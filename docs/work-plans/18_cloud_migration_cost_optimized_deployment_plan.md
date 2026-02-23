@@ -531,3 +531,16 @@ Major 4건(n8n/monitoring compose 누락, 환경변수 불일치, 데이터 마�
 4. 학생 기준 A~Z 가이드 및 재부팅 후 1줄 재개 스크립트/환경파일 템플릿 추가
 5. OCI API `429 TooManyRequests`를 재시도 가능한 운영 이슈로 분류하고, 429 전용 백오프(지수+지터) 정책을 추가
    - 관련 문서: `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
+
+### 2026-02-23
+1. Compose 전환 후 `Bot Status not found` 운영 이슈를 반영해 원인 분류를 추가
+   - DB 스키마 누락(`daily_risk_state.buy_count/sell_count`)
+   - 뉴스 RSS 테이블 누락(`news_articles`)
+   - bot/collector Redis 연결 환경변수 불일치(`REDIS_URL`만 설정)
+2. 운영 대응으로 v3 마이그레이션 적용 및 compose 환경변수 보정 계획을 반영
+3. 관련 트러블슈팅 문서 추가
+   - `docs/troubleshooting/18_compose_bot_status_missing_after_migration.md`
+4. 18-01 하위 작업으로 System Health/데이터 복구 이슈를 분리 관리
+   - 계획: `docs/work-plans/18-01_compose_system_health_schema_alignment_plan.md`
+   - 결과: `docs/work-result/18-01_compose_system_health_schema_alignment_result.md`
+   - 트러블슈팅: `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`

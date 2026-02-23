@@ -6,7 +6,10 @@
 상태: Implemented (Phase A~C 기반 산출물)
 완료 범위: Phase A 준비 + Phase B 기반 구성 + Phase C 백업 자동화 스크립트
 선반영/추가 구현: 있음(Prometheus/Grafana 운영 체크리스트)
-관련 트러블슈팅: `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
+관련 트러블슈팅:
+- `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
+- `docs/troubleshooting/18_compose_bot_status_missing_after_migration.md`
+- `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`
 
 ---
 
@@ -234,3 +237,33 @@
 - `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
 - `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md`
 - `deploy/cloud/oci/docker-compose.prod.yml`
+
+---
+
+## Phase 2 (2026-02-23): Compose 전환 후 Bot 상태 미표시 복구
+
+### 1) 추가 구현/수정
+- 파일:
+  - `deploy/cloud/oci/docker-compose.prod.yml`
+  - `src/dashboard/pages/2_market.py`
+- 변경:
+  - `bot`, `collector`에 `REDIS_HOST=redis`, `REDIS_PORT=6379`를 명시해 코드 경로별 Redis 접속 불일치 제거
+  - 대시보드 경고 문구에서 K8s 전용 안내(`kubectl`)를 Compose 운영 기준으로 수정
+
+### 2) 운영 DB 조치
+- 적용 SQL(운영 DB):
+  - `daily_risk_state`에 `buy_count`, `sell_count` 컬럼 추가
+  - `migrations/v3_3_0_news_rss_only.sql` 적용으로 `news_articles` 등 RSS 테이블 생성
+
+### 3) 검증
+- 명령:
+  - `docker compose -f deploy/cloud/oci/docker-compose.prod.yml ps`
+  - `docker logs --tail 120 coinpilot-bot`
+  - `docker exec coinpilot-redis redis-cli --scan --pattern 'bot:status:*'`
+- 결과:
+  - bot 정상 기동
+  - `bot:status:KRW-BTC` 포함 심볼별 상태 키 생성 확인
+
+### 4) 트레이드오프/리스크
+- `migrations/v3_1_reject_tracking.sql`는 현재 DB에 `agent_decisions` 테이블이 없어 적용 실패(비핵심 경로)
+- 따라서 추후 스키마 기준선 정리(환경별 필수/선택 마이그레이션 분리)가 필요

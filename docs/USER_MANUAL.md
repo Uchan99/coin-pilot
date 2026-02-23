@@ -1,119 +1,143 @@
-# CoinPilot v3.0 User Manual
+# CoinPilot User Manual
 
-**Last Updated**: 2026-02-06
-**Version**: v3.0 (Market Regime Strategy)
-
----
-
-## 1. 개요 (Introduction)
-CoinPilot v3.0은 Kubernetes 기반의 AI 자동 매매 시스템입니다.
-규칙 기반 엔진과 AI 리스크 매니저가 협력하여 안정적인 수익을 추구하며, **Streamlit Dashboard**를 통해 실시간 모니터링이 가능합니다.
+Last Updated: 2026-02-23  
+Version: v3.3 (Compose 운영 기준)
 
 ---
 
-## 2. 대시보드 사용법 (Dashboard Guide)
+## 1. 개요
+CoinPilot는 규칙 기반 자동매매 + AI 보조 분석 시스템이다.  
+현재 운영 기본 모드는 **Docker Compose**이며, Minikube는 레거시/검증용으로 유지한다.
 
-### 2.1 실행 방법
-로컬 환경(VS Code)에서 대시보드를 실행하려면 다음 단계가 필요합니다.
+관련:
+- 시작 가이드: `docs/daily-startup-guide.md`
+- 데이터 이관/복구: `docs/runbooks/18_data_migration_runbook.md`
+- 전환/복구 트러블슈팅: `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`
 
-**Step 1. 포트 포워딩 (별도 터미널에서 실행)**
+---
+
+## 2. 대시보드 접속
+
+### 2.1 서비스 실행
 ```bash
-# DB (필수)
-kubectl port-forward -n coin-pilot-ns service/db 5432:5432 &
-
-# Redis (System Health 페이지용)
-kubectl port-forward -n coin-pilot-ns service/redis 6379:6379 &
-
-# n8n (System Health 페이지용, 선택)
-kubectl port-forward -n coin-pilot-ns service/n8n 5678:5678 &
-```
-*Tip: `&`를 붙이면 백그라운드 실행됩니다.*
-
-**Step 2. 대시보드 앱 실행**
-```bash
-source .venv/bin/activate
-PYTHONPATH=. streamlit run src/dashboard/app.py
-```
-브라우저에서 `http://localhost:8501` 접속.
-
-**Step 3. 포트 포워딩 종료 (세션 종료 시)**
-```bash
-# 백그라운드 포트 포워딩 프로세스 종료
-pkill -f "kubectl port-forward"
+cd /home/syt07203/workspace/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml up -d
 ```
 
-### 2.2 메뉴 설명
--   **📊 Overview**:
-    -   **Key Metrics**: 총 거래 횟수, 승률, 누적 손익(PnL)을 확인합니다.
-    -   **Active Positions**: 현재 봇이 보유 중인 코인과 수익률을 봅니다.
--   **📈 Market Analysis**:
-    -   **Market Regime**: 현재 마켓 레짐(🟢BULL/🟡SIDEWAYS/🔴BEAR)과 설명을 확인합니다.
-    -   **Chart**: 비트코인 등 주요 코인의 캔들차트를 확인합니다.
-    -   **Bot Brain**: 현재 Action, RSI, HWM(트레일링 스탑 최고가), Reasoning을 확인합니다.
-    -   **Controls**: 사이드바에서 종목(Symbol)과 시간 봉(Interval)을 변경할 수 있습니다.
--   **🛡️ Risk Monitor**:
-    -   **Daily Limits**: 오늘의 손익이 허용 범위(-5%) 내에 있는지 게이지로 확인합니다.
-    -   **Status**: 거래 제한(Halt) 상태나 쿨다운 여부를 체크합니다.
--   **📜 Trade History**:
-    -   과거의 모든 거래 내역을 검색하고, 매수/매도 비율을 분석합니다.
--   **⚙️ System Health**:
-    -   DB, Redis, n8n 등 시스템 구성 요소의 연결 상태를 점검합니다.
+### 2.2 주소
+- Dashboard: `http://127.0.0.1:8501`
+- n8n: `http://127.0.0.1:5678`
+- Grafana: `http://127.0.0.1:3000`
+- Prometheus: `http://127.0.0.1:9090`
 
-### 2.3 자동 새로고침
--   왼쪽 사이드바의 **Auto Refresh** 체크박스를 켜면, 30초마다 화면이 자동 갱신됩니다.
+주의:
+- Compose 모드에서는 `kubectl port-forward`가 필요 없다.
 
 ---
 
-## 3. 운영 가이드 (Operation Guide)
+## 3. 로그인/접근 제어
 
-### 3.1 봇 시작/종료
-Minikube 클러스터 전체를 관리합니다.
+### 3.1 Dashboard
+- 접속 시 `DASHBOARD_ACCESS_PASSWORD` 입력 필요
 
-| 작업 | 명령어 |
-|------|--------|
-| **클러스터 시작** | `minikube start` |
-| **전체 배포** | `./deploy/deploy_to_minikube.sh` |
-| **클러스터 중지** | `minikube stop` |
-| **봇 로그 확인** | `kubectl logs -f -l app=bot -n coin-pilot-ns` |
-| **Collector 로그** | `kubectl logs -f -l app=collector -n coin-pilot-ns` |
-| **전체 파드 상태** | `kubectl get pods -n coin-pilot-ns` |
+### 3.2 n8n
+- `N8N_BASIC_AUTH_USER` / `N8N_BASIC_AUTH_PASSWORD`로 로그인
 
-### 3.2 긴급 상황 대응
-*   **거래 멈추기**:
-    봇이 이상 행동을 보일 경우, 즉시 파드를 중지시키는 것이 안전합니다.
-    ```bash
-    kubectl scale deployment bot --replicas=0 -n coin-pilot-ns
-    ```
-*   **수동 청산**:
-    업비트 모바일 앱 또는 웹사이트에서 직접 매도하세요. (봇은 재기동 시 DB 상태를 동기화합니다)
+### 3.3 Grafana
+- `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` 사용
 
 ---
 
-## 4. 알림 시스템 (Notification)
-*   **Discord**: 매매 체결 및 중요 리스크 경고는 Discord 채널로 즉시 전송됩니다.
+## 4. 화면별 기능
+
+### 4.1 Overview
+- 총 평가액, 잔고, 누적 손익, 거래 횟수 확인
+- 보유 포지션(있을 때) 수익률/평가금 확인
+
+### 4.2 Market
+- 캔들 차트
+- Bot Brain (실시간 상태, 지표, 사유)
+- 레짐(BULL/SIDEWAYS/BEAR/UNKNOWN)
+
+### 4.3 Risk
+- 일일 리스크 상태, 거래 제한/쿨다운 확인
+
+### 4.4 History
+- 체결 내역 조회
+
+### 4.5 System
+- DB/Redis/n8n 연결 상태
+- 최근 AI 의사결정 이력(`agent_decisions`)
 
 ---
 
-## 5. 시스템 모니터링 (System Monitoring)
-Week 8 업데이트로 **Grafana** 기반의 상세 모니터링이 가능해졌습니다.
+## 5. 운영 명령 모음
 
-### 5.1 접속 방법
-Minikube 환경에서는 포트 포워딩을 통해 접속합니다.
+### 5.1 상태 확인
 ```bash
-kubectl port-forward -n coin-pilot-ns service/grafana 3000:3000
+cd /home/syt07203/workspace/coin-pilot/deploy/cloud/oci
+docker compose -f docker-compose.prod.yml ps
 ```
-- 주소: [http://localhost:3000](http://localhost:3000)
-- 계정: `admin` / `admin` (또는 설정된 비밀번호)
 
-### 5.2 대시보드 설명
-**1) CoinPilot Overview**
-- **System Metrics**: API 지연 시간(Latency), 에러율 등을 확인합니다.
-- **Volatility Index**: 현재 시장의 변동성 지수(GARCH 모델)를 시각화합니다.
-    - 변동성이 높으면 리스크 매니저가 거래 비중을 줄입니다.
-- **Active Positions**: 실시간 보유 포지션 현황.
+### 5.2 로그 확인
+```bash
+docker logs --tail 200 coinpilot-bot
+docker logs --tail 200 coinpilot-collector
+docker logs --tail 200 coinpilot-dashboard
+```
 
-**2) CoinPilot Trades**
-- **PnL Analysis**: 일별/누적 손익 그래프.
-- **Win Rate**: 승률 및 익절/손절 횟수 통계.
+### 5.3 bot만 재시작
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml restart bot
+```
+
+### 5.4 bot+dashboard 재빌드
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot dashboard
+```
 
 ---
+
+## 6. 보안 점검
+
+배포/설정 변경 후 반드시 실행:
+```bash
+cd /home/syt07203/workspace/coin-pilot
+./scripts/security/preflight_security_check.sh
+```
+
+주요 점검 항목:
+1. `deploy/cloud/oci/.env` 권한 600
+2. 필수 시크릿 미설정/기본값 사용 여부
+3. n8n env 접근 차단 설정
+4. n8n webhook secret 검증 노드 존재
+5. 내부 서비스 포트 직접 노출 금지
+
+---
+
+## 7. 자주 보는 이슈
+
+### 7.1 System 페이지 `agent_decisions` 오류
+- 원인: DB 스키마 누락
+- 조치: 마이그레이션 적용
+- 참고: `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md`
+
+### 7.2 Overview 데이터가 비어 보임
+- 원인1: 현재 DB에 해당 데이터가 실제로 없음
+- 원인2: Minikube DB와 Compose DB가 분리된 상태
+- 참고: `docs/runbooks/18_data_migration_runbook.md`
+
+### 7.3 n8n 상태가 Error
+1. `docker compose ... ps n8n dashboard`
+2. dashboard 컨테이너 내부에서 `http://n8n:5678/healthz` 확인
+
+---
+
+## 8. Legacy: Minikube 운영 명령
+레거시/검증 용도:
+```bash
+minikube start
+kubectl get pods -n coin-pilot-ns
+```
+
+현재 기본 운영은 Compose이므로, Minikube 명령은 필요 시에만 사용한다.
