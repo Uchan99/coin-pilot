@@ -1,4 +1,5 @@
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 import pandas as pd
 import redis
 import os
@@ -6,6 +7,8 @@ import requests
 from src.dashboard.utils.db_connector import get_data_as_dataframe, get_engine
 from sqlalchemy import text
 from src.dashboard.components.floating_chat import render_floating_chat
+
+enforce_dashboard_access()
 
 st.title("⚙️ System Health")
 
@@ -45,16 +48,33 @@ with col2:
 
 # 1-3. n8n Check
 n8n_status = False
-N8N_HOST = os.getenv("N8N_SERVICE_HOST", "localhost")
-N8N_PORT = os.getenv("N8N_SERVICE_PORT", "5678")
-for _attempt in range(2):
+# Compose/K8s/로컬 실행 환경이 섞여도 점검이 깨지지 않도록
+# 우선순위 기반으로 헬스체크 대상 URL 후보를 순차 시도한다.
+n8n_candidates = []
+n8n_url = os.getenv("N8N_URL")
+if n8n_url:
+    n8n_candidates.append(n8n_url.rstrip("/"))
+
+n8n_service_host = os.getenv("N8N_SERVICE_HOST")
+n8n_service_port = os.getenv("N8N_SERVICE_PORT", "5678")
+if n8n_service_host:
+    n8n_candidates.append(f"http://{n8n_service_host}:{n8n_service_port}")
+
+# Compose 기본 서비스명(n8n)과 로컬 개발(localhost) fallback
+n8n_candidates.extend(["http://n8n:5678", "http://localhost:5678"])
+
+seen = set()
+for base_url in n8n_candidates:
+    if base_url in seen:
+        continue
+    seen.add(base_url)
     try:
-        resp = requests.get(f"http://{N8N_HOST}:{N8N_PORT}/healthz", timeout=3)
+        resp = requests.get(f"{base_url}/healthz", timeout=3)
         if resp.status_code == 200:
             n8n_status = True
             break
-    except:
-        pass
+    except Exception:
+        continue
 
 with col3:
     icon = "🟢" if n8n_status else "🔴"
@@ -65,17 +85,31 @@ st.markdown("---")
 # 2. Recent AI Agent Decisions
 st.subheader("Recent AI Agent Decisions")
 
-decisions_df = get_data_as_dataframe("""
-    SELECT created_at + interval '9 hours' as created_at, symbol, decision, reasoning, confidence, model_used
-    FROM agent_decisions
-    ORDER BY created_at DESC
-    LIMIT 10
-""")
+agent_decisions_exists_df = get_data_as_dataframe(
+    "SELECT to_regclass('public.agent_decisions') AS tbl"
+)
+agent_decisions_exists = (
+    not agent_decisions_exists_df.empty
+    and agent_decisions_exists_df.iloc[0]["tbl"] is not None
+)
+
+if agent_decisions_exists:
+    decisions_df = get_data_as_dataframe("""
+        SELECT created_at + interval '9 hours' as created_at, symbol, decision, reasoning, confidence, model_used
+        FROM agent_decisions
+        ORDER BY created_at DESC
+        LIMIT 10
+    """)
+else:
+    decisions_df = pd.DataFrame()
 
 if not decisions_df.empty:
     st.dataframe(decisions_df, use_container_width=True)
 else:
-    st.write("No agent decisions recorded yet.")
+    if agent_decisions_exists:
+        st.write("No agent decisions recorded yet.")
+    else:
+        st.info("agent_decisions 테이블이 아직 생성되지 않았습니다. 마이그레이션 적용이 필요합니다.")
 
 st.markdown("---")
 

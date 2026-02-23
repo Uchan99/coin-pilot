@@ -1,12 +1,18 @@
+x-app-security: &app_security
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
 services:
   db:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.18.0-pg15
     container_name: coinpilot-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: coinpilot
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - ../../db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - coinpilot_db_data:/var/lib/postgresql/data
@@ -17,7 +23,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:alpine
+    image: redis:7.2.12-alpine3.21
     container_name: coinpilot-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -25,6 +31,7 @@ services:
       - coinpilot_redis_data:/data
 
   collector:
+    <<: *app_security
     build:
       context: ../../..
       dockerfile: deploy/docker/collector.Dockerfile
@@ -37,12 +44,15 @@ services:
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379/0
-      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
-      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY:?UPBIT_ACCESS_KEY is required}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY:?UPBIT_SECRET_KEY is required}
 
   bot:
+    <<: *app_security
     build:
       context: ../../..
       dockerfile: deploy/docker/bot.Dockerfile
@@ -59,19 +69,22 @@ services:
     expose:
       - "8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
       LLM_MODE: ${LLM_MODE:-dev}
       LLM_MODEL: ${LLM_MODEL:-claude-3-5-haiku-20241022}
       N8N_URL: ${N8N_URL:-http://n8n:5678}
-      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?N8N_WEBHOOK_SECRET is required}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
       VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
 
   dashboard:
+    <<: *app_security
     build:
       context: ../../..
       dockerfile: deploy/docker/dashboard.Dockerfile
@@ -84,23 +97,31 @@ services:
     ports:
       - "127.0.0.1:8501:8501"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
-      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+      N8N_URL: http://n8n:5678
+      N8N_SERVICE_HOST: n8n
+      N8N_SERVICE_PORT: 5678
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY:?UPBIT_ACCESS_KEY is required}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY:?UPBIT_SECRET_KEY is required}
+      DASHBOARD_ACCESS_PASSWORD: ${DASHBOARD_ACCESS_PASSWORD:?DASHBOARD_ACCESS_PASSWORD is required}
 
   n8n:
-    image: n8nio/n8n:latest
+    <<: *app_security
+    image: n8nio/n8n:1.123.17
     container_name: coinpilot-n8n
     restart: unless-stopped
     ports:
       - "127.0.0.1:5678:5678"
     environment:
-      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
-      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?N8N_WEBHOOK_SECRET is required}
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:?N8N_BASIC_AUTH_USER is required}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:?N8N_BASIC_AUTH_PASSWORD is required}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       TZ: ${TZ:-Asia/Seoul}
     volumes:
@@ -129,8 +150,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?GRAFANA_ADMIN_USER is required}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ../../monitoring/grafana-provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro

@@ -82,6 +82,30 @@ CREATE INDEX IF NOT EXISTS idx_agent_memory_type ON agent_memory (agent_type);
 
 CREATE INDEX IF NOT EXISTS idx_agent_memory_embedding ON agent_memory USING hnsw (embedding vector_cosine_ops);
 
+-- AI Agent 의사결정 이력 (System 페이지 및 분석 리포트에서 사용)
+-- 참고: 기존 K8s init SQL에는 존재했지만 Compose init SQL에는 누락되어
+-- 운영 전환 시 조회 오류가 발생할 수 있어 baseline 스키마에 포함한다.
+CREATE TABLE IF NOT EXISTS agent_decisions (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    strategy_name VARCHAR(50) NOT NULL,
+    decision VARCHAR(20) NOT NULL,
+    reasoning TEXT,
+    confidence INTEGER,
+    model_used VARCHAR(50),
+    price_at_decision NUMERIC(20, 8),
+    regime VARCHAR(10),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_symbol ON agent_decisions (symbol);
+
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_created ON agent_decisions (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_decision ON agent_decisions (decision);
+
+CREATE INDEX IF NOT EXISTS idx_agent_decisions_regime ON agent_decisions (regime);
+
 -- Week 2: Additional Tables
 CREATE TABLE IF NOT EXISTS daily_risk_state (
     date DATE PRIMARY KEY,

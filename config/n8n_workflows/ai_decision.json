@@ -1,22 +1,20 @@
 {
-  "name": "CoinPilot - Weekly Exit Report",
+  "name": "AI Decision Notification",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "weekly-exit-report",
+        "path": "ai-decision",
         "responseMode": "onReceived",
         "options": {}
       },
-      "id": "a5be9f91-cf0a-4b2d-955b-3d1d67d2b111",
-      "name": "Webhook - Weekly Exit Report",
+      "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
+      "typeVersion": 1,
       "position": [
-        260,
+        250,
         300
-      ],
-      "webhookId": "weekly-exit-report"
+      ]
     },
     {
       "parameters": {
@@ -30,7 +28,6 @@
           ]
         }
       },
-      "id": "9e0f8c35-0fac-4986-90f8-60f8618e8b99",
       "name": "Validate Webhook Secret",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
@@ -44,24 +41,28 @@
         "method": "POST",
         "url": "={{$env.DISCORD_WEBHOOK_URL}}",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ { \"content\": `📊 ${$json.title || 'CoinPilot Weekly Exit Report'}\\n기간: ${$json.period_start || '-'} ~ ${$json.period_end || '-'}\\nSELL 샘플: ${$json.total_sells ?? 0}건\\n\\n요약:\\n${$json.summary || '요약 없음'}\\n\\n제안:\\n${(($json.suggestions || []).map((s, i) => `${i + 1}. ${s}`).join('\\n')) || '없음'}` } }}",
-        "options": {
-          "timeout": 10000
-        }
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "embeds",
+              "value": "={{ [ { \"title\": \"🤖 AI Decision: REJECT\", \"color\": 15158332, \"fields\": [ { \"name\": \"🪙 Symbol\", \"value\": $json[\"symbol\"], \"inline\": true }, { \"name\": \"📊 Regime\", \"value\": $json[\"regime\"], \"inline\": true }, { \"name\": \"📈 RSI\", \"value\": String($json[\"rsi\"]), \"inline\": true } ], \"description\": $json[\"reason\"].substring(0, 500), \"footer\": { \"text\": \"CoinPilot AI Agent\" }, \"timestamp\": $json[\"timestamp\"] } ] }}"
+            }
+          ]
+        },
+        "options": {}
       },
-      "id": "c2d45f31-e6f4-4966-9d44-fb2d9e34a222",
-      "name": "Send Discord Message",
+      "name": "Discord Webhook",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "typeVersion": 1,
       "position": [
-        700,
+        680,
         300
       ]
     }
   ],
   "connections": {
-    "Webhook - Weekly Exit Report": {
+    "Webhook": {
       "main": [
         [
           {
@@ -76,7 +77,7 @@
       "main": [
         [
           {
-            "node": "Send Discord Message",
+            "node": "Discord Webhook",
             "type": "main",
             "index": 0
           }
@@ -84,10 +85,5 @@
         []
       ]
     }
-  },
-  "settings": {
-    "executionOrder": "v1"
-  },
-  "active": false,
-  "pinData": {}
+  }
 }

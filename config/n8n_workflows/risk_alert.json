@@ -1,57 +1,89 @@
 {
-    "name": "Risk Alert",
-    "nodes": [
-        {
-            "parameters": {
-                "httpMethod": "POST",
-                "path": "risk",
-                "responseMode": "onReceived",
-                "options": {}
-            },
-            "name": "Webhook",
-            "type": "n8n-nodes-base.webhook",
-            "typeVersion": 1,
-            "position": [
-                250,
-                300
-            ]
+  "name": "Risk Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "risk",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ (($json[\"headers\"] && ($json[\"headers\"][\"x-webhook-secret\"] || $json[\"headers\"][\"X-Webhook-Secret\"])) || \"\") }}",
+              "operation": "equal",
+              "value2": "={{$env.N8N_WEBHOOK_SECRET}}"
+            }
+          ]
+        }
+      },
+      "name": "Validate Webhook Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "embeds",
+              "value": "={{ [ { \"title\": \"⚠️ Risk Alert: \" + $json[\"type\"], \"color\": ($json[\"level\"] === \"CRITICAL\" ? 15158332 : 16776960), \"fields\": [ { \"name\": \"🚨 Level\", \"value\": $json[\"level\"], \"inline\": true }, { \"name\": \"📋 Type\", \"value\": $json[\"type\"], \"inline\": true } ], \"description\": $json[\"message\"], \"footer\": { \"text\": \"CoinPilot Risk Manager\" }, \"timestamp\": new Date().toISOString() } ] }}"
+            }
+          ]
         },
-        {
-            "parameters": {
-                "method": "POST",
-                "url": "={{$env.DISCORD_WEBHOOK_URL}}",
-                "sendBody": true,
-                "contentType": "json",
-                "bodyParameters": {
-                    "parameters": [
-                        {
-                            "name": "embeds",
-                            "value": "={{ [ { \"title\": \"⚠️ Risk Alert: \" + $json[\"type\"], \"color\": ($json[\"level\"] === \"CRITICAL\" ? 15158332 : 16776960), \"fields\": [ { \"name\": \"🚨 Level\", \"value\": $json[\"level\"], \"inline\": true }, { \"name\": \"📋 Type\", \"value\": $json[\"type\"], \"inline\": true } ], \"description\": $json[\"message\"], \"footer\": { \"text\": \"CoinPilot Risk Manager\" }, \"timestamp\": new Date().toISOString() } ] }}"
-                        }
-                    ]
-                },
-                "options": {}
-            },
-            "name": "Discord Webhook",
-            "type": "n8n-nodes-base.httpRequest",
-            "typeVersion": 1,
-            "position": [
-                450,
-                300
-            ]
-        }
-    ],
-    "connections": {
-        "Webhook": {
-            "main": [
-                [
-                    {
-                        "node": "Discord Webhook",
-                        "type": "main",
-                        "index": 0
-                    }
-                ]
-            ]
-        }
+        "options": {}
+      },
+      "name": "Discord Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
     }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook Secret",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook Secret": {
+      "main": [
+        [
+          {
+            "node": "Discord Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  }
 }

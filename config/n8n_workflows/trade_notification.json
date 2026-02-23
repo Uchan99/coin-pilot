@@ -18,6 +18,26 @@
         },
         {
             "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ (($json[\"headers\"] && ($json[\"headers\"][\"x-webhook-secret\"] || $json[\"headers\"][\"X-Webhook-Secret\"])) || \"\") }}",
+                            "operation": "equal",
+                            "value2": "={{$env.N8N_WEBHOOK_SECRET}}"
+                        }
+                    ]
+                }
+            },
+            "name": "Validate Webhook Secret",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
                 "method": "POST",
                 "url": "={{$env.DISCORD_WEBHOOK_URL}}",
                 "sendBody": true,
@@ -36,7 +56,7 @@
             "type": "n8n-nodes-base.httpRequest",
             "typeVersion": 1,
             "position": [
-                450,
+                680,
                 300
             ]
         }
@@ -46,11 +66,23 @@
             "main": [
                 [
                     {
-                        "node": "Discord Webhook",
+                        "node": "Validate Webhook Secret",
                         "type": "main",
                         "index": 0
                     }
                 ]
+            ]
+        },
+        "Validate Webhook Secret": {
+            "main": [
+                [
+                    {
+                        "node": "Discord Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
             ]
         }
     }

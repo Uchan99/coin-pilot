@@ -1,5 +1,6 @@
 import streamlit as st
 from src.dashboard.utils.db_connector import check_db_connection
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 from src.dashboard.components.floating_chat import render_floating_chat
 
 # 1. 페이지 설정 (가장 먼저 실행되어야 함)
@@ -9,6 +10,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+enforce_dashboard_access()
 
 # 2. 사이드바 공통 설정
 st.sidebar.title("CoinPilot v3.0")

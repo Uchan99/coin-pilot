@@ -7,23 +7,34 @@ from dotenv import load_dotenv
 # .env 로드
 load_dotenv()
 
+def _build_sync_db_url() -> str:
+    # 운영 환경에서 약한 기본 비밀번호 폴백(postgres)을 막기 위해
+    # DATABASE_URL이 없으면 DB_PASSWORD를 필수로 요구한다.
+    async_url = os.getenv("DATABASE_URL")
+    if async_url and "asyncpg" in async_url:
+        return async_url.replace("+asyncpg", "")
+    if async_url:
+        return async_url
+
+    db_user = os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "coinpilot")
+
+    if not db_password:
+        raise RuntimeError(
+            "DB_PASSWORD is required when DATABASE_URL is not set."
+        )
+
+    return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+
 # 동기식 DB 연결 (Sync Engine)
 # Streamlit은 멀티스레드 환경이므로 Async Engine을 억지로 쓰기보다
 # 별도의 Sync Engine을 만드는 것이 훨씬 안정적입니다.
 def get_sync_db_url():
-    # 기존 URL에서 'postgresql+asyncpg'를 'postgresql' (psycopg2)로 변경
-    async_url = os.getenv("DATABASE_URL")
-    if async_url and "asyncpg" in async_url:
-        return async_url.replace("+asyncpg", "")
-    
-    # URL이 없으면 새로 조합
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_NAME = os.getenv("DB_NAME", "coinpilot")
-    
-    return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    return _build_sync_db_url()
 
 # 전역 엔진 생성 (Connection Pool 공유)
 _engine = None

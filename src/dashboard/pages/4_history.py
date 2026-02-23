@@ -1,8 +1,11 @@
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 import pandas as pd
 import plotly.express as px
 from src.dashboard.utils.db_connector import get_data_as_dataframe
 from src.dashboard.components.floating_chat import render_floating_chat
+
+enforce_dashboard_access()
 
 st.title("📜 거래 이력")
 st.caption("`FILLED`는 주문이 실제로 체결 완료된 상태를 의미합니다. (미체결/취소 아님)")

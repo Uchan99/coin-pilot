@@ -8,28 +8,40 @@ from dotenv import load_dotenv
 # .env 파일 로드 (src/폴더 상위 기준)
 load_dotenv()
 
-# 데이터베이스 연결 URL 구성 (asyncpg 사용)
-DATABASE_URL = os.getenv("DATABASE_URL")
+def _build_database_url() -> str:
+    # 보안상 약한 기본 비밀번호(postgres) 폴백을 제거하고,
+    # 필수 시크릿이 누락되면 즉시 실패(fail-fast)시켜 오구성 배포를 차단한다.
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
 
-if not DATABASE_URL:
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_NAME = os.getenv("DB_NAME", "coinpilot")
-    
-    DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    db_user = os.getenv("DB_USER", "postgres")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST", "localhost")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "coinpilot")
+
+    if not db_password:
+        raise RuntimeError(
+            "DB_PASSWORD is required when DATABASE_URL is not set."
+        )
+
+    return f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+
+# 데이터베이스 연결 URL 구성 (asyncpg 사용)
+DATABASE_URL = _build_database_url()
 
 def get_sync_db_url() -> str:
     """
     LangChain SQLDatabase 등 동기식 연결이 필요한 도구를 위한 URL 반환
     (asyncpg -> psycopg2)
     """
-    if not DATABASE_URL:
-        # Fallback if env vars not loaded properly, though they should be
-        return f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-        
-    return DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+    if DATABASE_URL.startswith("postgresql+asyncpg://"):
+        return DATABASE_URL.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    if DATABASE_URL.startswith("postgresql://"):
+        return DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+    return DATABASE_URL
 
 # 비동기 엔진 생성
 engine = create_async_engine(

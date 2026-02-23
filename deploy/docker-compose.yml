@@ -1,19 +1,17 @@
-version: '3.8'
-
 services:
   db:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.18.0-pg15
     container_name: coinpilot-db
     restart: always
     environment:
       POSTGRES_DB: coinpilot
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     volumes:
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
       - coinpilot_db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d coinpilot"]
       interval: 10s
@@ -21,11 +19,11 @@ services:
       retries: 5
 
   redis:
-    image: redis:alpine
+    image: redis:7.2.12-alpine3.21
     container_name: coinpilot-redis
     restart: always
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: redis-server --appendonly yes
     volumes:
       - coinpilot_redis_data:/data
@@ -43,10 +41,14 @@ services:
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
       REDIS_URL: redis://redis:6379/0
-      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY}
-      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY}
+      UPBIT_ACCESS_KEY: ${UPBIT_ACCESS_KEY:?UPBIT_ACCESS_KEY is required}
+      UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY:?UPBIT_SECRET_KEY is required}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   bot:
     build:
@@ -56,18 +58,22 @@ services:
     container_name: coinpilot-bot
     restart: always
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
       REDIS_URL: redis://redis:6379/0
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
       PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
       VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   dashboard:
     build:
@@ -77,12 +83,16 @@ services:
     container_name: coinpilot-dashboard
     restart: always
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:-postgres}@db:5432/coinpilot
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 volumes:
   coinpilot_db_data:

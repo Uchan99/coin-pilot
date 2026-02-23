@@ -1,8 +1,11 @@
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 
 from src.dashboard.components.floating_chat import append_message, ask_assistant, get_shared_history
 
 st.set_page_config(page_title="AI Chatbot | CoinPilot", page_icon="💬", layout="wide")
+
+enforce_dashboard_access()
 
 st.title("💬 AI Trading Assistant")
 st.markdown(

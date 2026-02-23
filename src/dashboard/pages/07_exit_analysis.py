@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 
 from src.analytics.exit_performance import ExitPerformanceAnalyzer
 from src.dashboard.components.floating_chat import render_floating_chat
@@ -22,6 +23,8 @@ def _parse_json(v):
             return {}
     return {}
 
+
+enforce_dashboard_access()
 
 st.title("📊 Exit Analysis")
 st.caption("매도 성과 분석 및 파라미터 튜닝 제안")

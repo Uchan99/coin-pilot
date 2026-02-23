@@ -14,15 +14,21 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Non-root 실행을 위한 전용 사용자 생성
+RUN addgroup --system app && adduser --system --ingroup app app
+
 # Copy source code
-COPY src/ ./src/
+COPY --chown=app:app src/ ./src/
 # Copy shared libs like config or scripts if needed
-COPY scripts/ ./scripts/
-COPY config/ ./config/
+COPY --chown=app:app scripts/ ./scripts/
+COPY --chown=app:app config/ ./config/
 
 # Set env
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+USER app
 
 # Command
 CMD ["python", "src/collector/main.py"]

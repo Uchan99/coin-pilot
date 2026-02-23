@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 
 from src.dashboard.utils.db_connector import get_data_as_dataframe
 from src.dashboard.utils.formatters import (
@@ -10,6 +11,8 @@ from src.dashboard.utils.formatters import (
     format_qty,
 )
 from src.dashboard.components.floating_chat import render_floating_chat
+
+enforce_dashboard_access()
 
 st.title("📊 Overview")
 

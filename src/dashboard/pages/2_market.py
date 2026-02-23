@@ -1,4 +1,5 @@
 import streamlit as st
+from src.dashboard.components.auth_guard import enforce_dashboard_access
 import plotly.graph_objects as go
 import os
 import json
@@ -39,6 +40,8 @@ def get_bot_status(symbol: str) -> dict:
     except Exception:
         return None
 
+
+enforce_dashboard_access()
 
 st.title("📈 Market Analysis")
 
@@ -123,9 +126,10 @@ with st.expander(f"🤖 Bot Brain: {selected_symbol} (Live Status)", expanded=Tr
         st.warning(f"⚠️ Bot Status not found for {selected_symbol}")
         st.caption("""
         **가능한 원인:**
-        1. 봇이 실행 중이 아님 (`kubectl get pods -l app=bot -n coin-pilot-ns`)
-        2. Redis 포트 포워딩 누락 (`kubectl port-forward -n coin-pilot-ns service/redis 6379:6379`)
-        3. 봇이 아직 첫 번째 루프를 완료하지 않음 (1분 대기)
+        1. 봇이 실행 중이 아님 (`docker compose -f deploy/cloud/oci/docker-compose.prod.yml ps`)
+        2. Redis 연결 설정 불일치 (`REDIS_HOST/REDIS_PORT` 또는 `REDIS_URL` 확인)
+        3. DB 마이그레이션 누락으로 봇 루프가 예외 종료됨 (`docker logs --tail 200 coinpilot-bot`)
+        4. 봇이 아직 첫 번째 루프를 완료하지 않음 (1분 대기)
         """)
 
 
