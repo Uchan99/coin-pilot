@@ -101,7 +101,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "coinpilot_active_positions",
+                    "expr": "max(coinpilot_active_positions) or vector(0)",
                     "legendFormat": "__auto",
                     "range": true,
                     "refId": "A"
@@ -159,7 +159,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "coinpilot_api_latency_seconds_sum / coinpilot_api_latency_seconds_count",
+                    "expr": "(rate(coinpilot_api_latency_seconds_sum[5m]) / rate(coinpilot_api_latency_seconds_count[5m])) or vector(0)",
                     "legendFormat": "Avg Latency",
                     "range": true,
                     "refId": "A"
@@ -251,7 +251,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "coinpilot_volatility_index",
+                    "expr": "max(last_over_time(coinpilot_volatility_index[5m])) or vector(0)",
                     "legendFormat": "Volatility",
                     "range": true,
                     "refId": "A"

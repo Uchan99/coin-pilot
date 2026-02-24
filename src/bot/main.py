@@ -13,13 +13,13 @@ from fastapi import FastAPI
 from prometheus_client import make_asgi_app
 import uvicorn
 
-from sqlalchemy import select, desc, update
+from sqlalchemy import select, desc, update, func
 
 # Add project root to path
 sys.path.append(os.getcwd())
 
 from src.common.db import get_db_session, get_redis_client
-from src.common.models import MarketData, Position
+from src.common.models import MarketData, Position, TradingHistory
 from src.common.indicators import get_all_indicators, resample_to_hourly
 from src.engine.strategy import MeanReversionStrategy, evaluate_entry_conditions
 from src.engine.executor import PaperTradingExecutor
@@ -112,6 +112,29 @@ async def get_recent_candles(session, symbol: str, limit: int = 200) -> pd.DataF
         metrics.api_latency.observe(latency)
 
 
+async def get_filled_trade_count_last_days(session, days: int = 2) -> int:
+    """
+    최근 N일 FILLED 체결 건수를 반환합니다.
+
+    왜 필요한가:
+    - Prometheus Counter는 프로세스 재시작 시 0에서 다시 시작합니다.
+    - 운영 대시보드에서 "최근 2일" 같은 기간 집계를 안정적으로 보려면
+      DB 기반 재계산 값(Gauge)이 필요합니다.
+    """
+    now_utc = datetime.now(timezone.utc)
+    since_ts = now_utc - timedelta(days=max(1, int(days)))
+    stmt = (
+        select(func.count())
+        .select_from(TradingHistory)
+        .where(
+            TradingHistory.status == "FILLED",
+            func.coalesce(TradingHistory.executed_at, TradingHistory.created_at) >= since_ts,
+        )
+    )
+    result = await session.execute(stmt)
+    return int(result.scalar() or 0)
+
+
 from src.config.strategy import get_config
 
 async def bot_loop():
@@ -148,6 +171,11 @@ async def bot_loop():
                 # 전체 활성 포지션 수 조회 (메트릭용)
                 open_positions_count = await risk_manager.count_open_positions(session)
                 metrics.active_positions.set(open_positions_count)
+
+                # 최근 2일 체결 건수(DB 기준) 메트릭 반영
+                # Counter 기반 패널은 재시작 직후 0으로 보일 수 있어, 운영 관측용 Gauge를 병행합니다.
+                filled_trade_count_2d = await get_filled_trade_count_last_days(session, days=2)
+                metrics.trade_count_2d.set(float(filled_trade_count_2d))
 
                 # Redis 클라이언트 초기화 (상태 전송용)
                 try:
@@ -630,6 +658,13 @@ async def lifespan(app: FastAPI):
     
     # 서버 기동 직후 즉시 레짐 업데이트 1회 실행
     asyncio.create_task(update_regime_job())
+    # 서버 기동 직후 변동성 모델도 1회 워밍업 실행합니다.
+    # 왜 필요한가:
+    # - 변동성 학습이 하루 1회(UTC 00:05)만 돌면, 재시작 직후 Grafana에서 0이 오래 유지될 수 있습니다.
+    # - startup 즉시 1회 실행하면 Redis/Prometheus 상태를 빠르게 복구할 수 있습니다.
+    # 실패 모드:
+    # - 데이터가 충분하지 않으면 retrain 함수 내부에서 안전하게 종료하며 서비스는 계속 동작합니다.
+    asyncio.create_task(retrain_volatility_job())
     # 서버 기동 직후 뉴스 파이프라인도 1회 실행
     asyncio.create_task(news_ingest_job())
     asyncio.create_task(news_summary_job())

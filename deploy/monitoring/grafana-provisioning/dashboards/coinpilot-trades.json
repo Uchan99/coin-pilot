@@ -159,7 +159,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "coinpilot_trade_count_total",
+                    "expr": "max(coinpilot_trade_count_2d) or vector(0)",
                     "legendFormat": "__auto",
                     "range": true,
                     "refId": "A"

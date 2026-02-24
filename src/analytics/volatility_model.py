@@ -88,7 +88,7 @@ class VolatilityModel:
 
     def update_volatility_state(self, volatility: float, threshold: float = 2.0):
         """
-        계산된 변동성을 Redis에 저장합니다.
+        계산된 변동성을 Redis/Prometheus에 동시에 반영합니다.
         
         Args:
             volatility (float): 예측된 변동성 값
@@ -102,16 +102,21 @@ class VolatilityModel:
             }
             # Redis에 JSON 형태로 저장
             self.redis_client.set("coinpilot:volatility_state", json.dumps(state))
-            
-            # Prometheus 메트릭 업데이트 (MetricsExporter가 임포트 가능하다면)
-            # 여기서는 직접 할 수 없으므로 생략하거나 추후 통합
-            # from src.utils.metrics import metrics
-            # metrics.volatility_index.set(volatility)
+
+            # 중요: 운영 대시보드는 Prometheus gauge를 직접 조회하므로,
+            # Redis 저장만 하고 gauge를 갱신하지 않으면 Grafana가 0으로 고정될 수 있습니다.
+            # (과거 회귀 이슈) 따라서 Redis/Prometheus를 같은 시점에 동기 반영합니다.
+            try:
+                from src.utils.metrics import metrics
+                metrics.volatility_index.set(float(volatility))
+            except Exception as metric_error:
+                # 메트릭 갱신 실패가 변동성 상태 저장 자체를 막지 않도록 분리 처리합니다.
+                print(f"[VolatilityModel] Warning: failed to update Prometheus gauge: {metric_error}")
             
             print(f"[VolatilityModel] State updated: {state}")
             
         except Exception as e:
-            print(f"[VolatilityModel] Error updating Redis: {e}")
+            print(f"[VolatilityModel] Error updating volatility state: {e}")
             # Redis 장애 시 Fallback은 읽는 쪽(RiskManager)에서 처리
 
 if __name__ == "__main__":

@@ -41,6 +41,14 @@ class MetricsExporter:
             'Total number of trades executed'
         )
 
+        # 최근 2일 체결 건수 (Gauge: DB 기준으로 재계산하여 반영)
+        # Counter는 프로세스 재시작 시 0부터 다시 시작되므로,
+        # 운영 대시보드의 "최근 N일" 관측에는 Gauge가 더 적합합니다.
+        self.trade_count_2d = Gauge(
+            'coinpilot_trade_count_2d',
+            'Number of FILLED trades in the last 2 days (DB-derived)'
+        )
+
         # AI 분석 요청 횟수 (Counter)
         self.ai_requests = Counter(
             'coinpilot_ai_requests_total',
