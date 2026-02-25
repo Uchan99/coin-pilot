@@ -3,6 +3,9 @@
 ## Document creation rule
 - Always start from templates in docs/templates/.
   - work-plan.template.md / work-result.template.md / troubleshooting.template.md
+- Plan 작성 후에는 사용자 승인(approval)을 받은 뒤 구현 단계로 진행한다.
+  - 승인 전 상태: `Approval Pending`
+  - 긴급 조치가 선행된 경우 사유/시각/사후 승인 기록을 plan/result에 남긴다.
 - Naming (preferred; keep legacy files as-is):
   - independent work-plans: <NN>_<topic>_plan.md
   - epic subtask work-plans: <EPIC>-<subNN>_<topic>_plan.md

@@ -10,13 +10,17 @@
    - Independent work: docs/work-plans/<NN>_<topic>_plan.md
    - Epic subtask: docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md
    - (legacy allowed) weekN_<topic>.md
-2) Implement following the plan.
+2) After writing the plan, get explicit user confirmation/approval.
+   - Mark plan status as `Approval Pending` until approved.
+   - Do not implement/deploy/migrate before approval, except emergency mitigation.
+   - If emergency mitigation was needed, record reason and post-approval trace in the plan/result.
+3) Implement following the approved plan.
    - If the plan changes, update the plan and add a change-log entry in that plan.
-3) After coding, write a result report:
+4) After coding, write a result report:
    - Independent work: docs/work-result/<NN>_<topic>_result.md
    - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
    - If phased, append Phase 2+ at the bottom of the same result file.
-4) If issues arise (monitoring/bug/ops):
+5) If issues arise (monitoring/bug/ops):
    - Independent work: docs/troubleshooting/<NN>_<topic>.md
    - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
    - Link it from the related plan/result, and record any charter updates.

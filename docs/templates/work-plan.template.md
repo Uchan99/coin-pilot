@@ -2,8 +2,9 @@
 
 **작성일**: <YYYY-MM-DD>  
 **작성자**: <name or tool>  
-**상태**: Planned | Investigating | Fixed | Verified  
+**상태**: Planned | Approval Pending | Approved | Investigating | Fixed | Verified  
 **관련 계획 문서**: `docs/work-plans/<NN>_<topic>_plan.md` 또는 `docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md` (있다면)  
+**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트  
 
 ---
 

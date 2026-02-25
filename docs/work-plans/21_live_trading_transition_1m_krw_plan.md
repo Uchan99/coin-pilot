@@ -4,7 +4,7 @@
 **작성자**: Codex (GPT-5)  
 **상태**: Planned  
 **관련 계획 문서**: `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`, `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md`  
-**관련 하위 계획 문서**: (추후 생성) `21-01`, `21-02`, `21-03`  
+**관련 하위 계획 문서**: `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` (완료), `21-02`, `21-03`  
 
 ---
 

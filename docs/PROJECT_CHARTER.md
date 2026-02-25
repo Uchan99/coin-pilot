@@ -15,6 +15,10 @@
 - Create a work plan before coding:
   - Independent work: docs/work-plans/<NN>_<topic>_plan.md
   - Epic subtask: docs/work-plans/<EPIC>-<subNN>_<topic>_plan.md
+- Plan 작성 후 사용자 승인(approval)을 반드시 받는다.
+  - 승인 전 상태는 `Approval Pending`으로 관리한다.
+  - 승인 전에는 구현/배포/마이그레이션을 진행하지 않는다.
+  - 단, 긴급 장애 완화가 필요한 경우 사유/시각/사후 승인 기록을 plan/result에 남긴다.
 - After implementation, write a work result:
   - Independent work: docs/work-result/<NN>_<topic>_result.md
   - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
@@ -151,13 +155,16 @@
 
 > 레짐 변경 시 Stop Loss는 타이트한(작은) 값 유지 정책 적용
 
-### 3.2 리스크 관리 규칙 (Hard-coded)
-AI가 오버라이드할 수 없는 절대 규칙입니다.
+### 3.2 리스크 관리 규칙 (Config-driven, Non-AI Override)
+AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으로 관리합니다.
 | 규칙 | 값 | 위반 시 조치 |
 | :--- | :--- | :--- |
-| **단일 포지션 한도** | 총 자산의 5% | 주문 거부 |
-| **일일 최대 손실** | -5% | 당일 거래 중단 |
-| **일일 최대 신규 진입(BUY)** | 10회 | 당일 신규 진입 중단 |
+| **단일 포지션 한도** | 기준자산(reference equity)의 20% | 주문 거부 |
+| **전체 노출 한도** | 기준자산의 100% | 신규 진입 거부 |
+| **동시 보유 포지션 수** | 최대 5개 | 신규 진입 거부 |
+| **동일 코인 중복 진입** | 비허용 | 신규 진입 거부 |
+| **일일 최대 손실** | -3% | 당일 거래 중단 |
+| **일일 최대 신규 진입(BUY)** | 6회 | 당일 신규 진입 중단 |
 | **쿨다운** | 3연패 시 | 2시간 거래 중단 |
 | **최소 거래 간격** | 30분 | 주문 지연 |
 
@@ -360,6 +367,10 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
 | `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md` | 18번 클라우드 마이그레이션 계획(진행 중) |
 | `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
+| `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` | 21-01 기준자산 고정 + 3중 캡 주문 체계 전환 계획 |
+| `docs/work-plans/19-01_plan_approval_gate_workflow_update_plan.md` | 19-01 Plan 승인 게이트 워크플로우 정책 개정 계획 |
+| `docs/work-result/21-01_reference_equity_three_cap_execution_result.md` | 21-01 기준자산/3중 캡 구현 결과 |
+| `docs/work-result/19-01_plan_approval_gate_workflow_update_result.md` | 19-01 승인 게이트 정책 반영 결과 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
 | `docs/troubleshooting/prometheus_grafana_monitoring_runbook.md` | Prometheus/Grafana 점검 및 활용 Runbook |
@@ -427,6 +438,8 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 2026-02-23 | 20-01 확장 반영: OCI VM 런타임 보안 점검 runbook 추가 + CI `pip-audit` advisory→blocking 상향 |
 | 2026-02-25 | 18-11 하위 작업: n8n volume 백업 자동화 스크립트(`scripts/backup/n8n_backup.sh`) 및 cron 운영 절차 추가, WSL/OCI 볼륨 혼선 복구 경험 반영 |
 | 2026-02-25 | 18-12 하위 작업: WSL/OCI 로컬-클라우드 통합 운영 마스터 runbook 작성, 포트/볼륨/백업/알람/복구 기준을 단일 문서로 통합 |
+| 2026-02-26 | 19-01 정책 반영: 문서 워크플로우에 `Plan 작성 → 사용자 승인 → 구현` 승인 게이트 추가 (긴급 대응은 사후 승인 기록 의무) |
+| 2026-02-26 | 21-01 전략 반영: 기준자산(reference equity) 기반 3중 캡 주문 정책, 리스크 한도(20% 주문/100% 총노출/5포지션/일일손실 -3%/일일 BUY 6회)로 100만원 운용 기준 정렬 |
 
 ---
-*최종 업데이트: 2026-02-25 (18-12 반영: WSL/OCI 통합 운영 마스터 runbook 추가) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-26 (19-01/21-01 반영: 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*
