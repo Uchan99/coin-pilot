@@ -366,6 +366,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | `docs/runbooks/18_data_migration_runbook.md` | Minikube → OCI 데이터 이관 절차 Runbook |
 | `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md` | OCI A1.Flex 용량 부족 자동 재시도 생성 Runbook |
 | `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md` | OCI CLI 인증부터 재부팅 재개까지 학생용 A~Z 가이드 |
+| `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md` | WSL/OCI 로컬-클라우드 통합 운영 마스터 Runbook |
 | `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md` | OCI A1 재시도 중 429 스로틀링 종료 이슈 대응 기록 |
 | `docs/work-plans/18-01_compose_system_health_schema_alignment_plan.md` | 18-01 Compose System/스키마 정합성 복구 계획 |
 | `docs/work-result/18-01_compose_system_health_schema_alignment_result.md` | 18-01 Compose System/데이터 복구 구현 결과 |
@@ -383,7 +384,7 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | **Charter 대비 구현률** | **99%** (핵심 기능 100%, 고급 기능 Future) |
 | **전략 버전** | v3.3 (레짐 기반 적응형 + 신뢰성/가드레일 강화) |
 | **프로덕션 준비 상태** | ✅ Ready (운영 중) |
-| **현재 초점** | 16번 Overview 가독성 개선 + 17/18 계획(챗봇 고도화/클라우드 마이그레이션) 준비 |
+| **현재 초점** | 18번 클라우드 운영 안정화 후 21번 실거래 전환(100만 KRW) 준비 |
 
 ### 8.7 적용 완료 (14번 핫픽스 반영)
 
@@ -424,6 +425,8 @@ AI가 오버라이드할 수 없는 절대 규칙입니다.
 | 2026-02-23 | 운영 문서 동기화: `daily-startup-guide`, `USER_MANUAL`, `Data_Flow`, `DEEP_LEARNING_GUIDE`를 Compose 기본 운영 기준으로 정합화 |
 | 2026-02-23 | 20-01 하위 작업: 전역 보안 하드닝 완료(Compose 이미지/포트/필수 env 고정, Docker non-root 전환, DB 비밀번호 폴백 제거, CI Bandit/pip-audit 추가) |
 | 2026-02-23 | 20-01 확장 반영: OCI VM 런타임 보안 점검 runbook 추가 + CI `pip-audit` advisory→blocking 상향 |
+| 2026-02-25 | 18-11 하위 작업: n8n volume 백업 자동화 스크립트(`scripts/backup/n8n_backup.sh`) 및 cron 운영 절차 추가, WSL/OCI 볼륨 혼선 복구 경험 반영 |
+| 2026-02-25 | 18-12 하위 작업: WSL/OCI 로컬-클라우드 통합 운영 마스터 runbook 작성, 포트/볼륨/백업/알람/복구 기준을 단일 문서로 통합 |
 
 ---
-*최종 업데이트: 2026-02-23 (20-01 확장 반영: 런타임 체크리스트 + CI 게이트 상향) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-25 (18-12 반영: WSL/OCI 통합 운영 마스터 runbook 추가) by Codex (GPT-5)*

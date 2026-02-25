@@ -175,6 +175,11 @@ sudo systemctl enable --now coinpilot-compose.service
 sudo systemctl status coinpilot-compose.service
 ```
 
+참고:
+- `bot:latest`, `collector:latest`, `dashboard:latest`는 로컬 빌드 이미지이므로
+  service 파일의 `ExecStartPre`는 `pull --ignore-buildable` 정책을 사용해야 한다.
+- 해당 옵션이 없으면 `pull access denied`로 systemd 기동이 실패할 수 있다.
+
 ### 7.2 cron 등록 (일간 백업 자동화)
 ```bash
 sudo crontab -e
@@ -183,8 +188,9 @@ sudo crontab -e
 아래 항목 추가:
 ```cron
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-5 3 * * * /opt/coin-pilot/scripts/backup/postgres_backup.sh >> /var/log/coinpilot-postgres-backup.log 2>&1
-15 3 * * * /opt/coin-pilot/scripts/backup/redis_backup.sh >> /var/log/coinpilot-redis-backup.log 2>&1
+5 3 * * * /opt/coin-pilot/scripts/backup/postgres_backup.sh >> /var/log/coinpilot/postgres-backup.log 2>&1
+15 3 * * * /opt/coin-pilot/scripts/backup/redis_backup.sh >> /var/log/coinpilot/redis-backup.log 2>&1
+25 3 * * * /opt/coin-pilot/scripts/backup/n8n_backup.sh >> /var/log/coinpilot/n8n-backup.log 2>&1
 ```
 
 등록 확인:
@@ -201,5 +207,5 @@ sudo crontab -l | grep coinpilot
 ## 9. 참고
 - Plan: `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`
 - Compose: `deploy/cloud/oci/docker-compose.prod.yml`
-- Backup scripts: `scripts/backup/postgres_backup.sh`, `scripts/backup/redis_backup.sh`
+- Backup scripts: `scripts/backup/postgres_backup.sh`, `scripts/backup/redis_backup.sh`, `scripts/backup/n8n_backup.sh`
 - A1 capacity retry: `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`, `scripts/cloud/oci_retry_launch_a1_flex.sh`
