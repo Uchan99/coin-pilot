@@ -303,20 +303,45 @@ async def bot_loop():
                             if strategy.check_entry_signal(indicators, debug=debug_entry):
                                 print(f"[{symbol}] Entry Signal Detected!")
                                 
-                                # 리스크 관리 검증
                                 balance = await executor.get_balance(session)
-                                invest_amount = balance * risk_manager.max_per_order
-                                
+                                reference_equity = await risk_manager.get_reference_equity(session)
+
+                                # 주문 금액 3중 캡(min) 정책:
+                                # 1) target_cap: 기준자산 기반 목표 주문금액
+                                # 2) cash_cap: 현재 가용 현금(수수료 버퍼 제외)
+                                # 3) exposure_cap: 총 노출 한도 잔여분
+                                # 위 세 값을 min으로 제한해, 비중 의도를 유지하면서 잔고 부족/과노출을 동시에 방지합니다.
+                                regime_ratio = Decimal(str(
+                                    config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
+                                ))
+                                target_invest_amount = reference_equity * risk_manager.max_per_order * regime_ratio
+
+                                cash_cap = balance * (Decimal("1") - risk_manager.fee_buffer)
+                                current_exposure = await risk_manager.get_total_exposure(session)
+                                max_total_exposure = reference_equity * Decimal(str(config.MAX_TOTAL_EXPOSURE))
+                                exposure_cap = max_total_exposure - current_exposure
+
+                                actual_invest_amount = min(target_invest_amount, cash_cap, exposure_cap)
+                                if actual_invest_amount <= 0:
+                                    bot_action = "SKIP"
+                                    if exposure_cap <= 0:
+                                        bot_reason = (
+                                            f"Risk Rejected: 노출 한도 도달 "
+                                            f"({current_exposure:,.0f}/{max_total_exposure:,.0f})"
+                                        )
+                                    elif cash_cap <= 0:
+                                        bot_reason = f"Risk Rejected: 가용 현금 부족 ({cash_cap:,.0f})"
+                                    else:
+                                        bot_reason = "Risk Rejected: 주문 가능 금액이 0 이하"
+                                    print(f"[-] {symbol} Order Skipped: {bot_reason}")
+                                    continue
+
                                 is_valid, risk_reason = await risk_manager.check_order_validity(
-                                    session, symbol, invest_amount
+                                    session, symbol, actual_invest_amount
                                 )
-                                
+
                                 if is_valid:
                                     bot_action = "BUY"
-                                    # 레짐별 포지션 사이징 적용 (v3.0)
-                                    regime_ratio = config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
-                                    actual_invest_amount = invest_amount * Decimal(str(regime_ratio))
-                                    
                                     # 수량 계산 (투자금 / 현재가)
                                     quantity = actual_invest_amount / current_price
                                     if quantity > 0:

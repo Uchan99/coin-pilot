@@ -193,6 +193,27 @@ def load_strategy_config(path: str = "config/strategy_v3.yaml") -> StrategyConfi
         if "regimes" in data:
             kwargs["REGIMES"] = data["regimes"]
 
+        # risk_management 섹션 매핑
+        # 운영 환경에서 주문/노출/일일 리스크 한도를 YAML로 조정할 수 있도록 명시적으로 지원합니다.
+        if "risk_management" in data:
+            rm = data["risk_management"]
+            if "max_position_size" in rm:
+                kwargs["MAX_POSITION_SIZE"] = rm["max_position_size"]
+            if "max_total_exposure" in rm:
+                kwargs["MAX_TOTAL_EXPOSURE"] = rm["max_total_exposure"]
+            if "max_concurrent_positions" in rm:
+                kwargs["MAX_CONCURRENT_POSITIONS"] = rm["max_concurrent_positions"]
+            if "allow_same_coin_duplicate" in rm:
+                kwargs["ALLOW_SAME_COIN_DUPLICATE"] = rm["allow_same_coin_duplicate"]
+            if "max_daily_loss" in rm:
+                kwargs["MAX_DAILY_LOSS"] = rm["max_daily_loss"]
+            if "max_daily_trades" in rm:
+                kwargs["MAX_DAILY_TRADES"] = rm["max_daily_trades"]
+            if "cooldown_after_consecutive_losses" in rm:
+                kwargs["COOLDOWN_AFTER_CONSECUTIVE_LOSSES"] = rm["cooldown_after_consecutive_losses"]
+            if "cooldown_hours" in rm:
+                kwargs["COOLDOWN_HOURS"] = rm["cooldown_hours"]
+
         return StrategyConfig(**kwargs)
     except Exception as e:
         print(f"[Warning] Failed to load strategy config: {e}. Using defaults.")
