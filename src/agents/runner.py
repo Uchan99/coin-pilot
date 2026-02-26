@@ -84,6 +84,8 @@ class AgentRunner:
             
             analyst = result.get("analyst_decision")
             guardian = result.get("guardian_decision")
+            boundary_violation = bool(analyst.get("boundary_violation")) if analyst else False
+            boundary_terms = analyst.get("boundary_terms") if analyst else []
             
             if analyst and analyst["decision"] == "CONFIRM":
                 if guardian and guardian["decision"] == "SAFE":
@@ -101,7 +103,10 @@ class AgentRunner:
             await self._log_decision(
                 symbol, strategy_name, decision_str, reasoning,
                 analyst.get("confidence") if analyst else None,
-                indicators=indicators, market_context=market_context
+                indicators=indicators,
+                market_context=market_context,
+                boundary_violation=boundary_violation,
+                boundary_terms=boundary_terms,
             )
             
             return is_approved, reasoning
@@ -124,8 +129,18 @@ class AgentRunner:
             )
             return False, f"AI Analysis Error: {str(e)}"
 
-    async def _log_decision(self, symbol, strategy, decision, reasoning, confidence,
-                            indicators: Dict[str, Any] = None, market_context: Dict[str, Any] = None):
+    async def _log_decision(
+        self,
+        symbol,
+        strategy,
+        decision,
+        reasoning,
+        confidence,
+        indicators: Dict[str, Any] = None,
+        market_context: Dict[str, Any] = None,
+        boundary_violation: bool = False,
+        boundary_terms: Any = None,
+    ):
         """AI 판단 결과를 DB에 저장하고, REJECT 시 Discord 알림 전송"""
         try:
             # 결정 시점 가격 및 레짐 추출
@@ -154,6 +169,8 @@ class AgentRunner:
                 "regime": indicators.get("regime", "UNKNOWN") if indicators else "UNKNOWN",
                 "rsi": round(indicators.get("rsi", 0), 1) if indicators else 0,
                 "confidence": confidence,
+                "boundary_violation": boundary_violation,
+                "boundary_terms": boundary_terms or [],
                 "reason": reasoning[:1500] if reasoning else "No reason provided",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }))

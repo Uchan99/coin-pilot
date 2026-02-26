@@ -368,11 +368,13 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md` | 18번 클라우드 마이그레이션 계획(진행 중) |
 | `docs/work-plans/18-13_oci_24h_monitoring_checklist_plan.md` | 18-13 OCI 24시간 집중 모니터링 점검표 정식화 계획 |
 | `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 계획 |
+| `docs/work-plans/18-15_analyst_boundary_audit_mode_plan.md` | 18-15 Analyst Rule Boundary 정책을 강제차단에서 audit 기록 모드로 전환하는 계획 |
 | `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
 | `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` | 21-01 기준자산 고정 + 3중 캡 주문 체계 전환 계획 |
 | `docs/work-plans/19-01_plan_approval_gate_workflow_update_plan.md` | 19-01 Plan 승인 게이트 워크플로우 정책 개정 계획 |
 | `docs/work-result/18-13_oci_24h_monitoring_checklist_result.md` | 18-13 OCI 24시간 집중 모니터링 점검표 반영 결과 |
 | `docs/work-result/18-14_oci_24h_monitoring_script_automation_result.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 결과 |
+| `docs/work-result/18-15_analyst_boundary_audit_mode_result.md` | 18-15 Analyst Boundary audit 모드 전환 구현 결과 |
 | `docs/work-result/21-01_reference_equity_three_cap_execution_result.md` | 21-01 기준자산/3중 캡 구현 결과 |
 | `docs/work-result/19-01_plan_approval_gate_workflow_update_result.md` | 19-01 승인 게이트 정책 반영 결과 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
@@ -383,6 +385,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md` | OCI CLI 인증부터 재부팅 재개까지 학생용 A~Z 가이드 |
 | `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md` | WSL/OCI 로컬-클라우드 통합 운영 마스터 Runbook |
 | `docs/troubleshooting/18_oci_a1_flex_capacity_and_throttle_retry.md` | OCI A1 재시도 중 429 스로틀링 종료 이슈 대응 기록 |
+| `docs/troubleshooting/18-15_analyst_rule_boundary_false_rejects.md` | Analyst boundary 과잉 차단으로 인한 연속 REJECT 이슈 대응 기록 |
 | `docs/work-plans/18-01_compose_system_health_schema_alignment_plan.md` | 18-01 Compose System/스키마 정합성 복구 계획 |
 | `docs/work-result/18-01_compose_system_health_schema_alignment_result.md` | 18-01 Compose System/데이터 복구 구현 결과 |
 | `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md` | 18-01 System 오류 및 데이터 공백 복구 트러블슈팅 |
@@ -446,6 +449,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | 2026-02-26 | 21-01 전략 반영: 기준자산(reference equity) 기반 3중 캡 주문 정책, 리스크 한도(20% 주문/100% 총노출/5포지션/일일손실 -3%/일일 BUY 6회)로 100만원 운용 기준 정렬 |
 | 2026-02-26 | 18-13 운영 문서 반영: OCI 재배포/설정 변경 직후 적용하는 24시간 집중 모니터링 점검표(T+0m/1h/6h/12h/24h) 추가 |
 | 2026-02-26 | 18-14 운영 자동화 반영: 24시간 점검 phase(`t0/t1h/t6h/t12h/t24h`)를 자동 수행하는 스크립트(`scripts/ops/check_24h_monitoring.sh`) 추가 |
+| 2026-02-26 | 18-15 AI 정책 조정: Analyst Rule Boundary 경로를 재시도+강제REJECT에서 audit 기록 모드로 전환하고, 프롬프트 제약을 강화하여 과잉 차단/credit 낭비를 완화 |
 
 ---
-*최종 업데이트: 2026-02-26 (18-13/18-14/19-01/21-01 반영: 24h 점검표 + 자동화 스크립트 + 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-26 (18-13/18-14/18-15/19-01/21-01 반영: 24h 점검표 + 자동화 스크립트 + Boundary audit 모드 + 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*

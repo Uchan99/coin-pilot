@@ -5,55 +5,56 @@ from src.agents.structs import AnalystDecision
 from src.agents.prompts import ANALYST_SYSTEM_PROMPT, get_analyst_prompt
 from src.agents.factory import get_analyst_llm
 
-RULE_REVALIDATION_TERMS = (
-    "rsi",
-    "ma20",
-    "ma(20)",
-    "moving average",
-    "거래량",
-    "volume ratio",
-    "vol_ratio",
-    "볼린저",
-    "bb 하단",
-    "bb_lower",
-)
+RULE_REVALIDATION_TERM_MAP = {
+    # canonical: 감지 키워드 목록
+    "rsi": ("rsi", "rsi(14)", "rsi(7)"),
+    "ma20": ("ma20", "ma(20)", "moving average", "이동평균"),
+    "volume": ("거래량", "volume ratio", "vol_ratio", "볼륨"),
+    "bollinger": ("볼린저", "bb 하단", "bb_lower", "볼린저밴드"),
+}
+
+
+def detect_rule_revalidation_terms(reasoning: str) -> List[str]:
+    """
+    reasoning에 포함된 Rule Engine 재판단 흔적 키워드를 canonical term 목록으로 반환합니다.
+
+    왜 필요한가:
+    - 기존 bool 감지만으로는 어떤 항목이 경계 위반을 유발했는지 운영자가 알기 어렵습니다.
+    - audit 모드에서는 '차단'보다 '관측'이 중요하므로, 탐지 근거(term) 기록이 필요합니다.
+    """
+    if not reasoning:
+        return []
+    normalized = reasoning.lower()
+    matched: List[str] = []
+    for canonical, aliases in RULE_REVALIDATION_TERM_MAP.items():
+        if any(alias in normalized for alias in aliases):
+            matched.append(canonical)
+    return matched
 
 
 def contains_rule_revalidation_reasoning(reasoning: str) -> bool:
     """
     Analyst가 Rule Engine 검증 항목(RSI/MA/거래량/BB)을 다시 판단했는지 탐지합니다.
     """
-    if not reasoning:
-        return False
-    normalized = reasoning.lower()
-    return any(term in normalized for term in RULE_REVALIDATION_TERMS)
+    return len(detect_rule_revalidation_terms(reasoning)) > 0
 
 
-def build_rule_boundary_reject_reasoning(original_reasoning: str, max_len: int = 1400) -> str:
+def build_rule_boundary_audit_note(
+    original_reasoning: str,
+    matched_terms: List[str],
+    preview_len: int = 220,
+) -> str:
     """
-    Rule boundary 위반으로 강제 REJECT 되더라도 운영자가 맥락을 볼 수 있게 상세 근거를 보존합니다.
-
-    왜 필요한가:
-    - 기존에는 고정 문구만 남아 디버깅/운영 판단이 어려웠습니다.
-    - 차단 정책(REJECT)은 유지하면서, 사람이 읽는 설명 품질만 복구하는 것이 목적입니다.
-
-    불변조건:
-    - 항상 Rule boundary 위반 사실은 첫 문장에 명시합니다.
-    - 원문 reasoning이 비어 있으면 대체 문구를 반환합니다.
-    - 과도하게 긴 본문은 상한으로 잘라 Discord payload 길이 폭주를 방지합니다.
+    Rule boundary 위반을 차단하지 않고 기록(audit)만 남길 때 사용할 요약 노트를 생성합니다.
     """
+    terms = ",".join(matched_terms) if matched_terms else "unknown"
     raw = (original_reasoning or "").strip()
-    if not raw:
-        return (
-            "분석가 응답이 재시도 후에도 룰 경계를 위반해 보수적으로 REJECT 처리했습니다. "
-            "다만 원본 상세 분석 근거가 비어 있어 추가 맥락을 제공할 수 없습니다."
-        )
-
-    trimmed = raw if len(raw) <= max_len else f"{raw[:max_len].rstrip()}...(후략)"
+    preview = raw if len(raw) <= preview_len else f"{raw[:preview_len].rstrip()}...(후략)"
+    if not preview:
+        preview = "원본 reasoning이 비어 있어 preview를 남기지 못했습니다."
     return (
-        "분석가 응답이 재시도 후에도 룰 경계를 위반해 보수적으로 REJECT 처리했습니다.\n\n"
-        "[원본 분석 근거]\n"
-        f"{trimmed}"
+        f"[BoundaryAudit] Rule Engine 재판단 흔적 감지(terms={terms}). "
+        f"정책상 차단하지 않고 감사 로그로만 기록합니다. preview={preview}"
     )
 
 
@@ -191,41 +192,24 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     chain = prompt | structured_llm
 
     base_prompt = get_analyst_prompt(prompt_indicators)
-    corrective_note = (
-        "\n\n[재검토 지시]\n"
-        "- 직전 응답에 Rule Engine 검증 항목(RSI/MA/거래량/볼린저) 재판단 흔적이 있었습니다.\n"
-        "- 해당 항목은 다시 판단하지 말고, 캔들 패턴/추세 지속성/급격한 변동성 이상만 근거로 다시 작성하세요."
-    )
-
     result: AnalystDecision | None = None
     validation_error: Exception | None = None
-    for attempt in range(2):
-        analyst_prompt = base_prompt if attempt == 0 else f"{base_prompt}{corrective_note}"
-        try:
-            candidate: AnalystDecision = await chain.ainvoke({
-                "symbol": state["symbol"],
-                "pattern_features": pattern_features,
-                "market_context_ohlc": sanitized_context,
-                "analyst_prompt": analyst_prompt,
-            })
-        except Exception as e:
-            validation_error = e
-            break
+    boundary_terms: List[str] = []
+    boundary_violation = False
 
-        # Rule Engine 검증 항목을 reasoning에서 다시 판단하면 1회 재시도 후 강제 REJECT 처리합니다.
-        if contains_rule_revalidation_reasoning((candidate.reasoning or "").strip()):
-            if attempt == 0:
-                continue
-            return {
-                "analyst_decision": {
-                    "decision": "REJECT",
-                    "confidence": 0,
-                    "reasoning": build_rule_boundary_reject_reasoning(candidate.reasoning),
-                }
-            }
-
+    try:
+        candidate: AnalystDecision = await chain.ainvoke({
+            "symbol": state["symbol"],
+            "pattern_features": pattern_features,
+            "market_context_ohlc": sanitized_context,
+            "analyst_prompt": base_prompt,
+        })
         result = candidate
-        break
+        # 정책 전환(18-15): boundary는 차단하지 않고 audit 기록으로 남긴다.
+        boundary_terms = detect_rule_revalidation_terms((candidate.reasoning or "").strip())
+        boundary_violation = len(boundary_terms) > 0
+    except Exception as e:
+        validation_error = e
 
     if result is None:
         # Structured output 파싱 실패(예: reasoning 누락) 시 보수적 거절
@@ -233,7 +217,9 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
             "analyst_decision": {
                 "decision": "REJECT",
                 "confidence": 0,
-                "reasoning": f"분석가 출력 검증 실패: {str(validation_error)}"
+                "reasoning": f"분석가 출력 검증 실패: {str(validation_error)}",
+                "boundary_violation": False,
+                "boundary_terms": [],
             }
         }
     
@@ -250,11 +236,18 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     if result.decision == "CONFIRM" and result.confidence < 60:
         final_decision = "REJECT"
         final_reasoning = f"[신뢰도 부족: {result.confidence}] {final_reasoning}"
+
+    if boundary_violation:
+        # 강제 REJECT는 하지 않되, 운영 관측을 위해 감사 노트를 reasoning에 부착한다.
+        audit_note = build_rule_boundary_audit_note(final_reasoning, boundary_terms)
+        final_reasoning = f"{final_reasoning}\n\n{audit_note}"
     
     return {
         "analyst_decision": {
             "decision": final_decision,
             "confidence": result.confidence,
-            "reasoning": final_reasoning
+            "reasoning": final_reasoning,
+            "boundary_violation": boundary_violation,
+            "boundary_terms": boundary_terms,
         }
     }
