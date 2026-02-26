@@ -366,9 +366,13 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-plans/14_post_exit_trade_count_split_hotfix.md` | Trade Count 분리 핫픽스 계획 |
 | `docs/work-plans/15_post_exit_analysis_enhancement_plan.md` | 매도 후 사후 분석 강화 계획 |
 | `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md` | 18번 클라우드 마이그레이션 계획(진행 중) |
+| `docs/work-plans/18-13_oci_24h_monitoring_checklist_plan.md` | 18-13 OCI 24시간 집중 모니터링 점검표 정식화 계획 |
+| `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 계획 |
 | `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
 | `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` | 21-01 기준자산 고정 + 3중 캡 주문 체계 전환 계획 |
 | `docs/work-plans/19-01_plan_approval_gate_workflow_update_plan.md` | 19-01 Plan 승인 게이트 워크플로우 정책 개정 계획 |
+| `docs/work-result/18-13_oci_24h_monitoring_checklist_result.md` | 18-13 OCI 24시간 집중 모니터링 점검표 반영 결과 |
+| `docs/work-result/18-14_oci_24h_monitoring_script_automation_result.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 결과 |
 | `docs/work-result/21-01_reference_equity_three_cap_execution_result.md` | 21-01 기준자산/3중 캡 구현 결과 |
 | `docs/work-result/19-01_plan_approval_gate_workflow_update_result.md` | 19-01 승인 게이트 정책 반영 결과 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
@@ -440,6 +444,8 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | 2026-02-25 | 18-12 하위 작업: WSL/OCI 로컬-클라우드 통합 운영 마스터 runbook 작성, 포트/볼륨/백업/알람/복구 기준을 단일 문서로 통합 |
 | 2026-02-26 | 19-01 정책 반영: 문서 워크플로우에 `Plan 작성 → 사용자 승인 → 구현` 승인 게이트 추가 (긴급 대응은 사후 승인 기록 의무) |
 | 2026-02-26 | 21-01 전략 반영: 기준자산(reference equity) 기반 3중 캡 주문 정책, 리스크 한도(20% 주문/100% 총노출/5포지션/일일손실 -3%/일일 BUY 6회)로 100만원 운용 기준 정렬 |
+| 2026-02-26 | 18-13 운영 문서 반영: OCI 재배포/설정 변경 직후 적용하는 24시간 집중 모니터링 점검표(T+0m/1h/6h/12h/24h) 추가 |
+| 2026-02-26 | 18-14 운영 자동화 반영: 24시간 점검 phase(`t0/t1h/t6h/t12h/t24h`)를 자동 수행하는 스크립트(`scripts/ops/check_24h_monitoring.sh`) 추가 |
 
 ---
-*최종 업데이트: 2026-02-26 (19-01/21-01 반영: 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-26 (18-13/18-14/19-01/21-01 반영: 24h 점검표 + 자동화 스크립트 + 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*

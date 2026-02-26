@@ -3,8 +3,8 @@
 작성일: 2026-02-25  
 상태: Ready  
 대상: CoinPilot 운영/개발을 직접 수행하는 사용자(초보~중급)  
-관련 계획: `docs/work-plans/18-12_wsl_oci_local_cloud_operations_master_runbook_plan.md`  
-관련 결과: `docs/work-result/18-12_wsl_oci_local_cloud_operations_master_runbook_result.md`  
+관련 계획: `docs/work-plans/18-12_wsl_oci_local_cloud_operations_master_runbook_plan.md`, `docs/work-plans/18-13_oci_24h_monitoring_checklist_plan.md`, `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md`  
+관련 결과: `docs/work-result/18-12_wsl_oci_local_cloud_operations_master_runbook_result.md`, `docs/work-result/18-13_oci_24h_monitoring_checklist_result.md`, `docs/work-result/18-14_oci_24h_monitoring_script_automation_result.md`  
 
 관련 문서:
 - 인스턴스 생성/OCI CLI: `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
@@ -286,6 +286,34 @@ docker inspect coinpilot-n8n --format '{{ range .Mounts }}{{ if eq .Destination 
 2. 복구 리허설 1회
 3. OCI 보안규칙/예산/쿼터 변경 여부 점검
 
+### 11.3 24시간 집중 모니터링 점검표 (설정 변경/재배포 직후)
+아래는 "설정 변경 직후" 또는 "재배포 직후"에 한 번 수행하는 집중 점검표다.
+
+자동 실행(권장):
+```bash
+cd /opt/coin-pilot
+scripts/ops/check_24h_monitoring.sh all
+```
+
+| 체크포인트 | 점검 항목 | 명령/위치 | 성공 기준 | 이상 시 조치 |
+|---|---|---|---|---|
+| T+0m | 서비스 기동 상태 | `docker compose ... ps` | 핵심 8개 서비스 `Up` | `logs`로 실패 서비스 우선 확인 후 재기동 |
+| T+0m | bot 초기화 오류 | `logs --since=10m bot` | `critical/traceback/undefined` 없음 | 스키마/환경변수/Redis 연결 재검증 |
+| T+1h | 메트릭 수집 연속성 | Prometheus Targets, bot `/metrics` | `coinpilot-core` `UP` 유지 | scrape 설정/네트워크 확인 |
+| T+1h | 알림 라우팅 정상 | Grafana Alert Rules + Discord | 테스트/실제 알림 수신 확인 | Notification policy/contact point 재확인 |
+| T+6h | 거래/의사결정 흐름 | bot 로그(Entry/AI/Risk) | 로그 공백 없이 주기 동작 | 스케줄러 중단/에러 여부 확인 |
+| T+12h | 배치 작업 정상 | `RSS ingest`, `daily report` 로그 | 실패(`failed`) 누적 없음 | n8n workflow active 및 webhook 점검 |
+| T+24h | 백업/복구 준비 | `/var/backups/coinpilot` | 3종 백업 파일 생성 확인 | cron 상태/스크립트 권한 점검 |
+
+실행 명령(OCI):
+```bash
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml ps
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=30m bot | grep -Ei "critical|traceback|undefined|failed"
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=30m n8n | grep -Ei "error|failed|webhook"
+sudo find /var/backups/coinpilot -type f | tail -n 20
+```
+
 ---
 
 ## 12. 다음 단계 (실거래 전환 전)
@@ -321,7 +349,18 @@ curl -sS -X POST "http://localhost:5678/webhook/trade" \
   -d '{"side":"BUY","symbol":"KRW-BTC","price":100,"quantity":0.001}'
 ```
 
+### 13.4 24시간 점검 자동화 스크립트
+```bash
+cd /opt/coin-pilot
+scripts/ops/check_24h_monitoring.sh all
+scripts/ops/check_24h_monitoring.sh t0
+scripts/ops/check_24h_monitoring.sh t24h
+scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-24h.log
+```
+
 ---
 
 ## 14. 변경 이력
 - 2026-02-25: 최초 작성 (WSL/OCI 혼선 복구 경험 및 운영 표준 통합 반영)
+- 2026-02-26: 18-13 반영, 재배포/설정 변경 직후 적용 가능한 24시간 집중 모니터링 점검표(T+0m/1h/6h/12h/24h) 추가
+- 2026-02-26: 18-14 반영, 24시간 점검 자동화 스크립트(`scripts/ops/check_24h_monitoring.sh`) 사용법 추가
