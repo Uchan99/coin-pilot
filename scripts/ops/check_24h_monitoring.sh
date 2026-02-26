@@ -233,7 +233,9 @@ check_batch_jobs_12h() {
     n8n_logs=""
   fi
 
-  if grep -Eiq "traceback|critical|rss .*failed|daily report .*failed|scheduler.*failed" <<<"${bot_logs}"; then
+  # "failed_feeds=0" 같은 정상 통계 필드명은 제외하고,
+  # 실제 실패 문맥(예: "... job failed:" / "scheduler...failed:")만 감지한다.
+  if grep -Eiq "traceback|critical|rss (ingest|summarize) job failed:|daily report .*failed|scheduler.*failed:" <<<"${bot_logs}"; then
     fail "bot 배치 로그에서 실패 키워드 감지"
   else
     pass "bot 배치 실패 키워드 없음"
