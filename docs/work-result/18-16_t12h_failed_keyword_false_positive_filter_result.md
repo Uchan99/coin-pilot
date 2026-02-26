@@ -4,8 +4,8 @@
 작성자: Codex (GPT-5)  
 관련 계획서: `docs/work-plans/18-16_t12h_failed_keyword_false_positive_filter_plan.md`  
 상태: Verified  
-완료 범위: Phase 1  
-선반영/추가 구현: 없음  
+완료 범위: Phase 1~2  
+선반영/추가 구현: 있음(Phase 2: 운영 해석 가이드 문서화)  
 관련 트러블슈팅(있다면): `docs/troubleshooting/18-16_t12h_failed_keyword_false_positive.md`
 
 ---
@@ -142,6 +142,48 @@
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) 운영 로그 샘플 fixture 기반 스크립트 회귀 테스트 도입 검토
   2) 모니터링 스크립트 strict/lenient 모드 분리 검토
+
+---
+
+## 11. 운영 해석 가이드 (Phase 2)
+### 11.1 T+ 용어 의미
+- `t0`: 즉시 상태 점검(서비스 Up/치명 로그)
+- `t1h`: 최근 1시간 관점에서 Prometheus target up 상태 + 알림 라우팅 수동 점검 안내
+- `t6h`: 최근 6시간 Entry/AI/Risk 이벤트 흐름 연속성 점검
+- `t12h`: 최근 12시간 배치 실패 누적 점검
+- `t24h`: 최근 24시간 백업 파일/cron 상태 점검
+- `all`: 위 phase를 순차 실행
+
+### 11.2 PASS/WARN/FAIL 해석
+- `PASS`: 자동 기준 충족
+- `WARN`: 자동 확정이 어려워 운영자 수동 확인 필요(예: Grafana/Discord UI 확인)
+- `FAIL`: 기준 위반 감지(실제 장애 또는 오탐 가능)
+
+### 11.3 오탐(False Positive) 정의
+- 의미:
+  - 실제 장애가 없는데 규칙이 실패로 판정한 상태
+- 본 이슈 사례:
+  - `failed_feeds=0`(정상 통계 필드) 문자열이 기존 패턴(`scheduler.*failed`)에 매칭되어 FAIL 발생
+- 보정 후 기준:
+  - `...job failed:` 또는 `...failed:`처럼 실패 문맥이 있는 로그만 FAIL로 판정
+
+### 11.4 실행 시 확인되는 항목 요약
+- `t0`:
+  - Compose 8개 서비스 상태
+  - bot 최근 10분 치명 오류 키워드
+- `t1h`:
+  - `up{job="coinpilot-core"}` 값 확인
+  - Grafana Alert rules / Contact point 테스트 수동 확인 안내
+- `t6h`:
+  - bot 치명 키워드
+  - Entry/AI/Risk 이벤트 발생 건수
+- `t12h`:
+  - bot 배치 실패 키워드
+  - RSS ingest 완료 로그
+  - n8n 에러 키워드
+- `t24h`:
+  - Postgres/Redis/n8n 백업 최신성
+  - cron active 상태
 
 ---
 
