@@ -2,7 +2,7 @@
 
 **작성일**: 2026-02-23  
 **작성자**: Codex (GPT-5)  
-**상태**: Investigating  
+**상태**: Verified  
 **관련 계획 문서**: `docs/work-plans/18_cloud_migration_cost_optimized_deployment_plan.md`  
 
 ---
@@ -68,3 +68,6 @@
 ## 8. 후속 조치
 - 다음에 유사 문제 방지를 위한 작업:
   1) 사용자 노출 메시지 다국어/톤 가이드 정리
+
+## 9. 계획 변경 이력
+- 2026-02-27: 결과 문서(`docs/work-result/18-04_ai_reject_reason_koreanization_result.md`)와 상태 정합성을 맞추기 위해 plan 상태를 `Investigating` -> `Verified`로 정정.
