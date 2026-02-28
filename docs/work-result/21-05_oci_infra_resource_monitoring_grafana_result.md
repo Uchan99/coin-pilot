@@ -125,9 +125,13 @@
   - `curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22node-exporter%22%7D"`
   - `curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22cadvisor%22%7D"`
   - `cd /opt/coin-pilot && scripts/ops/check_24h_monitoring.sh t1h`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=topk(10, container_memory_working_set_bytes{job=\"cadvisor\"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=container_scrape_error{job=\"cadvisor\"}'`
 - 결과:
-  - 본 작업 환경에서는 Docker runtime 미사용(WSL sandbox 제약)으로 미실행
-  - 상기 명령을 OCI에서 실행해 `UP(1)` 확인 필요
+  - `scripts/ops/check_24h_monitoring.sh t0`: FAIL 0 / WARN 0
+  - `scripts/ops/check_24h_monitoring.sh t1h`: infra target(`node-exporter`, `cadvisor`) `UP(1)` 확인
+  - `topk(...container_memory_working_set_bytes...)`에서 `/system.slice/docker-<id>.scope` 시계열 다수 확인
+  - `container_scrape_error{job=\"cadvisor\"}` 값 `0` 확인
 
 ---
 
@@ -183,7 +187,7 @@
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
   - exporter 추가 및 t0/t1h 점검 경로는 OCI에서 동작 확인됨
-  - 컨테이너 패널 `No data` 보정(Phase 2 핫픽스)을 코드 반영했으며 운영 반영 확인만 남음
+  - 컨테이너 패널 `No data` 이슈를 해결했고, 컨테이너 지표는 `cid`(container id) 기준으로 표시됨
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) `24_discord_mobile_chatbot_query_plan` 구현 착수
   2) 21-03 카나리 실험 전, 21-05 인프라 알람 임계치 튜닝
@@ -194,6 +198,7 @@
 - 추가 변경 요약:
   - cAdvisor docker factory API 버전 불일치(1.41<1.44) 환경에서 Docker 라벨 기반 쿼리가 실패함을 확인.
   - 컨테이너 패널 쿼리를 `name` 기준에서 `id=~\"/system.slice/docker-.*\\.scope\"` 기준으로 전환해 즉시 시각화 복구.
+  - 대시보드 범례를 긴 cgroup 경로 대신 `cid`(container id)로 표기하도록 보정.
   - `id=\"/\"` 루트 cgroup만 수집되는 현상을 완화하기 위해 cadvisor 권한/마운트를 보강하고 `docker_only=false`로 전환함.
 - 추가 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`

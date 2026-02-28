@@ -274,6 +274,27 @@ curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22cadvisor%22%7D"
 - `scripts/ops/check_24h_monitoring.sh t1h`에서 `node-exporter`, `cadvisor`도 `UP(1)` 검증
 - `t0` 서비스 상태 점검에 exporter 2개 포함
 
+### 9.4 컨테이너 패널 값 해석법
+`Container CPU/Memory/Restart` 패널의 범례는 `cid`(Docker container id) 기준이다.
+
+1. 왜 이름이 아니라 ID가 보이나?
+- 현재 OCI 환경의 cAdvisor는 Docker factory API 버전 불일치로 Docker 라벨(`name`, `container_label_*`)을 안정적으로 제공하지 못할 수 있다.
+- 이 경우 systemd cgroup 경로에서 추출한 container id(`cid`)를 기준으로 관측한다.
+
+2. `cid`를 실제 컨테이너 이름으로 매핑
+```bash
+# 현재/과거 컨테이너 포함 매핑표
+docker ps -a --no-trunc --format '{{.ID}} {{.Names}}' | awk '{printf \"%s -> %s\\n\", $1, $2}'
+
+# 특정 cid 하나를 이름으로 조회
+CID=<패널에 보이는 cid 값>
+docker ps -a --no-trunc --filter "id=${CID}" --format '{{.Names}}'
+```
+
+3. 왜 예전에 보던 cid도 패널에 나오나?
+- Grafana 시간 범위(예: Last 12h) 안에 재시작/재생성된 컨테이너의 과거 시계열이 함께 보이기 때문이다.
+- 현재 실행 중 컨테이너만 보고 싶으면 시간 범위를 `Last 15m` 또는 `Last 1h`로 줄여서 확인한다.
+
 ---
 
 ## 10. 자주 헷갈린 질문 정리 (FAQ)

@@ -343,8 +343,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (id) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"}[5m])) * 100",
-          "legendFormat": "{{id}}",
+          "expr": "sum by (cid) (label_replace(rate(container_cpu_usage_seconds_total{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"}[5m]), \"cid\", \"$1\", \"id\", \"/system\\\\.slice/docker-([0-9a-f]+)\\\\.scope\")) * 100",
+          "legendFormat": "{{cid}}",
           "range": true,
           "refId": "A"
         }
@@ -399,8 +399,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (id) (container_memory_working_set_bytes{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"})",
-          "legendFormat": "{{id}}",
+          "expr": "sum by (cid) (label_replace(container_memory_working_set_bytes{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"}, \"cid\", \"$1\", \"id\", \"/system\\\\.slice/docker-([0-9a-f]+)\\\\.scope\"))",
+          "legendFormat": "{{cid}}",
           "range": true,
           "refId": "A"
         }
@@ -448,8 +448,8 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (id) (changes(container_start_time_seconds{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"}[24h]))",
-          "legendFormat": "{{id}}",
+          "expr": "sum by (cid) (label_replace(changes(container_start_time_seconds{job=\"cadvisor\",id=~\"/system.slice/docker-.*\\\\.scope\"}[24h]), \"cid\", \"$1\", \"id\", \"/system\\\\.slice/docker-([0-9a-f]+)\\\\.scope\"))",
+          "legendFormat": "{{cid}}",
           "range": true,
           "refId": "A"
         }
@@ -548,6 +548,6 @@
   "timezone": "",
   "title": "CoinPilot Infra Overview",
   "uid": "coinpilot-infra-01",
-  "version": 4,
+  "version": 5,
   "weekStart": ""
 }
