@@ -5,8 +5,8 @@
 관련 계획서: docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md
 상태: Implemented
 완료 범위: Phase 1
-선반영/추가 구현: 없음
-관련 트러블슈팅(있다면): 없음
+선반영/추가 구현: 있음(Phase 2 일부)
+관련 트러블슈팅(있다면): docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md
 
 ---
 
@@ -182,11 +182,27 @@
 
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
-  - 코드/문서 기준으로 21-05 구현 완료
-  - OCI 런타임 적용/검증만 남음
+  - exporter 추가 및 t0/t1h 점검 경로는 OCI에서 동작 확인됨
+  - 컨테이너 패널 `No data` 보정(Phase 2 핫픽스)을 코드 반영했으며 운영 반영 확인만 남음
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) `24_discord_mobile_chatbot_query_plan` 구현 착수
   2) 21-03 카나리 실험 전, 21-05 인프라 알람 임계치 튜닝
+
+---
+
+## 11. (선택) Phase 2+ 선반영/추가 구현 결과
+- 추가 변경 요약:
+  - cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해, 컨테이너 패널 쿼리 정규식을 보정함.
+- 추가 변경 파일:
+  - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`
+  - `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md`
+- 추가 검증 결과:
+  - JSON 문법 검증 통과(`python3 -m json.tool ...`)
+  - 운영 반영 후 Grafana 패널 시계열 확인 필요
+- 영향/리스크:
+  - 기존 쿼리 대비 라벨 호환성 개선으로 `No data` 가능성 감소
+  - 다만 cAdvisor 라벨 스키마가 크게 달라지는 환경에서는 추가 튜닝이 필요할 수 있음
 
 ---
 
@@ -194,3 +210,4 @@
 - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`
 - `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
 - `docs/PROJECT_CHARTER.md`
+- `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md`

@@ -397,6 +397,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/troubleshooting/18-16_t12h_failed_keyword_false_positive.md` | 18-16 T+12h 실패 키워드 오탐으로 인한 모니터링 FAIL 이슈 대응 기록 |
 | `docs/troubleshooting/18-17_trade_notification_quantity_blank.md` | 18-17 Trade Notification의 Quantity 공백 표시 이슈 대응 기록 |
 | `docs/troubleshooting/18-18_notification_style_and_decision_color.md` | 18-18 알림 이모지 제거 및 AI Decision 색상 분기 반영 이슈 대응 기록 |
+| `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md` | 21-05 인프라 대시보드 컨테이너 패널 No data(cAdvisor 라벨 매칭 불일치) 이슈 대응 기록 |
 | `docs/work-plans/18-01_compose_system_health_schema_alignment_plan.md` | 18-01 Compose System/스키마 정합성 복구 계획 |
 | `docs/work-result/18-01_compose_system_health_schema_alignment_result.md` | 18-01 Compose System/데이터 복구 구현 결과 |
 | `docs/troubleshooting/18-01_system_health_agent_decisions_and_data_sync.md` | 18-01 System 오류 및 데이터 공백 복구 트러블슈팅 |
@@ -465,6 +466,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | 2026-02-26 | 18-17 알림 정합성 보정: `trade_notification` workflow expression에 `$json/$json.body` fallback 및 `qty/quantity` 동시 지원, BUY/SELL/기타 color 분기를 추가해 체결 알림 필드 누락을 완화 |
 | 2026-02-26 | 18-18 알림 스타일 반영: Trade/AI Decision 메시지에서 이모지를 제거하고, AI Decision은 CONFIRM(녹색)/REJECT(적색)/기타(회색) color 분기를 적용 |
 | 2026-02-28 | 21-05 운영 관측성 확장: OCI 콘솔 `No data` 보완을 위해 `node-exporter`/`cadvisor`를 Compose+Prometheus에 추가하고, Grafana 인프라 대시보드 및 24h 점검 스크립트(t0/t1h) 범위를 인프라 타겟까지 확장 |
+| 2026-02-28 | 21-05 후속 핫픽스: cAdvisor `name` 라벨 선행 `/` 환경에서 컨테이너 패널 No data 발생 이슈를 해결하기 위해 Grafana 인프라 대시보드 쿼리 정규식을 `/?coinpilot-.*`로 보정 |
 
 ---
 *최종 업데이트: 2026-02-28 (21-05 반영: exporter 기반 인프라 관측(node-exporter/cadvisor), Grafana 인프라 대시보드, 24h 점검 스크립트 t0/t1h 확장) by Codex (GPT-5)*

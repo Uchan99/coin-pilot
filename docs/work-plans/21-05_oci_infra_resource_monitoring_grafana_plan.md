@@ -5,6 +5,7 @@
 **상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md`, `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md`  
 **승인 정보**: 사용자 / 2026-02-28 / "21-05 계획부터 확정해서 진행하자"
+**관련 트러블슈팅**: `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md`
 
 ---
 
@@ -117,3 +118,6 @@
 1) OCI 콘솔 메트릭 경로(Compute Agent) 복구 가능 여부는 별도 트랙으로 점검  
 2) 인프라 대시보드와 앱 대시보드를 분리 운영(Ops/Trading)  
 3) 실거래 전환 전 7일간 알람 오탐률 튜닝
+
+## 11. 계획 변경 이력
+- 2026-02-28: 1차 적용 후 Grafana 컨테이너 패널이 `No data`로 표시되는 이슈를 확인. cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해 대시보드 쿼리 정규식(`/?coinpilot-.*`) 보정 항목을 계획 범위에 추가.
