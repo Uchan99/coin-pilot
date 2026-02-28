@@ -343,7 +343,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"/?coinpilot-.*\",image!=\"\"}[5m])) * 100",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",name=~\"/?coinpilot-.*\"}[5m])) * 100",
           "legendFormat": "{{name}}",
           "range": true,
           "refId": "A"
@@ -399,7 +399,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=~\"/?coinpilot-.*\",image!=\"\"})",
+          "expr": "sum by (name) (container_memory_working_set_bytes{job=\"cadvisor\",name=~\"/?coinpilot-.*\"})",
           "legendFormat": "{{name}}",
           "range": true,
           "refId": "A"
@@ -448,7 +448,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (changes(container_start_time_seconds{name=~\"/?coinpilot-.*\",image!=\"\"}[24h]))",
+          "expr": "sum by (name) (changes(container_start_time_seconds{job=\"cadvisor\",name=~\"/?coinpilot-.*\"}[24h]))",
           "legendFormat": "{{name}}",
           "range": true,
           "refId": "A"
@@ -548,6 +548,6 @@
   "timezone": "",
   "title": "CoinPilot Infra Overview",
   "uid": "coinpilot-infra-01",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
