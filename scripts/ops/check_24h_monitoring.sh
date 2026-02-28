@@ -16,7 +16,7 @@ WARN_COUNT=0
 MODE="all"
 OUTPUT_FILE=""
 
-SERVICES=(bot collector dashboard db grafana n8n prometheus redis)
+SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor)
 
 usage() {
   cat <<'EOF'
@@ -184,6 +184,39 @@ check_prometheus_up() {
   fi
 }
 
+check_prometheus_infra_targets_up() {
+  info "T+1h: Prometheus infra target(node-exporter/cadvisor) UP 점검"
+  if ! command -v curl >/dev/null 2>&1; then
+    fail "curl 명령을 찾을 수 없음"
+    return
+  fi
+
+  # 문자열 비교 오탐을 줄이기 위해 대상 job을 각각 분리 조회한다.
+  # 두 exporter는 인프라 지표의 소스이므로 하나라도 DOWN이면 운영 관측 공백이 생긴다.
+  local jobs=(node-exporter cadvisor)
+  local job response
+  for job in "${jobs[@]}"; do
+    response="$(
+      curl -fsSG "${PROMETHEUS_URL}/api/v1/query" \
+        --data-urlencode "query=up{job=\"${job}\"}" 2>/dev/null || true
+    )"
+
+    if [[ -z "${response}" ]]; then
+      fail "${job} target 조회 응답 없음 (${PROMETHEUS_URL})"
+      continue
+    fi
+    if ! grep -q '"status":"success"' <<<"${response}"; then
+      fail "${job} target 조회 실패 응답: ${response}"
+      continue
+    fi
+    if grep -Eq '"value":[[][^]]*,"1"' <<<"${response}"; then
+      pass "${job} target이 UP(1)"
+    else
+      fail "${job} target이 UP(1) 아님: ${response}"
+    fi
+  done
+}
+
 check_manual_alert_routing_notice() {
   info "T+1h: Grafana/Discord 라우팅 확인 안내"
   warn "Grafana Alert Rule/Notification Policy와 Discord 수신은 UI에서 수동 확인 필요"
@@ -307,6 +340,7 @@ run_t0() {
 
 run_t1h() {
   check_prometheus_up
+  check_prometheus_infra_targets_up
   check_manual_alert_routing_notice
 }
 

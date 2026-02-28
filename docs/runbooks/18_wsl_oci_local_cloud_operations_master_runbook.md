@@ -84,6 +84,8 @@ ssh -i "C:\Users\syt07\.ssh\ssh-key-2026-02-24.key" \
 6. `coinpilot-n8n`
 7. `coinpilot-prometheus`
 8. `coinpilot-grafana`
+9. `coinpilot-node-exporter` (호스트 리소스 메트릭)
+10. `coinpilot-cadvisor` (컨테이너 리소스 메트릭)
 
 자동복구:
 - systemd unit: `coinpilot-compose.service`
@@ -251,6 +253,27 @@ docker inspect coinpilot-n8n --format '{{ range .Mounts }}{{ if eq .Destination 
 ### 9.2 NoData 정책
 `DatasourceNoData` 영어 알림이 오면 룰의 `No data` 처리값을 `Normal(OK)`로 조정한다.
 
+### 9.3 인프라 리소스 모니터링(21-05 반영)
+인프라 리소스는 OCI 콘솔(`No data`) 대신 Grafana에서 본다.
+
+1. 대시보드
+- `CoinPilot Infra Overview` (UID: `coinpilot-infra-01`)
+- 포함 패널:
+  - Host CPU / Memory / Root Disk
+  - Host Network RX/TX
+  - Container CPU / Memory / Restart changes(24h)
+  - Scrape Target Status (`coinpilot-core`, `node-exporter`, `cadvisor`, `prometheus`)
+
+2. Prometheus 타겟 확인
+```bash
+curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22node-exporter%22%7D"
+curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22cadvisor%22%7D"
+```
+
+3. 자동 점검 스크립트 반영 항목
+- `scripts/ops/check_24h_monitoring.sh t1h`에서 `node-exporter`, `cadvisor`도 `UP(1)` 검증
+- `t0` 서비스 상태 점검에 exporter 2개 포함
+
 ---
 
 ## 10. 자주 헷갈린 질문 정리 (FAQ)
@@ -297,7 +320,7 @@ scripts/ops/check_24h_monitoring.sh all
 
 | 체크포인트 | 점검 항목 | 명령/위치 | 성공 기준 | 이상 시 조치 |
 |---|---|---|---|---|
-| T+0m | 서비스 기동 상태 | `docker compose ... ps` | 핵심 8개 서비스 `Up` | `logs`로 실패 서비스 우선 확인 후 재기동 |
+| T+0m | 서비스 기동 상태 | `docker compose ... ps` | 핵심 10개 서비스 `Up` | `logs`로 실패 서비스 우선 확인 후 재기동 |
 | T+0m | bot 초기화 오류 | `logs --since=10m bot` | `critical/traceback/undefined` 없음 | 스키마/환경변수/Redis 연결 재검증 |
 | T+1h | 메트릭 수집 연속성 | Prometheus Targets, bot `/metrics` | `coinpilot-core` `UP` 유지 | scrape 설정/네트워크 확인 |
 | T+1h | 알림 라우팅 정상 | Grafana Alert Rules + Discord | 테스트/실제 알림 수신 확인 | Notification policy/contact point 재확인 |
@@ -364,3 +387,4 @@ scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-2
 - 2026-02-25: 최초 작성 (WSL/OCI 혼선 복구 경험 및 운영 표준 통합 반영)
 - 2026-02-26: 18-13 반영, 재배포/설정 변경 직후 적용 가능한 24시간 집중 모니터링 점검표(T+0m/1h/6h/12h/24h) 추가
 - 2026-02-26: 18-14 반영, 24시간 점검 자동화 스크립트(`scripts/ops/check_24h_monitoring.sh`) 사용법 추가
+- 2026-02-28: 21-05 반영, 인프라 exporter(`coinpilot-node-exporter`, `coinpilot-cadvisor`) 및 Grafana 인프라 대시보드 운영 절차 추가

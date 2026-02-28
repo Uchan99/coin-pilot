@@ -2,10 +2,21 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  # 애플리케이션 핵심 메트릭(bot /metrics)
   - job_name: 'coinpilot-core'
     static_configs:
       - targets: ['bot:8000']
     metrics_path: '/metrics'
+
+  # 호스트 레벨(CPU/RAM/Disk/Network) 메트릭
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # 컨테이너 레벨(CPU/RAM/재시작 추이) 메트릭
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
 
   - job_name: 'prometheus'
     static_configs:

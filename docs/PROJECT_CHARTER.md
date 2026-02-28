@@ -374,6 +374,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-plans/18-18_notification_emoji_removal_and_ai_decision_color_split_plan.md` | 18-18 알림 이모지 제거 및 AI Decision CONFIRM/REJECT 색상 분기 계획 |
 | `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
 | `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` | 21-01 기준자산 고정 + 3중 캡 주문 체계 전환 계획 |
+| `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` | 21-05 OCI 인프라 리소스 모니터링을 Grafana/Prometheus exporter 기반으로 확장하는 계획 |
 | `docs/work-plans/19-01_plan_approval_gate_workflow_update_plan.md` | 19-01 Plan 승인 게이트 워크플로우 정책 개정 계획 |
 | `docs/work-result/18-13_oci_24h_monitoring_checklist_result.md` | 18-13 OCI 24시간 집중 모니터링 점검표 반영 결과 |
 | `docs/work-result/18-14_oci_24h_monitoring_script_automation_result.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 결과 |
@@ -382,6 +383,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-result/18-17_trade_notification_payload_fallback_and_color_split_result.md` | 18-17 Trade Notification payload fallback 및 color 분기 구현 결과 |
 | `docs/work-result/18-18_notification_emoji_removal_and_ai_decision_color_split_result.md` | 18-18 알림 이모지 제거 및 AI Decision CONFIRM/REJECT 색상 분기 구현 결과 |
 | `docs/work-result/21-01_reference_equity_three_cap_execution_result.md` | 21-01 기준자산/3중 캡 구현 결과 |
+| `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` | 21-05 인프라 exporter(node-exporter/cadvisor) + Grafana 인프라 대시보드 + 24h 점검 스크립트 확장 결과 |
 | `docs/work-result/19-01_plan_approval_gate_workflow_update_result.md` | 19-01 승인 게이트 정책 반영 결과 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
@@ -462,6 +464,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | 2026-02-26 | 18-16 운영 보정 반영: T+12h 실패 탐지 정규식을 보정해 `failed_feeds=0` 정상 로그 오탐을 제거하고 실제 실패 문맥(`...failed:`/`...job failed:`)만 감지하도록 조정 |
 | 2026-02-26 | 18-17 알림 정합성 보정: `trade_notification` workflow expression에 `$json/$json.body` fallback 및 `qty/quantity` 동시 지원, BUY/SELL/기타 color 분기를 추가해 체결 알림 필드 누락을 완화 |
 | 2026-02-26 | 18-18 알림 스타일 반영: Trade/AI Decision 메시지에서 이모지를 제거하고, AI Decision은 CONFIRM(녹색)/REJECT(적색)/기타(회색) color 분기를 적용 |
+| 2026-02-28 | 21-05 운영 관측성 확장: OCI 콘솔 `No data` 보완을 위해 `node-exporter`/`cadvisor`를 Compose+Prometheus에 추가하고, Grafana 인프라 대시보드 및 24h 점검 스크립트(t0/t1h) 범위를 인프라 타겟까지 확장 |
 
 ---
-*최종 업데이트: 2026-02-26 (18-13/18-14/18-15/18-16/18-17/18-18/19-01/21-01 반영: 24h 점검표 + 자동화 스크립트 + Boundary audit 모드 + T+12h 오탐 제거 + Trade 알림 fallback/색상 분기 + 알림 이모지 제거/AI Decision 색상 분기 + 승인 게이트 + 기준자산 3중 캡 주문 정책) by Codex (GPT-5)*
+*최종 업데이트: 2026-02-28 (21-05 반영: exporter 기반 인프라 관측(node-exporter/cadvisor), Grafana 인프라 대시보드, 24h 점검 스크립트 t0/t1h 확장) by Codex (GPT-5)*

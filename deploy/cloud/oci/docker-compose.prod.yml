@@ -127,6 +127,34 @@ services:
     volumes:
       - coinpilot_n8n_data:/home/node/.n8n
 
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.1
+    container_name: coinpilot-node-exporter
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.rootfs=/host/root
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    container_name: coinpilot-cadvisor
+    restart: unless-stopped
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=30s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
   prometheus:
     image: prom/prometheus:v2.45.0
     container_name: coinpilot-prometheus
@@ -141,6 +169,10 @@ services:
       - coinpilot_prometheus_data:/prometheus
     depends_on:
       bot:
+        condition: service_started
+      node-exporter:
+        condition: service_started
+      cadvisor:
         condition: service_started
 
   grafana:

@@ -2,9 +2,9 @@
 
 **작성일**: 2026-02-27  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md`, `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**승인 정보**: 사용자 / 2026-02-28 / "21-05 계획부터 확정해서 진행하자"
 
 ---
 
@@ -69,9 +69,10 @@
   1) `deploy/cloud/oci/docker-compose.prod.yml`
   2) `deploy/cloud/oci/monitoring/prometheus.yml`
   3) `deploy/cloud/oci/monitoring/grafana/provisioning/dashboards/provider.yaml` (필요 시)
-  4) `monitoring/grafana-provisioning/dashboards/` 하위 대시보드 JSON (신규)
+  4) `deploy/monitoring/grafana-provisioning/dashboards/` 하위 대시보드 JSON (신규)
   5) `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
-  6) `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` (신규)
+  6) `scripts/ops/check_24h_monitoring.sh`
+  7) `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` (신규)
 
 - 추가 서비스(예정):
   - `node-exporter` (호스트 CPU/Memory/Disk/Network)
