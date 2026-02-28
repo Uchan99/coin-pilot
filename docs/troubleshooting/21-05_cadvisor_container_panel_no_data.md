@@ -51,16 +51,16 @@
   - `up{job="cadvisor"}` 확인 결과 정상
   - `/api/v1/targets`에서 cadvisor target health `up`
   - `topk(10, container_memory_working_set_bytes{job="cadvisor"})` 결과가 루트 cgroup 1개(`id="/"`)뿐임을 확인
-  - 초기 쿼리(`name=~"coinpilot-.*"`)가 선행 `/` 환경에 취약함을 확인
+  - cadvisor 로그에서 `docker container factory failed: client version 1.41 is too old (min 1.44)` 확인
 - Root cause(결론):
-  - 1차 원인: 대시보드 라벨 매칭 불일치(`name` 선행 `/` 미고려)
-  - 2차 원인: cAdvisor 실행 권한/마운트 부족으로 컨테이너별 시계열이 노출되지 않고 루트 cgroup만 수집됨
+  - 1차 원인: cadvisor docker factory가 API 버전 불일치(1.41 < 1.44)로 실패해 Docker 라벨(`name`, `container_label_*`) 미노출
+  - 2차 원인: 대시보드가 `name` 라벨 기반이라 systemd cgroup(`id=/system.slice/docker-...scope`)만 노출되는 환경에서 매칭 불가
 
 ---
 
 ## 5. 해결 전략
 - 단기 핫픽스:
-  - 컨테이너 패널 쿼리 정규식을 `name=~"/?coinpilot-.*"`로 확장
+  - 컨테이너 패널 쿼리를 `id=~"/system.slice/docker-.*\\.scope"` 기준으로 전환해 즉시 관측 복구
 - 근본 해결:
   - `cadvisor` 서비스 권한/마운트 보강(`privileged`, `/var/run/docker.sock`, `/sys/fs/cgroup`, `/dev/kmsg`)으로 컨테이너별 시계열 수집 복원
 - 안전장치(feature flag, rate limit, timeout/cooldown, circuit breaker 등):
@@ -70,7 +70,7 @@
 
 ## 6. 수정 내용
 - 변경 요약:
-  - 컨테이너 3개 패널 쿼리의 `name` 라벨 정규식 보정
+  - 컨테이너 3개 패널 쿼리를 `name` 기준에서 `id` 기준으로 전환
   - cAdvisor 권한/마운트 보강 및 `docker_only=false` 전환
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`

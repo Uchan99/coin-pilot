@@ -192,8 +192,9 @@
 
 ## 11. (선택) Phase 2+ 선반영/추가 구현 결과
 - 추가 변경 요약:
-  - cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해 컨테이너 패널 쿼리 정규식을 보정함.
-  - `id=\"/\"` 루트 cgroup만 수집되는 현상을 해결하기 위해 cadvisor 권한/마운트를 보강하고 `docker_only=false`로 전환함.
+  - cAdvisor docker factory API 버전 불일치(1.41<1.44) 환경에서 Docker 라벨 기반 쿼리가 실패함을 확인.
+  - 컨테이너 패널 쿼리를 `name` 기준에서 `id=~\"/system.slice/docker-.*\\.scope\"` 기준으로 전환해 즉시 시각화 복구.
+  - `id=\"/\"` 루트 cgroup만 수집되는 현상을 완화하기 위해 cadvisor 권한/마운트를 보강하고 `docker_only=false`로 전환함.
 - 추가 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
   - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
