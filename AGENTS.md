@@ -4,6 +4,7 @@
 - Start every task by reading: docs/PROJECT_CHARTER.md
 - If implementation/monitoring requires changing rules/scope/ops policy, update PROJECT_CHARTER.md and append to its changelog.
 - Never change core definitions silently (metrics, risk rules, thresholds, naming, workflow). Always document.
+- Maintain remaining-work tracking in: `docs/checklists/remaining_work_master_checklist.md`
 
 ## Required workflow (documents are mandatory)
 1) Before coding, write a plan:
@@ -20,7 +21,11 @@
    - Independent work: docs/work-result/<NN>_<topic>_result.md
    - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
    - If phased, append Phase 2+ at the bottom of the same result file.
-5) If issues arise (monitoring/bug/ops):
+5) Keep the master remaining-work checklist in sync:
+   - If a new **main** plan is created, add/update an item in `docs/checklists/remaining_work_master_checklist.md`.
+   - If implementation starts/completes for a main plan, update checklist status (`todo/in_progress/blocked/done`) in the same change.
+   - If a task is blocked or incident-driven, add the troubleshooting link in the checklist row.
+6) If issues arise (monitoring/bug/ops):
    - Independent work: docs/troubleshooting/<NN>_<topic>.md
    - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
    - Link it from the related plan/result, and record any charter updates.

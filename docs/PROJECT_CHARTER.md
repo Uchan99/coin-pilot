@@ -23,6 +23,7 @@
   - Independent work: docs/work-result/<NN>_<topic>_result.md
   - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
   - Phase 단위 구현인 경우 Phase 2+는 동일 Result 파일 하단에 이어서 기록한다.
+- Main 계획의 생성/상태 변경/구현 완료 시 `docs/checklists/remaining_work_master_checklist.md`를 함께 갱신한다.
 
 2) Troubleshooting is mandatory for incidents
 - 모니터링/운영/버그/장애가 발생하면:
@@ -375,6 +376,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-plans/20_oci_paid_tier_security_and_cost_guardrails_plan.md` | 20번 유료 전환 대비 보안/과금 가드레일 강화 계획 |
 | `docs/work-plans/21-01_reference_equity_three_cap_execution_plan.md` | 21-01 기준자산 고정 + 3중 캡 주문 체계 전환 계획 |
 | `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` | 21-05 OCI 인프라 리소스 모니터링을 Grafana/Prometheus exporter 기반으로 확장하는 계획 |
+| `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md` | 25 남은 작업 단일 마스터 체크리스트 도입 및 AGENTS 동기화 규칙 추가 계획 |
 | `docs/work-plans/19-01_plan_approval_gate_workflow_update_plan.md` | 19-01 Plan 승인 게이트 워크플로우 정책 개정 계획 |
 | `docs/work-result/18-13_oci_24h_monitoring_checklist_result.md` | 18-13 OCI 24시간 집중 모니터링 점검표 반영 결과 |
 | `docs/work-result/18-14_oci_24h_monitoring_script_automation_result.md` | 18-14 OCI 24시간 모니터링 스크립트 자동화 결과 |
@@ -384,7 +386,9 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | `docs/work-result/18-18_notification_emoji_removal_and_ai_decision_color_split_result.md` | 18-18 알림 이모지 제거 및 AI Decision CONFIRM/REJECT 색상 분기 구현 결과 |
 | `docs/work-result/21-01_reference_equity_three_cap_execution_result.md` | 21-01 기준자산/3중 캡 구현 결과 |
 | `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` | 21-05 인프라 exporter(node-exporter/cadvisor) + Grafana 인프라 대시보드 + 24h 점검 스크립트 확장 결과 |
+| `docs/work-result/25_remaining_work_master_checklist_and_agents_workflow_update_result.md` | 25 단일 remaining-work 체크리스트 생성 및 AGENTS 체크리스트 동기화 규칙 반영 결과 |
 | `docs/work-result/19-01_plan_approval_gate_workflow_update_result.md` | 19-01 승인 게이트 정책 반영 결과 |
+| `docs/checklists/remaining_work_master_checklist.md` | 우선순위 기반 남은 작업 단일 마스터 체크리스트 |
 | `docs/troubleshooting/13_strategy_regime_reliability_and_hotfixes.md` | 13번 트러블슈팅 기록 |
 | `docs/troubleshooting/14_trade_count_split_hotfix.md` | 14번 트러블슈팅 기록 |
 | `docs/troubleshooting/prometheus_grafana_monitoring_runbook.md` | Prometheus/Grafana 점검 및 활용 Runbook |
@@ -467,6 +471,7 @@ AI가 오버라이드할 수 없는 절대 규칙이며, 운영 설정(YAML)으�
 | 2026-02-26 | 18-18 알림 스타일 반영: Trade/AI Decision 메시지에서 이모지를 제거하고, AI Decision은 CONFIRM(녹색)/REJECT(적색)/기타(회색) color 분기를 적용 |
 | 2026-02-28 | 21-05 운영 관측성 확장: OCI 콘솔 `No data` 보완을 위해 `node-exporter`/`cadvisor`를 Compose+Prometheus에 추가하고, Grafana 인프라 대시보드 및 24h 점검 스크립트(t0/t1h) 범위를 인프라 타겟까지 확장 |
 | 2026-02-28 | 21-05 후속 핫픽스: cAdvisor 컨테이너 패널 No data 이슈 대응으로 `cadvisor` 권한/마운트(`privileged`, `docker.sock`, `cgroup`, `kmsg`) 및 `docker_only=false`를 반영하고, Docker 라벨 불일치 환경을 위해 패널 쿼리를 `id=/system.slice/docker-...scope` 기준으로 보정 |
+| 2026-03-01 | 25 운영 문서체계 반영: `docs/checklists/remaining_work_master_checklist.md` 단일 체크리스트를 도입하고, main 계획 생성/상태 변경/구현 완료 시 체크리스트 동기화를 AGENTS/Charter 규칙으로 추가 |
 
 ---
-*최종 업데이트: 2026-02-28 (21-05 반영: exporter 기반 인프라 관측(node-exporter/cadvisor), Grafana 인프라 대시보드, 24h 점검 스크립트 t0/t1h 확장) by Codex (GPT-5)*
+*최종 업데이트: 2026-03-01 (25 반영: 단일 remaining-work 체크리스트 도입 + AGENTS/Charter 체크리스트 동기화 규칙 추가) by Codex (GPT-5)*
