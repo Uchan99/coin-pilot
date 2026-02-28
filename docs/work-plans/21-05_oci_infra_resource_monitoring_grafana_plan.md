@@ -121,3 +121,4 @@
 
 ## 11. 계획 변경 이력
 - 2026-02-28: 1차 적용 후 Grafana 컨테이너 패널이 `No data`로 표시되는 이슈를 확인. cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해 대시보드 쿼리 정규식(`/?coinpilot-.*`) 보정 항목을 계획 범위에 추가.
+- 2026-02-28: 추가 진단에서 cAdvisor가 루트 cgroup(`id="/"`)만 수집하는 현상을 확인. `cadvisor` 서비스 권한/마운트(`privileged`, `docker.sock`, `cgroup`, `kmsg`) 보강 및 `docker_only=false` 전환을 계획 범위에 추가.

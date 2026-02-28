@@ -192,14 +192,16 @@
 
 ## 11. (선택) Phase 2+ 선반영/추가 구현 결과
 - 추가 변경 요약:
-  - cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해, 컨테이너 패널 쿼리 정규식을 보정함.
+  - cAdvisor `name` 라벨이 `/coinpilot-...` 형식인 환경을 반영해 컨테이너 패널 쿼리 정규식을 보정함.
+  - `id=\"/\"` 루트 cgroup만 수집되는 현상을 해결하기 위해 cadvisor 권한/마운트를 보강하고 `docker_only=false`로 전환함.
 - 추가 변경 파일:
+  - `deploy/cloud/oci/docker-compose.prod.yml`
   - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`
   - `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md`
 - 추가 검증 결과:
   - JSON 문법 검증 통과(`python3 -m json.tool ...`)
-  - 운영 반영 후 Grafana 패널 시계열 확인 필요
+  - 운영 반영 후 `topk(10, container_memory_working_set_bytes{job=\"cadvisor\"})`에서 루트 cgroup 외 컨테이너 시계열 확인 필요
 - 영향/리스크:
   - 기존 쿼리 대비 라벨 호환성 개선으로 `No data` 가능성 감소
   - 다만 cAdvisor 라벨 스키마가 크게 달라지는 환경에서는 추가 튜닝이 필요할 수 있음
