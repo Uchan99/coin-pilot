@@ -3,6 +3,8 @@
 fastapi==0.115.0
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
+# Mobile query API/agent tools에서 동기 엔진(postgresql+psycopg2)을 사용하므로 bot 런타임에도 필요
+psycopg2-binary==2.9.9
 pgvector==0.3.0
 pydantic==2.9.0
 pydantic-settings==2.5.0

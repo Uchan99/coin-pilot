@@ -141,3 +141,4 @@
 ## Plan 변경 이력
 - 2026-03-01: 사용자 승인 반영(`Approval Pending` -> `Approved`), 구현 착수.
 - 2026-03-02: 운영 이슈 반영 - Discord 권한검사 `NoneType role.id` 예외 핫픽스(24-01) 범위 추가.
+- 2026-03-02: 운영 이슈 반영 - Mobile API `/positions` 500(psycopg2 누락) 핫픽스(24-02) 범위 추가.

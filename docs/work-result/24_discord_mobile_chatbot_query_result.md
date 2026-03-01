@@ -126,3 +126,15 @@ Discord에서 확인할 항목:
 
 ### 관련 트러블슈팅
 - `docs/troubleshooting/24-01_discord_role_nonetype_guard_fix.md`
+
+## Phase 3) 운영 핫픽스 (2026-03-02)
+
+### 이슈
+- Discord `/positions` 호출 시 bot `/api/mobile/positions`가 500 반환
+
+### 조치
+1. `requirements-bot.txt`에 `psycopg2-binary==2.9.9` 추가
+1. bot 이미지 재빌드 후 Mobile API 재검증
+
+### 관련 트러블슈팅
+- `docs/troubleshooting/24-02_mobile_api_500_missing_psycopg2.md`
