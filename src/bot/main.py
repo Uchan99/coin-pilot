@@ -32,6 +32,7 @@ from src.agents.context_features import (
 )
 from src.agents.guardrails import should_block_ai_call, mark_ai_call_started
 from src.common.json_utils import dumps_json
+from src.mobile.query_api import mobile_router
 
 # Graceful Shutdown Handler
 SHUTDOWN = False
@@ -707,6 +708,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 # ...
+app.include_router(mobile_router)
 
 # Add Prometheus Metrics Endpoint
 metrics_app = make_asgi_app()

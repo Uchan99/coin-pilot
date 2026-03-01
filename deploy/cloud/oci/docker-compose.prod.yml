@@ -82,6 +82,30 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
       VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
+      COINPILOT_API_SHARED_SECRET: ${COINPILOT_API_SHARED_SECRET:-}
+
+  discord-bot:
+    <<: *app_security
+    profiles: ["discord-bot"]
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/discord-bot.Dockerfile
+    image: discord-bot:latest
+    container_name: coinpilot-discord-bot
+    restart: unless-stopped
+    depends_on:
+      bot:
+        condition: service_started
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      DISCORD_ALLOWED_CHANNEL_IDS: ${DISCORD_ALLOWED_CHANNEL_IDS:-}
+      DISCORD_ALLOWED_ROLE_IDS: ${DISCORD_ALLOWED_ROLE_IDS:-}
+      DISCORD_QUERY_RATE_LIMIT_PER_MIN: ${DISCORD_QUERY_RATE_LIMIT_PER_MIN:-30}
+      DISCORD_BOT_EPHEMERAL_DEFAULT: ${DISCORD_BOT_EPHEMERAL_DEFAULT:-true}
+      DISCORD_API_TIMEOUT_SEC: ${DISCORD_API_TIMEOUT_SEC:-8}
+      COINPILOT_API_BASE_URL: ${COINPILOT_API_BASE_URL:-http://bot:8000}
+      COINPILOT_API_SHARED_SECRET: ${COINPILOT_API_SHARED_SECRET:-}
 
   dashboard:
     <<: *app_security

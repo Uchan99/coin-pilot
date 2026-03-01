@@ -2,9 +2,10 @@
 
 **작성일**: 2026-02-27  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21_live_trading_transition_1m_krw_plan.md`, `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**관련 트러블슈팅**: `docs/troubleshooting/24_mobile_visibility_gap_discord_query_need.md`  
+**승인 정보**: 사용자 / 2026-03-01 / "구현해줘"
 
 ---
 
@@ -134,3 +135,8 @@
 1. MCP 확장 검토 문서(장기 옵션) 별도 작성  
 2. Discord 명령 사용 통계 기반 UX 개선  
 3. 실거래 전환 후 운영 runbook에 모바일 대응 절차 추가
+
+---
+
+## Plan 변경 이력
+- 2026-03-01: 사용자 승인 반영(`Approval Pending` -> `Approved`), 구현 착수.

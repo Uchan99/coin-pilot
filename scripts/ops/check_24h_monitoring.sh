@@ -17,6 +17,7 @@ MODE="all"
 OUTPUT_FILE=""
 
 SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor)
+OPTIONAL_SERVICES=(discord-bot)
 
 usage() {
   cat <<'EOF'
@@ -131,6 +132,21 @@ check_compose_services_up() {
       pass "${name} 상태 정상"
     else
       fail "${name}가 Up 상태가 아님"
+    fi
+  done
+
+  # 선택 서비스는 배포 정책/환경변수에 따라 비활성일 수 있으므로 "존재할 때만" 상태를 강제 점검한다.
+  local optional_name optional_svc
+  for optional_svc in "${OPTIONAL_SERVICES[@]}"; do
+    optional_name="coinpilot-${optional_svc}"
+    if ! grep -Eq "${optional_name}[[:space:]]" <<<"${ps_output}"; then
+      info "${optional_name} 서비스는 비활성(또는 미배포) 상태로 간주하고 점검에서 제외"
+      continue
+    fi
+    if grep -E "${optional_name}.*(Up|running|healthy)" <<<"${ps_output}" >/dev/null 2>&1; then
+      pass "${optional_name} 상태 정상"
+    else
+      fail "${optional_name}가 Up 상태가 아님"
     fi
   done
 }
