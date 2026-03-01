@@ -109,3 +109,20 @@ Discord에서 확인할 항목:
 1. OCI 실환경에서 슬래시 명령 동기화/권한 정책 최종 점검
 1. `/수익률` 한국어 명령 UX는 Discord 명령 네이밍 제약을 고려해 alias 안내/설명문으로 보완
 1. 장기적으로 24 작업 완료 후 `21-03` 카나리 실험으로 우선순위 이동
+
+---
+
+## Phase 2) 운영 핫픽스 (2026-03-02)
+
+### 이슈
+- Discord Slash Command 실행 시 `NoneType role.id` 예외로 무응답 발생
+
+### 조치
+1. `src/discord_bot/main.py` 권한 검사 로직 보강
+   - `roles` 순회 시 `None` 방어
+   - `interaction.data.member.roles` fallback 병합
+1. `discord.Intents(guilds=True)` 적용
+1. app command 전역 에러 핸들러 추가(예외 발생 시 사용자에게 오류 메시지 반환)
+
+### 관련 트러블슈팅
+- `docs/troubleshooting/24-01_discord_role_nonetype_guard_fix.md`

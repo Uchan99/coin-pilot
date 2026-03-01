@@ -119,7 +119,8 @@ class PerUserRateLimiter:
 
 class CoinPilotDiscordBot(discord.Client):
     def __init__(self, config: BotConfig):
-        intents = discord.Intents.none()
+        # Slash command 기반 운영에서 guild 캐시/권한 정보 조회 안정성을 위해 guild intent를 활성화한다.
+        intents = discord.Intents(guilds=True)
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.config = config
@@ -145,6 +146,14 @@ class CoinPilotDiscordBot(discord.Client):
 
     def _register_commands(self) -> None:
         guild_scope = discord.Object(id=self.config.guild_id) if self.config.guild_id else None
+
+        @self.tree.error
+        async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+            LOGGER.exception("App command error: %s", error)
+            # 명령 처리 중 예외가 나도 Discord 클라이언트에는 반드시 응답을 반환해
+            # "애플리케이션이 응답하지 않았어요" 상태를 줄인다.
+            message = "명령 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+            await self._safe_respond(interaction, message, ephemeral=True)
 
         @self.tree.command(name="positions", description="현재 보유 포지션과 평가손익 조회", guild=guild_scope)
         async def positions_cmd(interaction: discord.Interaction) -> None:
@@ -188,14 +197,38 @@ class CoinPilotDiscordBot(discord.Client):
             answer = str(payload.get("data", {}).get("answer") or "응답이 비어 있습니다.")
             await interaction.edit_original_response(content=_truncate_message(answer))
 
+    @staticmethod
+    def _extract_member_role_ids(interaction: discord.Interaction) -> set[int]:
+        """
+        interaction.user(Member)와 raw interaction payload를 함께 사용해 역할 ID를 안전하게 추출한다.
+        왜 필요한가:
+        - 환경/권한/캐시 상태에 따라 roles 배열에 None이 포함될 수 있음
+        - guild intent 경고 상태에서도 payload에는 역할 ID가 내려오는 경우가 있음
+        """
+        role_ids: set[int] = set()
+
+        member = interaction.user
+        for role in (getattr(member, "roles", None) or []):
+            role_id = getattr(role, "id", None)
+            if isinstance(role_id, int):
+                role_ids.add(role_id)
+
+        payload_member = ((interaction.data or {}).get("member") or {})
+        for raw_role_id in (payload_member.get("roles") or []):
+            try:
+                role_ids.add(int(raw_role_id))
+            except (TypeError, ValueError):
+                continue
+
+        return role_ids
+
     def _check_access(self, interaction: discord.Interaction) -> tuple[bool, str]:
         channel_id = interaction.channel_id
         if self.config.allowed_channel_ids and channel_id not in self.config.allowed_channel_ids:
             return False, "이 명령은 허용된 채널에서만 사용할 수 있습니다."
 
         if self.config.allowed_role_ids:
-            member = interaction.user
-            role_ids = {role.id for role in getattr(member, "roles", [])}
+            role_ids = self._extract_member_role_ids(interaction)
             if not (role_ids & self.config.allowed_role_ids):
                 return False, "이 명령을 사용할 권한이 없습니다."
 
