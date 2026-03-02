@@ -277,7 +277,7 @@
   - 로컬 코드 회귀 범위는 Phase 5(`67 passed`)와 동일하며, 이번 Phase 6은 allowlist/문서 정리 중심 변경이라 테스트 스킵
   - 최종 보안 게이트 판정은 GitHub Actions `security` 재실행으로 확인 필요
 - 제한 사항:
-  - 작성 시점 기준 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-25990`이며, 메이저 호환성 검토가 선행되어야 함.
+  - 작성 시점 기준 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`이며, 메이저 호환성 검토가 선행되어야 함.
 
 ---
 
@@ -302,7 +302,7 @@
   - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
 - 제한 사항:
   - 로컬 환경 네트워크 제한으로 실제 `pip-audit` 해소 여부는 GitHub Actions `security` 재실행으로 최종 판정 필요.
-  - 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-25990`.
+  - 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`.
 
 ---
 
@@ -329,3 +329,29 @@
   - `langgraph==0.6.11`과 `langgraph-checkpoint==4.0.0` 조합의 resolver/호환성은 로컬 네트워크 제한으로 검증 불가
   - 실제 보안 해소 여부는 GitHub Actions `security` 재실행 결과로 최종 판정 필요
   - CI resolver 충돌 시 Phase D 3차 변경은 즉시 되돌리고 `langgraph` 메이저 전환 트랙으로 재계획 필요
+
+---
+
+## 19. (선택) Phase 9 선반영/추가 구현 결과 (D3 롤백)
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 롤백 트리거:
+  - GitHub Actions `security`에서 resolver 충돌 발생
+  - 에러 요약: `langgraph 0.6.11 depends on langgraph-checkpoint<4.0.0`, while pinned `langgraph-checkpoint==4.0.0`
+- 롤백 변경 요약:
+  1) core/bot requirements에서 `langgraph-checkpoint==4.0.0` 제거
+  2) `security/pip_audit_ignored_vulns.txt`에 `CVE-2026-27794` 복구
+  3) 문서(계획/결과/트러블슈팅/체크리스트)에 롤백 이력 반영
+- 롤백 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+  7) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 검증 결과:
+  - 이번 롤백은 dependency/문서 복구 작업으로, 기능 코드 변경 없음
+  - 최종 정상화는 GitHub Actions `security` 재실행에서 `resolver failure` 미발생으로 확인 필요

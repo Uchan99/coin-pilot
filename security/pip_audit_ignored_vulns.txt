@@ -9,5 +9,8 @@
 # langchain-core advisory (fix가 1.2.11로 제시되어 대규모 1.x 전환 필요)
 CVE-2026-26013
 
+# langgraph-checkpoint advisory (langgraph==0.6.11과 fix 버전 4.x가 충돌하여 즉시 상향 불가)
+CVE-2026-27794
+
 # pillow advisory (현재 streamlit==1.43.x가 pillow<12를 요구하여 즉시 상향 불가)
 CVE-2026-25990
