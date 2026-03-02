@@ -53,6 +53,7 @@
   - 27-03 착수 반영:
     - backend/agent 우선 처리 정책으로 `langgraph`를 core/bot 모두 `0.6.11`로 정렬
     - `pillow>=12.1.1` 직접 핀 제거(설치 충돌 방지), `CVE-2026-25990`는 allowlist 유지
+    - CI security에서 pip-audit 개별 step annotation 에러 노이즈를 제거하기 위해, step 내부에서는 exitcode 파일만 기록하고 최종 요약 step에서만 게이트 판정하도록 조정
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
   - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행

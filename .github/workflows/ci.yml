@@ -76,39 +76,43 @@ jobs:
         # 기본 리포트 파일을 선생성한다.
         echo "{}" > pip-audit-report-core.json
         echo "{}" > pip-audit-report-bot.json
+        # pip-audit 개별 step를 항상 0으로 종료해 annotation 노이즈를 줄이고,
+        # 실제 실패 판정은 마지막 요약 step에서만 일관되게 수행한다.
+        echo "99" > pip-audit-core.exitcode
+        echo "99" > pip-audit-bot.exitcode
 
     - name: Run Bandit (high severity/high confidence)
       run: |
         bandit -r src -ll -ii
 
     - name: Run pip-audit for core dependencies
-      id: pip_audit_core
-      continue-on-error: true
       run: |
+        set +e
         pip-audit -r requirements.txt \
           --progress-spinner off \
           --format json \
           --output pip-audit-report-core.json
+        rc=$?
+        echo "${rc}" > pip-audit-core.exitcode
+        exit 0
 
     - name: Run pip-audit for bot dependencies
-      id: pip_audit_bot
-      continue-on-error: true
       run: |
         # requirements.txt와 requirements-bot.txt는 런타임 대상이 달라 일부 패키지 버전이 다르다.
         # 단일 환경에 동시 설치하면 resolver 충돌이 발생할 수 있어 파일 단위로 분리 감사한다.
+        set +e
         pip-audit -r requirements-bot.txt \
           --progress-spinner off \
           --format json \
           --output pip-audit-report-bot.json
+        rc=$?
+        echo "${rc}" > pip-audit-bot.exitcode
+        exit 0
 
     - name: Summarize pip-audit results and enforce gate
-      env:
-        CORE_AUDIT_OUTCOME: ${{ steps.pip_audit_core.outcome }}
-        BOT_AUDIT_OUTCOME: ${{ steps.pip_audit_bot.outcome }}
       run: |
         python - <<'PY'
         import json
-        import os
         import sys
         from pathlib import Path
 
@@ -128,9 +132,31 @@ jobs:
             ("core", Path("pip-audit-report-core.json")),
             ("bot", Path("pip-audit-report-bot.json")),
         ]
+        exitcode_files = {
+            "core": Path("pip-audit-core.exitcode"),
+            "bot": Path("pip-audit-bot.exitcode"),
+        }
         all_issues = []
         blocking_issues = []
         ignored_issues = []
+        exitcodes = {}
+
+        for label, path in exitcode_files.items():
+            if not path.exists():
+                print(f"[ERROR] Missing exitcode file: {path}")
+                sys.exit(2)
+            raw = path.read_text(encoding="utf-8").strip()
+            try:
+                code = int(raw)
+            except ValueError:
+                print(f"[ERROR] Invalid exitcode value in {path}: {raw!r}")
+                sys.exit(2)
+            exitcodes[label] = code
+            # pip-audit는 일반적으로 0(취약점 없음), 1(취약점 있음)을 사용한다.
+            # 그 외 코드는 실행 실패로 간주한다.
+            if code not in (0, 1):
+                print(f"[ERROR] pip-audit runtime failure for {label} (exitcode={code})")
+                sys.exit(2)
 
         for label, path in reports:
             if not path.exists():
@@ -167,9 +193,7 @@ jobs:
                         blocking_issues.append(issue)
 
         if not all_issues:
-            core_outcome = os.getenv("CORE_AUDIT_OUTCOME", "")
-            bot_outcome = os.getenv("BOT_AUDIT_OUTCOME", "")
-            if core_outcome == "failure" or bot_outcome == "failure":
+            if exitcodes.get("core") == 1 or exitcodes.get("bot") == 1:
                 print(
                     "[ERROR] pip-audit step failed but vulnerability records are empty. "
                     "Resolver or runtime failure 가능성이 있으므로 보수적으로 실패 처리합니다."

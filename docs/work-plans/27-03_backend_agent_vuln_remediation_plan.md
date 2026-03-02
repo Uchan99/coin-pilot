@@ -116,3 +116,4 @@
 - 2026-03-02: 초기 작성, 승인 대기(`Approval Pending`).
 - 2026-03-02: 사용자 승인 반영, `f27` 브랜치/WSL 실험 조건으로 구현 착수(`Approved`).
 - 2026-03-02: Phase A 착수(취약점 매핑), Phase B 1차 적용(core/bot `langgraph==0.6.11` 정렬 + `pillow` 충돌 핀 제거) 후 CI 재검증 대기(`Investigating`).
+- 2026-03-02: CI security annotation 노이즈 제거를 위해 `pip-audit` 개별 step는 종료코드 파일만 기록하고, 최종 요약 step에서만 실패 판정하도록 워크플로우를 보강.

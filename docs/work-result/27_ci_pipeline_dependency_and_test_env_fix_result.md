@@ -214,13 +214,15 @@
   2) bot의 구버전 `langgraph==0.2.59` 경로에서 유입되던 `langgraph-checkpoint` 취약점 노출을 축소 시도
   3) `streamlit`과 충돌하는 `pillow>=12.1.1` 직접 핀 제거(설치 실패 재발 방지)
   4) `pillow` 취약점은 UI 전환 전까지 allowlist로 관리
+  5) CI security annotation 노이즈 제거: `pip-audit` 개별 step는 종료코드 파일만 기록하고, 최종 요약 step에서만 pass/fail 판정
 - 추가 변경 파일:
   1) `requirements.txt`
   2) `requirements-bot.txt`
   3) `security/pip_audit_ignored_vulns.txt`
-  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
-  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
-  6) `docs/checklists/remaining_work_master_checklist.md`
+  4) `.github/workflows/ci.yml`
+  5) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  6) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  7) `docs/checklists/remaining_work_master_checklist.md`
 - 추가 검증 결과:
   - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `64 passed`
   - `.github/workflows/ci.yml` YAML 파싱 -> `CI_YAML_OK`
