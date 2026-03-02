@@ -2,11 +2,11 @@
 
 **작성일**: 2026-03-02  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Investigating  
 **관련 계획 문서**: `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`  
 **관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 4 예정)  
 **관련 트러블슈팅 문서**: `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**승인 정보**: 사용자 / 2026-03-02 / "오케이 진행해줘."
 
 ---
 
@@ -114,3 +114,5 @@
 
 ## Plan 변경 이력
 - 2026-03-02: 초기 작성, 승인 대기(`Approval Pending`).
+- 2026-03-02: 사용자 승인 반영, `f27` 브랜치/WSL 실험 조건으로 구현 착수(`Approved`).
+- 2026-03-02: Phase A 착수(취약점 매핑), Phase B 1차 적용(core/bot `langgraph==0.6.11` 정렬 + `pillow` 충돌 핀 제거) 후 CI 재검증 대기(`Investigating`).

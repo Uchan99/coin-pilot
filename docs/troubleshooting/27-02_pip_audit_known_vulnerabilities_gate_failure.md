@@ -27,6 +27,16 @@
 2. transitive dependency 취약점 포함
 3. runtime 비필수 패키지가 감사 대상에 포함
 
+## 3.1 취약점 매핑 (Phase A 산출)
+| CVE | 패키지(관측 버전) | 주 영향 영역 | 코드/서비스 매핑 | 즉시 조치 방향 |
+|---|---|---|---|---|
+| CVE-2024-7774 | `langchain==0.3.x` | 에이전트 체인 유틸 | `src/agents/rag_agent.py`, `src/agents/daily_reporter.py`, `src/analytics/exit_performance.py` | 현재 fix version 미제공으로 allowlist 유지, 후속 메이저 전환 때 재평가 |
+| CVE-2026-26013 | `langchain-core==0.3.81` | 프롬프트/메시지 코어 | `src/agents/analyst.py`, `src/agents/guardian.py`, `src/agents/router.py`, `src/agents/state.py` | `langchain-core 1.x` 전환 필요(27-03 Phase C) |
+| CVE-2025-64439 | `langgraph-checkpoint==2.1.2` | 그래프 체크포인트 | 주로 bot requirements의 `langgraph==0.2.59` 경로에서 유입 | bot `langgraph`를 core와 정렬(`0.6.11`)해 제거 시도 |
+| CVE-2026-27794 | `langgraph-checkpoint==3.0.1` | 그래프 체크포인트 | core/bot 공통 `langgraph` 경로에서 유입 | `langgraph` 1.x/`checkpoint` 4.x 전환 필요(27-03 Phase B/C) |
+| CVE-2025-62727 | `starlette==0.47.3` | FastAPI 하위 HTTP 레이어 | `src/bot/main.py`, `src/mobile/query_api.py`의 API 경로 전반 | `fastapi`-`starlette` 호환 조합 재검증 필요, 현재 allowlist |
+| CVE-2026-25990 | `pillow==11.3.0` | 대시보드 이미지 처리 | `streamlit` transitive dependency | `streamlit` 상향 전까지 allowlist 유지 |
+
 ## 4. 대응 방향(초안)
 1. audit 리포트에서 package/CVE/fix_version 매핑
 2. 최소 상향 버전으로 requirements 정리
@@ -40,6 +50,9 @@
     - `requirements.txt`/`requirements-bot.txt` 보안 상향(예: `fastapi`, `httpx`, `redis`, `uvicorn`, `streamlit`, `plotly`, `langchain-openai`)
     - security workflow에 pip-audit 상세 요약/게이트 스텝 추가(패키지/버전/CVE ID 로그 출력)
     - 즉시 해소 불가 CVE는 `security/pip_audit_ignored_vulns.txt`로 관리
+  - 27-03 착수 반영:
+    - backend/agent 우선 처리 정책으로 `langgraph`를 core/bot 모두 `0.6.11`로 정렬
+    - `pillow>=12.1.1` 직접 핀 제거(설치 충돌 방지), `CVE-2026-25990`는 allowlist 유지
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
   - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행

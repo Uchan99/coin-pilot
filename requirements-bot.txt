@@ -24,7 +24,7 @@ langchain-openai==0.3.19
 langchain-community==0.3.27
 langchain-core==0.3.81
 langchain-text-splitters==0.3.9
-langgraph==0.2.59
+langgraph==0.6.11
 
 # Redis
 redis[hiredis]==5.2.1
