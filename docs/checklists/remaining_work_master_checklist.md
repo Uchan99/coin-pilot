@@ -58,6 +58,7 @@
 - 2026-03-02: 27-04 메이저 전환 계획 추가(`langchain-core`/`langgraph`/`langgraph-checkpoint` 동시 상향 트랙), 27의 다음 구현 경로를 단건 핀 방식에서 스택 전환 방식으로 명확화.
 - 2026-03-02: 27-04 Phase M1/M2 1차 착수(1.x 후보 버전 상향 + LangGraph 호환 레이어 도입 + allowlist에서 `CVE-2026-26013`/`CVE-2026-27794` 제거), 로컬 회귀 테스트 `70 passed`, CI 재검증 대기.
 - 2026-03-02: 27-04 Phase M1/M2 2차 보정(`pydantic-settings==2.10.1` 상향)으로 `langchain-community==0.4.1`와 resolver 충돌 해소 시도, CI 재검증 대기.
+- 2026-03-02: 27-04 Phase M1/M2 3차 보정(`langchain-core==1.2.13` 상향)으로 `langchain-text-splitters==1.1.1`와 resolver 충돌 해소 시도, CI 재검증 대기.
 
 ---
 

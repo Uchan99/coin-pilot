@@ -81,6 +81,9 @@
   - 27-04 Phase M1/M2 2차 보정:
     - CI resolver 실패 원인 확인: `langchain-community==0.4.1`가 `pydantic-settings>=2.10.1` 요구
     - `requirements.txt`, `requirements-bot.txt`의 `pydantic-settings`를 `2.10.1`로 상향
+  - 27-04 Phase M1/M2 3차 보정:
+    - CI resolver 실패 원인 확인: `langchain-text-splitters==1.1.1`가 `langchain-core>=1.2.13` 요구
+    - `requirements.txt`, `requirements-bot.txt`의 `langchain-core`를 `1.2.13`으로 상향
 - 다음:
   - GitHub Actions 재실행 후 resolver 충돌/취약점 잔여 여부 확인
   - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`, `CVE-2026-27794`) 재평가

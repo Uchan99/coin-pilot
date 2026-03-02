@@ -411,3 +411,24 @@
 - 제한 사항:
   - 로컬 환경에서는 새로운 의존성 resolver 검증 불가
   - GitHub Actions `test`/`security` 재실행으로만 최종 판정 가능
+
+---
+
+## 22. (선택) Phase 12 선반영/추가 구현 결과 (27-04 M1/M2 3차 보정)
+- 관련 계획:
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) CI resolver 실패 로그 분석(`langchain-text-splitters==1.1.1` -> `langchain-core>=1.2.13` 요구)
+  2) core/bot requirements의 `langchain-core`를 `1.2.13`으로 상향
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+  4) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  5) `docs/checklists/remaining_work_master_checklist.md`
+  6) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 제한 사항:
+  - 로컬 환경에서는 새 의존성 resolver 검증 불가
+  - GitHub Actions `test`/`security` 재실행으로 최종 판정 필요
