@@ -6,7 +6,7 @@ from collections import defaultdict
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from src.common.models import DailyRiskState, AccountState, TradingHistory
 from src.common.notification import notifier

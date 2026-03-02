@@ -3,10 +3,10 @@
 작성일: 2026-03-02
 작성자: Codex
 관련 계획서: docs/work-plans/27_ci_pipeline_dependency_and_test_env_fix_plan.md
-상태: Implemented
-완료 범위: Phase 1
-선반영/추가 구현: 없음
-관련 트러블슈팅(있다면): docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md
+상태: Verified (Closed)
+완료 범위: Phase 1~13
+선반영/추가 구현: Phase 2~13
+관련 트러블슈팅(있다면): docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md, docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md
 
 ---
 
@@ -136,11 +136,12 @@
 
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
-  - CI 실패 원인 2개(의존성 충돌, test env 누락) 모두 코드 레벨로 제거
-  - 체크리스트 `27` 상태를 `done`으로 동기화
+  - 초기 CI 실패 원인 2개(의존성 충돌, test env 누락)는 코드 레벨로 제거됨
+  - `27-04` 메이저 전환 결과, `pip-audit` 기준 allowlist는 `CVE-2026-25990(pillow)` 1건만 남았고 나머지 backend/agent 취약점은 해소됨
+  - GitHub Actions `test`/`security` 게이트는 통과했으며, `27` 스트림은 종료 가능 상태로 확정함
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) GitHub Actions 재실행 결과 확인 후 필요 시 미세 조정
-  2) 체크리스트 우선순위에 따라 `21-05` 잔여 작업 진행
+  1) `CVE-2026-25990(pillow)`는 Streamlit 종속 이슈로 `22`/`23`(대시보드 개선/Next.js 이관)에서 제거
+  2) 프론트 전환 시 `streamlit` 제거 또는 호환 버전 재설계 후 allowlist 0건화
 
 ---
 
@@ -201,4 +202,250 @@
 - 제한 사항:
   - 로컬 네트워크 제한으로 `pip-audit` 자체 실행/검증은 불가.
   - 최종 판정은 GitHub Actions 재실행 결과(`security` job)로 확인 필요.
-  - `streamlit==1.43.2`가 `pillow<12`를 요구해 `pillow>=12.1.1` 직접 상향과 충돌하므로, 해당 CVE는 allowlist로 분리 관리.
+
+---
+
+## 14. (선택) Phase 4 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) backend/agent 우선 전략에 맞춰 core/bot `langgraph` 버전을 `0.6.11`로 정렬
+  2) bot의 구버전 `langgraph==0.2.59` 경로에서 유입되던 `langgraph-checkpoint` 취약점 노출을 축소 시도
+  3) `streamlit`과 충돌하는 `pillow>=12.1.1` 직접 핀 제거(설치 실패 재발 방지)
+  4) `pillow` 취약점은 UI 전환 전까지 allowlist로 관리
+  5) CI security annotation 노이즈 제거: `pip-audit` 개별 step는 종료코드 파일만 기록하고, 최종 요약 step에서만 pass/fail 판정
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `.github/workflows/ci.yml`
+  5) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  6) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  7) `docs/checklists/remaining_work_master_checklist.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `64 passed`
+  - `.github/workflows/ci.yml` YAML 파싱 -> `CI_YAML_OK`
+- 제한 사항:
+  - 로컬 네트워크 제한으로 실제 `pip-audit`/resolver 결과는 GitHub Actions에서만 최종 판정 가능.
+
+---
+
+## 15. (선택) Phase 5 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) `langchain` 상위 패키지 직접 의존 제거(`requirements*.txt`)
+  2) `langchain.prompts.PromptTemplate` 사용 경로를 `langchain_core.prompts.PromptTemplate`로 전환
+  3) `rag_agent`에서 `langchain.chains` 헬퍼를 제거하고 Retrieval→Prompt→LLM 호출을 수동 체인으로 구성
+  4) retriever 인터페이스 차이를 흡수하기 위해 `ainvoke`/`aget_relevant_documents`/`get_relevant_documents` fallback 로직 적용
+  5) 회귀 방지를 위해 `tests/agents/test_rag_agent.py` 신규 추가
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `src/agents/daily_reporter.py`
+  4) `src/analytics/exit_performance.py`
+  5) `src/agents/rag_agent.py`
+  6) `tests/agents/test_rag_agent.py`
+  7) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  8) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  9) `docs/checklists/remaining_work_master_checklist.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
+- 제한 사항:
+  - 로컬 환경에서는 `pip-audit` 네트워크 호출 검증이 제한되어, 취약점 잔여 여부 최종 판정은 GitHub Actions `security` job 재실행으로 확인 필요.
+
+---
+
+## 16. (선택) Phase 6 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) Phase D 1차로 stale allowlist 항목 정리
+  2) 최근 security 로그에서 미관측된 `CVE-2024-7774`를 ignore 목록에서 제거
+- 추가 변경 파일:
+  1) `security/pip_audit_ignored_vulns.txt`
+  2) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  3) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  4) `docs/checklists/remaining_work_master_checklist.md`
+  5) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - 로컬 코드 회귀 범위는 Phase 5(`67 passed`)와 동일하며, 이번 Phase 6은 allowlist/문서 정리 중심 변경이라 테스트 스킵
+  - 최종 보안 게이트 판정은 GitHub Actions `security` 재실행으로 확인 필요
+- 제한 사항:
+  - 작성 시점 기준 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`이며, 메이저 호환성 검토가 선행되어야 함.
+
+---
+
+## 17. (선택) Phase 7 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) Phase D 2차로 `starlette` 취약점 축소 작업 수행
+  2) core/bot 공통 `fastapi`를 `0.129.0`으로 상향
+  3) `security/pip_audit_ignored_vulns.txt`에서 `CVE-2025-62727` 제거
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+  7) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
+- 제한 사항:
+  - 로컬 환경 네트워크 제한으로 실제 `pip-audit` 해소 여부는 GitHub Actions `security` 재실행으로 최종 판정 필요.
+  - 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`.
+
+---
+
+## 18. (선택) Phase 8 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) Phase D 3차로 `langgraph-checkpoint` 취약점 축소 작업 수행
+  2) core/bot 공통으로 `langgraph-checkpoint==4.0.0`을 명시 핀
+  3) `security/pip_audit_ignored_vulns.txt`에서 `CVE-2026-27794` 제거
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+  7) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
+- 제한 사항:
+  - `langgraph==0.6.11`과 `langgraph-checkpoint==4.0.0` 조합의 resolver/호환성은 로컬 네트워크 제한으로 검증 불가
+  - 실제 보안 해소 여부는 GitHub Actions `security` 재실행 결과로 최종 판정 필요
+  - CI resolver 충돌 시 Phase D 3차 변경은 즉시 되돌리고 `langgraph` 메이저 전환 트랙으로 재계획 필요
+
+---
+
+## 19. (선택) Phase 9 선반영/추가 구현 결과 (D3 롤백)
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 롤백 트리거:
+  - GitHub Actions `security`에서 resolver 충돌 발생
+  - 에러 요약: `langgraph 0.6.11 depends on langgraph-checkpoint<4.0.0`, while pinned `langgraph-checkpoint==4.0.0`
+- 롤백 변경 요약:
+  1) core/bot requirements에서 `langgraph-checkpoint==4.0.0` 제거
+  2) `security/pip_audit_ignored_vulns.txt`에 `CVE-2026-27794` 복구
+  3) 문서(계획/결과/트러블슈팅/체크리스트)에 롤백 이력 반영
+- 롤백 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+  7) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 검증 결과:
+  - 이번 롤백은 dependency/문서 복구 작업으로, 기능 코드 변경 없음
+  - 최종 정상화는 GitHub Actions `security` 재실행에서 `resolver failure` 미발생으로 확인 필요
+
+---
+
+## 20. (선택) Phase 10 선반영/추가 구현 결과 (27-04 M1/M2 1차)
+- 관련 계획:
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) `langchain/langgraph` 메이저 전환 1차 버전 후보 적용
+     - `langchain-core==1.2.11`
+     - `langgraph==1.0.8`
+     - `langchain-anthropic==1.3.3`, `langchain-openai==1.1.9`, `langchain-community==0.4.1`, `langchain-text-splitters==1.1.1`
+  2) `langgraph` 버전 변화에 대비해 호환 레이어 추가
+     - `src/agents/langgraph_compat.py` 신규 추가
+     - `set_graph_entry`를 통해 START-edge/set_entry_point 차이를 흡수
+     - `add_messages` 심볼 경로 변경 대비 fallback 제공
+  3) `CVE-2026-26013`, `CVE-2026-27794`를 allowlist에서 제거해 CI에서 직접 통과 여부 검증하도록 전환
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `src/agents/langgraph_compat.py`
+  5) `src/agents/state.py`
+  6) `src/agents/runner.py`
+  7) `src/agents/router.py`
+  8) `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+  9) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  10) `docs/checklists/remaining_work_master_checklist.md`
+  11) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/ tests/test_agents.py` -> `70 passed`
+- 제한 사항:
+  - 로컬 네트워크 제한으로 새 의존성 resolver 설치 검증은 불가
+  - 최종 성공/실패는 GitHub Actions `test`/`security` 재실행 결과로 판정
+
+---
+
+## 21. (선택) Phase 11 선반영/추가 구현 결과 (27-04 M1/M2 2차 보정)
+- 관련 계획:
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) CI resolver 실패 로그 분석(`langchain-community==0.4.1` -> `pydantic-settings>=2.10.1` 요구)
+  2) core/bot requirements의 `pydantic-settings`를 `2.10.1`로 상향
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+  4) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  5) `docs/checklists/remaining_work_master_checklist.md`
+  6) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 제한 사항:
+  - 로컬 환경에서는 새로운 의존성 resolver 검증 불가
+  - GitHub Actions `test`/`security` 재실행으로만 최종 판정 가능
+
+---
+
+## 22. (선택) Phase 12 선반영/추가 구현 결과 (27-04 M1/M2 3차 보정)
+- 관련 계획:
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) CI resolver 실패 로그 분석(`langchain-text-splitters==1.1.1` -> `langchain-core>=1.2.13` 요구)
+  2) core/bot requirements의 `langchain-core`를 `1.2.13`으로 상향
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+  4) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  5) `docs/checklists/remaining_work_master_checklist.md`
+  6) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 제한 사항:
+  - 로컬 환경에서는 새 의존성 resolver 검증 불가
+  - GitHub Actions `test`/`security` 재실행으로 최종 판정 필요
+
+---
+
+## 23. (선택) Phase 13 최종 마감 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 최종 판정 요약:
+  1) `security` 로그 기준 allowlist 잔여는 `CVE-2026-25990(pillow)` 1건만 확인
+  2) `test`/`security` 게이트가 통과해 CI 차단 상태는 해소
+  3) `f27`의 목표였던 backend/agent 계열 취약점 정리는 완료
+- 잔여 리스크(의도적 보류):
+  1) `pillow`는 `streamlit==1.43.2`의 전이 의존성 제약으로 즉시 제거 불가
+  2) 본 이슈는 프론트 전환 스트림(`22`, `23`)에서 구조적으로 해소
