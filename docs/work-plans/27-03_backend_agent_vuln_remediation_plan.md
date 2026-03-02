@@ -4,7 +4,7 @@
 **작성자**: Codex  
 **상태**: Investigating  
 **관련 계획 문서**: `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`  
-**관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 4 예정)  
+**관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 5 예정)  
 **관련 트러블슈팅 문서**: `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`  
 **승인 정보**: 사용자 / 2026-03-02 / "오케이 진행해줘."
 
@@ -117,3 +117,4 @@
 - 2026-03-02: 사용자 승인 반영, `f27` 브랜치/WSL 실험 조건으로 구현 착수(`Approved`).
 - 2026-03-02: Phase A 착수(취약점 매핑), Phase B 1차 적용(core/bot `langgraph==0.6.11` 정렬 + `pillow` 충돌 핀 제거) 후 CI 재검증 대기(`Investigating`).
 - 2026-03-02: CI security annotation 노이즈 제거를 위해 `pip-audit` 개별 step는 종료코드 파일만 기록하고, 최종 요약 step에서만 실패 판정하도록 워크플로우를 보강.
+- 2026-03-02: Phase C 1차 적용(`langchain` 직접 의존/직접 import 제거, `rag_agent` 체인 헬퍼 제거 후 수동 체인 구성, `test_rag_agent.py` 추가) 및 회귀 테스트 `67 passed` 확인.

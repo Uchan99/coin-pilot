@@ -3,9 +3,9 @@
 작성일: 2026-03-02
 작성자: Codex
 관련 계획서: docs/work-plans/27_ci_pipeline_dependency_and_test_env_fix_plan.md
-상태: Implemented
-완료 범위: Phase 1
-선반영/추가 구현: 없음
+상태: In Progress
+완료 범위: Phase 1~5
+선반영/추가 구현: Phase 2~5
 관련 트러블슈팅(있다면): docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md
 
 ---
@@ -136,11 +136,11 @@
 
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
-  - CI 실패 원인 2개(의존성 충돌, test env 누락) 모두 코드 레벨로 제거
-  - 체크리스트 `27` 상태를 `done`으로 동기화
+  - 초기 CI 실패 원인 2개(의존성 충돌, test env 누락)는 코드 레벨로 제거됨
+  - 이후 보안 취약점 잔여 이슈 대응을 위해 `27`은 현재 `in_progress`로 운영 중
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) GitHub Actions 재실행 결과 확인 후 필요 시 미세 조정
-  2) 체크리스트 우선순위에 따라 `21-05` 잔여 작업 진행
+  1) Phase D(allowlist 축소/정리) 진행
+  2) GitHub Actions `security` 최종 재검증 후 `27` 상태 재평가
 
 ---
 
@@ -228,3 +228,31 @@
   - `.github/workflows/ci.yml` YAML 파싱 -> `CI_YAML_OK`
 - 제한 사항:
   - 로컬 네트워크 제한으로 실제 `pip-audit`/resolver 결과는 GitHub Actions에서만 최종 판정 가능.
+
+---
+
+## 15. (선택) Phase 5 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) `langchain` 상위 패키지 직접 의존 제거(`requirements*.txt`)
+  2) `langchain.prompts.PromptTemplate` 사용 경로를 `langchain_core.prompts.PromptTemplate`로 전환
+  3) `rag_agent`에서 `langchain.chains` 헬퍼를 제거하고 Retrieval→Prompt→LLM 호출을 수동 체인으로 구성
+  4) retriever 인터페이스 차이를 흡수하기 위해 `ainvoke`/`aget_relevant_documents`/`get_relevant_documents` fallback 로직 적용
+  5) 회귀 방지를 위해 `tests/agents/test_rag_agent.py` 신규 추가
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `src/agents/daily_reporter.py`
+  4) `src/analytics/exit_performance.py`
+  5) `src/agents/rag_agent.py`
+  6) `tests/agents/test_rag_agent.py`
+  7) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  8) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  9) `docs/checklists/remaining_work_master_checklist.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
+- 제한 사항:
+  - 로컬 환경에서는 `pip-audit` 네트워크 호출 검증이 제한되어, 취약점 잔여 여부 최종 판정은 GitHub Actions `security` job 재실행으로 확인 필요.

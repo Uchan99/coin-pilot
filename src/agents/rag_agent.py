@@ -1,5 +1,3 @@
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.vectorstores import PGVector
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings
@@ -62,15 +60,32 @@ async def run_rag_agent(query: str) -> str:
             ]
         )
 
-        # Stuff Documents Chain: 검색된 모든 문서를 프롬프트에 'stuff'(채워넣기)하는 체인
-        question_answer_chain = create_stuff_documents_chain(llm, prompt)
+        # Phase C(27-03)에서 `langchain` 상위 패키지 의존을 줄이기 위해
+        # helper chain(create_retrieval_chain/create_stuff_documents_chain) 없이
+        # Retrieval + Prompt + LLM 호출을 직접 연결한다.
+        #
+        # 호환성 고려:
+        # - retriever 구현체마다 async 진입점이 다를 수 있어 ainvoke/aget_relevant_documents를 순차 fallback한다.
+        # - 문서가 비어도 안전하게 빈 context로 답변을 생성한다.
+        docs = []
+        if hasattr(retriever, "ainvoke"):
+            docs = await retriever.ainvoke(query)
+        elif hasattr(retriever, "aget_relevant_documents"):
+            docs = await retriever.aget_relevant_documents(query)
+        else:
+            docs = retriever.get_relevant_documents(query)
 
-        # Retrieval Chain: 검색 + 답변 생성을 연결하는 최종 체인
-        rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+        context_chunks = []
+        for doc in docs or []:
+            page_content = getattr(doc, "page_content", None)
+            if isinstance(page_content, str) and page_content.strip():
+                context_chunks.append(page_content.strip())
+        context = "\n\n".join(context_chunks)
 
-        # 체인 실행 (비동기)
-        result = await rag_chain.ainvoke({"input": query})
-        return result["answer"]
+        messages = prompt.format_messages(context=context, input=query)
+        llm_result = await llm.ainvoke(messages)
+        answer = getattr(llm_result, "content", llm_result)
+        return str(answer)
 
     except Exception as exc:
         return f"RAG Agent 실행 중 오류가 발생했습니다: {str(exc)}"
