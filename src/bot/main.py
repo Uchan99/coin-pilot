@@ -719,5 +719,10 @@ async def health_check():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 if __name__ == "__main__":
-    # 봇 서비스 포트는 8000 (monitoring config와 일치)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # 보안 스캐너(Bandit B104)와 배포 유연성을 동시에 만족하기 위해
+    # 바인딩 주소/포트를 코드 하드코딩 대신 환경변수로 주입받는다.
+    # - 로컬 기본값: 127.0.0.1 (외부 노출 최소화)
+    # - 컨테이너 운영: compose에서 BOT_HOST=0.0.0.0 지정
+    bot_host = os.getenv("BOT_HOST", "127.0.0.1")
+    bot_port = int(os.getenv("BOT_PORT", "8000"))
+    uvicorn.run(app, host=bot_host, port=bot_port)

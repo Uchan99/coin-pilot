@@ -70,6 +70,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install bandit pip-audit
 
+    - name: Initialize security report artifacts
+      run: |
+        # 보안 검사 단계 중간 실패 시에도 업로드 step이 경고 없이 동작하도록
+        # 기본 리포트 파일을 선생성한다.
+        echo "{}" > pip-audit-report-core.json
+        echo "{}" > pip-audit-report-bot.json
+
     - name: Run Bandit (high severity/high confidence)
       run: |
         bandit -r src -ll -ii
@@ -95,6 +102,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pip-audit-report
+        if-no-files-found: warn
         path: |
           pip-audit-report-core.json
           pip-audit-report-bot.json

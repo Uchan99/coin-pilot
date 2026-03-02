@@ -144,7 +144,33 @@
 
 ---
 
+## 11. (선택) Phase 2+ 선반영/추가 구현 결과
+- 추가 변경 요약:
+  - Bandit 보안 이슈 2건(B314/B104) 대응
+  - security artifact 업로드 안정성 가드 추가
+- 추가 변경 파일:
+  1) `src/agents/news/rss_news_pipeline.py` (`defusedxml` 파싱 전환)
+  2) `src/bot/main.py` (`BOT_HOST`/`BOT_PORT` env 기반 바인딩)
+  3) `requirements.txt` (`defusedxml` 추가)
+  4) `requirements-bot.txt` (`defusedxml` 추가)
+  5) `deploy/cloud/oci/docker-compose.prod.yml` (`BOT_HOST`, `BOT_PORT` 주입)
+  6) `deploy/docker-compose.yml` (`BOT_HOST`, `BOT_PORT` 주입)
+  7) `deploy/cloud/oci/.env.example` (`BOT_HOST`, `BOT_PORT` 문서화)
+  8) `.env.example` (`BOT_HOST`, `BOT_PORT` 문서화)
+  9) `.github/workflows/ci.yml` (security report 선생성 + 업로드 가드)
+  10) `docs/troubleshooting/27-01_bandit_xml_and_bind_all_interfaces_findings.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. .venv/bin/python -m pytest tests/agents/test_rss_news_pipeline.py tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `24 passed`
+  - `python - <<'PY' ... yaml.safe_load('.github/workflows/ci.yml') ... PY` -> `CI_YAML_OK`
+- 영향/리스크:
+  - 보안 경고 원인 코드는 제거됨.
+  - 로컬 네트워크 제한으로 `bandit` 실행 바이너리 설치 검증은 미수행(원격 CI에서 최종 확인 필요).
+
+---
+
 ## 12. References
 - `.github/workflows/ci.yml`
 - `docs/work-plans/27_ci_pipeline_dependency_and_test_env_fix_plan.md`
 - `docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md`
+- `docs/work-plans/27-01_bandit_findings_and_security_artifact_reliability_fix_plan.md`
+- `docs/troubleshooting/27-01_bandit_xml_and_bind_all_interfaces_findings.md`

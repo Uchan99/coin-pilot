@@ -1,13 +1,13 @@
 import hashlib
 import os
 import re
-import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
+from defusedxml import ElementTree as ET
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
@@ -184,7 +184,7 @@ def _local_name(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
 
-def _child_text(elem: ET.Element, names: Iterable[str]) -> str:
+def _child_text(elem: Any, names: Iterable[str]) -> str:
     targets = set(names)
     for child in list(elem):
         if _local_name(child.tag).lower() in targets:
@@ -193,7 +193,7 @@ def _child_text(elem: ET.Element, names: Iterable[str]) -> str:
     return ""
 
 
-def _atom_link(entry: ET.Element) -> str:
+def _atom_link(entry: Any) -> str:
     for child in list(entry):
         if _local_name(child.tag).lower() != "link":
             continue
