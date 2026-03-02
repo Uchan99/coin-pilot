@@ -2,7 +2,7 @@ name: CoinPilot CI
 
 on:
   push:
-    branches: [ "main", "f27" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
