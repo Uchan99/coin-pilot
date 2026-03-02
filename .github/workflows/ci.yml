@@ -44,6 +44,10 @@ jobs:
     - name: Run Unit Tests
       env:
         REDIS_URL: redis://localhost:6379/0
+        # src/common/db.py는 import 시점에 DB_PASSWORD 또는 DATABASE_URL이 없으면 fail-fast 예외를 발생시킨다.
+        # CI에서는 DB 연결 자체보다 테스트 수집/로직 검증이 목적이므로 최소 환경변수를 주입한다.
+        DB_PASSWORD: ci_test_password
+        DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test
         PYTHONPATH: .
       run: |
         python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/
@@ -61,26 +65,36 @@ jobs:
         python-version: "3.12"
         cache: "pip"
 
-    - name: Install dependencies for security scan
+    - name: Install security tools
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements-bot.txt
         pip install bandit pip-audit
 
     - name: Run Bandit (high severity/high confidence)
       run: |
         bandit -r src -ll -ii
 
-    - name: Run pip-audit (fail on known vulnerabilities)
+    - name: Run pip-audit for core dependencies (fail on known vulnerabilities)
       run: |
-        pip-audit -r requirements.txt -r requirements-bot.txt \
+        pip-audit -r requirements.txt \
           --progress-spinner off \
           --format json \
-          --output pip-audit-report.json
+          --output pip-audit-report-core.json
+
+    - name: Run pip-audit for bot dependencies (fail on known vulnerabilities)
+      run: |
+        # requirements.txt와 requirements-bot.txt는 런타임 대상이 달라 일부 패키지 버전이 다르다.
+        # 단일 환경에 동시 설치하면 resolver 충돌이 발생할 수 있어 파일 단위로 분리 감사한다.
+        pip-audit -r requirements-bot.txt \
+          --progress-spinner off \
+          --format json \
+          --output pip-audit-report-bot.json
 
     - name: Upload pip-audit report
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: pip-audit-report
-        path: pip-audit-report.json
+        path: |
+          pip-audit-report-core.json
+          pip-audit-report-bot.json
