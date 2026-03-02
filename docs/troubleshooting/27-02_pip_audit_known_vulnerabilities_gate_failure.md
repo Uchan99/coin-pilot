@@ -1,11 +1,11 @@
 # 27-02. pip-audit known vulnerabilities로 security job 실패
 
 작성일: 2026-03-02
-상태: Investigating
+상태: Resolved (Residual Accepted)
 우선순위: P1
 관련 문서:
 - Plan: `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
-- Result: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 3 예정)
+- Result: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 3~13)
 - Charter update 필요: TBD
 
 ---
@@ -84,10 +84,15 @@
   - 27-04 Phase M1/M2 3차 보정:
     - CI resolver 실패 원인 확인: `langchain-text-splitters==1.1.1`가 `langchain-core>=1.2.13` 요구
     - `requirements.txt`, `requirements-bot.txt`의 `langchain-core`를 `1.2.13`으로 상향
-- 다음:
-  - GitHub Actions 재실행 후 resolver 충돌/취약점 잔여 여부 확인
-  - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`, `CVE-2026-27794`) 재평가
-  - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행
+  - 최종 마감:
+    - GitHub Actions `security` 기준 allowlist 잔여는 `CVE-2026-25990(pillow)` 1건만 확인
+    - backend/agent 계열 CVE(`CVE-2026-26013`, `CVE-2026-27794` 등)는 해소
+    - `27` 스트림은 마감, `pillow`는 프론트 전환 스트림(`22`, `23`)에서 제거
+
+## 5. 결론/처리 결정
+1. 본 장애의 본질이었던 CI 보안 게이트 차단은 해소됨.
+2. 잔여 allowlist 1건(`pillow`)은 Streamlit 제약으로 인한 의도적 보류이며, 위험 수용 범위를 문서화함.
+3. `streamlit` 교체 또는 프론트 구조 전환 시점(`22`, `23`)에 해당 CVE를 최종 제거한다.
 
 ## 6. References
 - `.github/workflows/ci.yml`

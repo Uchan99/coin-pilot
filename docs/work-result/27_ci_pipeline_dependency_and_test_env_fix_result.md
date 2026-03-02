@@ -3,10 +3,10 @@
 작성일: 2026-03-02
 작성자: Codex
 관련 계획서: docs/work-plans/27_ci_pipeline_dependency_and_test_env_fix_plan.md
-상태: In Progress
-완료 범위: Phase 1~5
-선반영/추가 구현: Phase 2~5
-관련 트러블슈팅(있다면): docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md
+상태: Verified (Closed)
+완료 범위: Phase 1~13
+선반영/추가 구현: Phase 2~13
+관련 트러블슈팅(있다면): docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md, docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md
 
 ---
 
@@ -137,10 +137,11 @@
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
   - 초기 CI 실패 원인 2개(의존성 충돌, test env 누락)는 코드 레벨로 제거됨
-  - 이후 보안 취약점 잔여 이슈 대응을 위해 `27`은 현재 `in_progress`로 운영 중
+  - `27-04` 메이저 전환 결과, `pip-audit` 기준 allowlist는 `CVE-2026-25990(pillow)` 1건만 남았고 나머지 backend/agent 취약점은 해소됨
+  - GitHub Actions `test`/`security` 게이트는 통과했으며, `27` 스트림은 종료 가능 상태로 확정함
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) Phase D(allowlist 축소/정리) 진행
-  2) GitHub Actions `security` 최종 재검증 후 `27` 상태 재평가
+  1) `CVE-2026-25990(pillow)`는 Streamlit 종속 이슈로 `22`/`23`(대시보드 개선/Next.js 이관)에서 제거
+  2) 프론트 전환 시 `streamlit` 제거 또는 호환 버전 재설계 후 allowlist 0건화
 
 ---
 
@@ -432,3 +433,19 @@
 - 제한 사항:
   - 로컬 환경에서는 새 의존성 resolver 검증 불가
   - GitHub Actions `test`/`security` 재실행으로 최종 판정 필요
+
+---
+
+## 23. (선택) Phase 13 최종 마감 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 최종 판정 요약:
+  1) `security` 로그 기준 allowlist 잔여는 `CVE-2026-25990(pillow)` 1건만 확인
+  2) `test`/`security` 게이트가 통과해 CI 차단 상태는 해소
+  3) `f27`의 목표였던 backend/agent 계열 취약점 정리는 완료
+- 잔여 리스크(의도적 보류):
+  1) `pillow`는 `streamlit==1.43.2`의 전이 의존성 제약으로 즉시 제거 불가
+  2) 본 이슈는 프론트 전환 스트림(`22`, `23`)에서 구조적으로 해소

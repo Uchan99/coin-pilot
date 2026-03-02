@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-02  
 **작성자**: Codex  
-**상태**: Investigating  
+**상태**: Verified (Completed)  
 **관련 계획 문서**: `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`  
 **관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 5 예정)  
 **관련 트러블슈팅 문서**: `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`  
@@ -123,3 +123,4 @@
 - 2026-03-02: Phase D 3차 적용(`langgraph-checkpoint==4.0.0`을 core/bot에 명시 핀, `CVE-2026-27794` allowlist 제거). 로컬 회귀 테스트 `67 passed`, 실제 resolver/pip-audit 해소 여부는 CI security 재검증 대기.
 - 2026-03-02: Phase D 3차 롤백 적용(CI `ResolutionImpossible`: `langgraph 0.6.11 -> langgraph-checkpoint<4.0.0` 제약 충돌). `langgraph-checkpoint==4.0.0` 명시 핀 제거, `CVE-2026-27794` allowlist 복구.
 - 2026-03-02: 메이저 전환 작업을 `27-04_langchain_langgraph_major_migration_plan.md`로 분리해 후속 구현 트랙 확정.
+- 2026-03-02: `27-04` 전환 완료 및 CI 최종 통과 결과를 반영해 본 계획 종료(`Verified`). 잔여 `CVE-2026-25990(pillow)`는 프론트 전환 스트림(`22`, `23`)으로 이관.

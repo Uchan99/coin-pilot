@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-02  
 **작성자**: Codex  
-**상태**: Investigating  
+**상태**: Verified (Completed)  
 **관련 계획 문서**: `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`  
-**관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 10 예정)  
+**관련 결과 문서**: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 10~13)  
 **관련 트러블슈팅 문서**: `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`  
 **승인 정보**: 사용자 / 2026-03-02 / "메이지 전환 계획 세우고 진행하자."
 
@@ -127,3 +127,4 @@
 - 2026-03-02: Phase M1/M2 1차 착수. 의존성 후보를 1.x 계열(`langchain-core==1.2.11`, `langgraph==1.0.8` 등)로 상향하고, LangGraph 엔트리/메시지 병합 경로에 호환 레이어(`src/agents/langgraph_compat.py`)를 도입.
 - 2026-03-02: Phase M1/M2 2차 보정. CI resolver 충돌(`pydantic-settings==2.5.0` vs `langchain-community==0.4.1` 요구사항) 대응으로 core/bot `pydantic-settings==2.10.1` 상향.
 - 2026-03-02: Phase M1/M2 3차 보정. CI resolver 충돌(`langchain-text-splitters==1.1.1`가 `langchain-core>=1.2.13` 요구) 대응으로 core/bot `langchain-core==1.2.13` 상향.
+- 2026-03-02: GitHub Actions 최종 검증에서 backend/agent 계열 취약점 해소를 확인해 본 계획을 완료 처리(`Verified`). 잔여 `CVE-2026-25990(pillow)`는 Streamlit 전이 의존성 이슈로 `22`/`23` 스트림으로 이관.
