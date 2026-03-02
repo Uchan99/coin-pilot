@@ -31,7 +31,7 @@
 1. audit 리포트에서 package/CVE/fix_version 매핑
 2. 최소 상향 버전으로 requirements 정리
 3. pytest/런타임 smoke/audit 재검증
-4. 해소 불가 CVE만 제한적 ignore 검토(만료일/사유 기록)
+4. 해소 불가 CVE만 제한적 allowlist 적용(사유 기록 + 정기 재검토)
 
 ## 5. 진행 상태
 - 현재:
@@ -39,9 +39,10 @@
   - 1차 대응 반영 완료
     - `requirements.txt`/`requirements-bot.txt` 보안 상향(예: `fastapi`, `httpx`, `redis`, `uvicorn`, `streamlit`, `plotly`, `langchain-openai`)
     - security workflow에 pip-audit 상세 요약/게이트 스텝 추가(패키지/버전/CVE ID 로그 출력)
+    - 즉시 해소 불가 CVE는 `security/pip_audit_ignored_vulns.txt`로 관리
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
-  - 잔여 취약점이 있으면 2차 최소 상향 또는 제한적 예외 정책(`ignore-vuln`) 문서화
+  - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행
 
 ## 6. References
 - `.github/workflows/ci.yml`

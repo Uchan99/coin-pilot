@@ -185,14 +185,16 @@
 - 추가 변경 요약:
   1) 보안 취약점 완화를 위한 의존성 1차 상향
   2) `pip-audit` 결과를 CI 로그에 구조적으로 출력하는 요약 스텝 추가
-  3) 보안 게이트 차단 정책은 유지(취약점 발견 시 최종 step에서 `exit 1`)
+  3) 즉시 해소 불가 CVE를 파일 기반 allowlist로 제한 예외 처리
+  4) 보안 게이트 차단 정책은 유지(allowlist 제외 취약점 발견 시 최종 step에서 `exit 1`)
 - 추가 변경 파일:
   1) `requirements.txt`
   2) `requirements-bot.txt`
   3) `.github/workflows/ci.yml`
-  4) `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
-  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
-  6) `docs/checklists/remaining_work_master_checklist.md`
+  4) `security/pip_audit_ignored_vulns.txt`
+  5) `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
+  6) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  7) `docs/checklists/remaining_work_master_checklist.md`
 - 추가 검증 결과:
   - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `64 passed`
   - `.github/workflows/ci.yml` YAML 파싱 -> `CI_YAML_OK`
