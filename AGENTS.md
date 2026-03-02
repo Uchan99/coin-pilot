@@ -25,6 +25,8 @@
    - If a new **main** plan is created, add/update an item in `docs/checklists/remaining_work_master_checklist.md`.
    - If implementation starts/completes for a main plan, update checklist status (`todo/in_progress/blocked/done`) in the same change.
    - If a task is blocked or incident-driven, add the troubleshooting link in the checklist row.
+   - If a **Major** implementation is completed (main plan `done` or architecture/ops policy change), update `README.md` in the same change set.
+   - In the corresponding result doc, include explicit verification that README was synchronized.
 6) If issues arise (monitoring/bug/ops):
    - Independent work: docs/troubleshooting/<NN>_<topic>.md
    - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
@@ -34,6 +36,7 @@
 - Keep independent streams on top-level numeric IDs (`18_`, `29_`, ...).
 - When work is a subtask of an existing epic, keep the epic prefix (`17-01_`, `17-02_`, ...).
 - Do not create a new top-level number for work that is clearly part of an existing epic.
+- For non-project/admin/meta work (process-only docs, personal notes, non-product experiments), use the `99-` prefix.
 
 ## Traceability (required)
 - Plan/Result/Troubleshooting must reference each other when applicable:
