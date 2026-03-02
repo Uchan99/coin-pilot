@@ -6,10 +6,10 @@ from collections import OrderedDict
 from typing import Any, Literal, TypedDict
 
 from langchain_core.messages import BaseMessage, HumanMessage
-from langgraph.graph import END, StateGraph
 from pydantic import BaseModel, Field
 
 from src.agents.factory import get_chat_llm, get_premium_review_llm
+from src.agents.langgraph_compat import END, StateGraph, set_graph_entry
 from src.agents.rag_agent import run_rag_agent
 from src.agents.sql_agent import run_sql_agent
 from src.agents.tools.market_outlook_tool import run_market_outlook_tool
@@ -802,7 +802,8 @@ def create_chat_graph():
     workflow.add_node("action_recommendation", action_recommendation_node)
     workflow.add_node("general_chat", general_node)
 
-    workflow.set_entry_point("classifier")
+    # LangGraph 메이저 버전에 따라 entry API가 달라질 수 있어 compat 레이어로 설정합니다.
+    set_graph_entry(workflow, "classifier")
 
     def route_decision(state: AgentState):
         return state["intent"]

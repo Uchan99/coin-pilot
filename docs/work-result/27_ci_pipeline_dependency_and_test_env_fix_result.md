@@ -355,3 +355,38 @@
 - 검증 결과:
   - 이번 롤백은 dependency/문서 복구 작업으로, 기능 코드 변경 없음
   - 최종 정상화는 GitHub Actions `security` 재실행에서 `resolver failure` 미발생으로 확인 필요
+
+---
+
+## 20. (선택) Phase 10 선반영/추가 구현 결과 (27-04 M1/M2 1차)
+- 관련 계획:
+  - `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) `langchain/langgraph` 메이저 전환 1차 버전 후보 적용
+     - `langchain-core==1.2.11`
+     - `langgraph==1.0.8`
+     - `langchain-anthropic==1.3.3`, `langchain-openai==1.1.9`, `langchain-community==0.4.1`, `langchain-text-splitters==1.1.1`
+  2) `langgraph` 버전 변화에 대비해 호환 레이어 추가
+     - `src/agents/langgraph_compat.py` 신규 추가
+     - `set_graph_entry`를 통해 START-edge/set_entry_point 차이를 흡수
+     - `add_messages` 심볼 경로 변경 대비 fallback 제공
+  3) `CVE-2026-26013`, `CVE-2026-27794`를 allowlist에서 제거해 CI에서 직접 통과 여부 검증하도록 전환
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `src/agents/langgraph_compat.py`
+  5) `src/agents/state.py`
+  6) `src/agents/runner.py`
+  7) `src/agents/router.py`
+  8) `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md`
+  9) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  10) `docs/checklists/remaining_work_master_checklist.md`
+  11) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/ tests/test_agents.py` -> `70 passed`
+- 제한 사항:
+  - 로컬 네트워크 제한으로 새 의존성 resolver 설치 검증은 불가
+  - 최종 성공/실패는 GitHub Actions `test`/`security` 재실행 결과로 판정

@@ -73,8 +73,13 @@
     - CI에서 `ResolutionImpossible` 발생(`langgraph 0.6.11`이 `langgraph-checkpoint<4.0.0` 요구)
     - `langgraph-checkpoint==4.0.0` 명시 핀 제거
     - `security/pip_audit_ignored_vulns.txt`에 `CVE-2026-27794` 재등록
+  - 27-04 Phase M1/M2 1차 착수:
+    - 의존성 후보를 메이저 전환 조합으로 상향(`langchain-core==1.2.11`, `langgraph==1.0.8` 등)
+    - `langgraph` 버전 차이로 깨질 수 있는 시작 노드/메시지 병합 API를 호환 레이어로 흡수(`src/agents/langgraph_compat.py`)
+    - allowlist에서 `CVE-2026-26013`, `CVE-2026-27794` 제거(메이저 전환 성공 여부를 CI에서 직접 판정)
+    - 로컬 회귀 테스트 `70 passed` (기존 환경 기준)
 - 다음:
-  - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
+  - GitHub Actions 재실행 후 resolver 충돌/취약점 잔여 여부 확인
   - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`, `CVE-2026-27794`) 재평가
   - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행
 

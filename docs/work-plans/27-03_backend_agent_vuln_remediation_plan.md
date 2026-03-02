@@ -122,3 +122,4 @@
 - 2026-03-02: Phase D 2차 적용(`fastapi`를 core/bot 모두 `0.129.0`으로 상향, `CVE-2025-62727` allowlist 제거). 로컬 회귀 테스트 `67 passed` 확인, 최종 보안 게이트는 CI 재검증 대기.
 - 2026-03-02: Phase D 3차 적용(`langgraph-checkpoint==4.0.0`을 core/bot에 명시 핀, `CVE-2026-27794` allowlist 제거). 로컬 회귀 테스트 `67 passed`, 실제 resolver/pip-audit 해소 여부는 CI security 재검증 대기.
 - 2026-03-02: Phase D 3차 롤백 적용(CI `ResolutionImpossible`: `langgraph 0.6.11 -> langgraph-checkpoint<4.0.0` 제약 충돌). `langgraph-checkpoint==4.0.0` 명시 핀 제거, `CVE-2026-27794` allowlist 복구.
+- 2026-03-02: 메이저 전환 작업을 `27-04_langchain_langgraph_major_migration_plan.md`로 분리해 후속 구현 트랙 확정.
