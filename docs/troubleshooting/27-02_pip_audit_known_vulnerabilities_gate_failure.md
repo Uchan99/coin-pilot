@@ -33,7 +33,7 @@
 | CVE-2024-7774 | `langchain==0.3.x` | 에이전트 체인 유틸 | `src/agents/rag_agent.py`, `src/agents/daily_reporter.py`, `src/analytics/exit_performance.py` | Phase C에서 `langchain` 직접 의존/직접 import 제거 후 allowlist 제외(Phase D 1차) |
 | CVE-2026-26013 | `langchain-core==0.3.81` | 프롬프트/메시지 코어 | `src/agents/analyst.py`, `src/agents/guardian.py`, `src/agents/router.py`, `src/agents/state.py` | `langchain-core 1.x` 전환 필요(27-03 Phase C) |
 | CVE-2025-64439 | `langgraph-checkpoint==2.1.2` | 그래프 체크포인트 | 주로 bot requirements의 `langgraph==0.2.59` 경로에서 유입 | bot `langgraph`를 core와 정렬(`0.6.11`)해 제거 시도 |
-| CVE-2026-27794 | `langgraph-checkpoint==3.0.1` | 그래프 체크포인트 | core/bot 공통 `langgraph` 경로에서 유입 | `langgraph` 1.x/`checkpoint` 4.x 전환 필요(27-03 Phase B/C) |
+| CVE-2026-27794 | `langgraph-checkpoint==3.0.1` | 그래프 체크포인트 | core/bot 공통 `langgraph` 경로에서 유입 | Phase D 3차에서 `langgraph-checkpoint==4.0.0` 명시 핀 + allowlist 제거, CI에서 최종 검증 대기 |
 | CVE-2025-62727 | `starlette==0.47.3` | FastAPI 하위 HTTP 레이어 | `src/bot/main.py`, `src/mobile/query_api.py`의 API 경로 전반 | Phase D 2차에서 `fastapi==0.129.0` 상향 적용 후 allowlist 제외, CI에서 최종 검증 대기 |
 | CVE-2026-25990 | `pillow==11.3.0` | 대시보드 이미지 처리 | `streamlit` transitive dependency | `streamlit` 상향 전까지 allowlist 유지 |
 
@@ -65,9 +65,13 @@
     - core/bot `fastapi`를 `0.129.0`으로 상향해 `starlette` 취약점 구간을 벗어나는 방향으로 조정
     - `security/pip_audit_ignored_vulns.txt`에서 `CVE-2025-62727` 제거
     - 로컬 회귀 테스트 `67 passed`
+  - 27-03 Phase D 3차 반영:
+    - core/bot에 `langgraph-checkpoint==4.0.0` 명시 핀 추가
+    - `security/pip_audit_ignored_vulns.txt`에서 `CVE-2026-27794` 제거
+    - 로컬 회귀 테스트 `67 passed`
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
-  - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`, `CVE-2026-27794`) 재평가
+  - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`) 재평가
   - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행
 
 ## 6. References

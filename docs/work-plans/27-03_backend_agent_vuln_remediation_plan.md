@@ -120,3 +120,4 @@
 - 2026-03-02: Phase C 1차 적용(`langchain` 직접 의존/직접 import 제거, `rag_agent` 체인 헬퍼 제거 후 수동 체인 구성, `test_rag_agent.py` 추가) 및 회귀 테스트 `67 passed` 확인.
 - 2026-03-02: Phase D 1차 적용(미관측 stale allowlist 항목 `CVE-2024-7774` 제거). 잔여 allowlist(`CVE-2026-26013`, `CVE-2026-27794`, `CVE-2025-62727`, `CVE-2026-25990`)는 메이저 호환성 검토 후 순차 축소 예정.
 - 2026-03-02: Phase D 2차 적용(`fastapi`를 core/bot 모두 `0.129.0`으로 상향, `CVE-2025-62727` allowlist 제거). 로컬 회귀 테스트 `67 passed` 확인, 최종 보안 게이트는 CI 재검증 대기.
+- 2026-03-02: Phase D 3차 적용(`langgraph-checkpoint==4.0.0`을 core/bot에 명시 핀, `CVE-2026-27794` allowlist 제거). 로컬 회귀 테스트 `67 passed`, 실제 resolver/pip-audit 해소 여부는 CI security 재검증 대기.
