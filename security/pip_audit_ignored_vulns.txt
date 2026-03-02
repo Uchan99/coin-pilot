@@ -18,3 +18,6 @@ CVE-2026-27794
 
 # starlette advisory (fastapi 호환 버전과 동시 상향 검증이 필요한 항목)
 CVE-2025-62727
+
+# pillow advisory (현재 streamlit==1.43.2가 pillow<12를 요구하여 즉시 상향 불가)
+CVE-2026-25990

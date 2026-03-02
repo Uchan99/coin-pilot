@@ -201,3 +201,4 @@
 - 제한 사항:
   - 로컬 네트워크 제한으로 `pip-audit` 자체 실행/검증은 불가.
   - 최종 판정은 GitHub Actions 재실행 결과(`security` job)로 확인 필요.
+  - `streamlit==1.43.2`가 `pillow<12`를 요구해 `pillow>=12.1.1` 직접 상향과 충돌하므로, 해당 CVE는 allowlist로 분리 관리.

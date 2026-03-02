@@ -19,6 +19,7 @@
 ## 2. 증상/영향
 - 증상:
   - `pip-audit -r requirements.txt` 단계 exit code 1.
+  - `test` job install 단계에서 `pillow>=12.1.1`와 `streamlit==1.43.2` 의존성 충돌(`ResolutionImpossible`).
 - 영향:
   - 배포 전 검증 실패, 수동 확인 비용 증가.
 
@@ -40,6 +41,7 @@
     - `requirements.txt`/`requirements-bot.txt` 보안 상향(예: `fastapi`, `httpx`, `redis`, `uvicorn`, `streamlit`, `plotly`, `langchain-openai`)
     - security workflow에 pip-audit 상세 요약/게이트 스텝 추가(패키지/버전/CVE ID 로그 출력)
     - 즉시 해소 불가 CVE는 `security/pip_audit_ignored_vulns.txt`로 관리
+    - `streamlit`-`pillow` 충돌로 `requirements.txt`의 `pillow>=12.1.1` 직접 pin 제거, `CVE-2026-25990`를 allowlist로 이동
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
   - 잔여 blocking 취약점이 있으면 2차 최소 상향 또는 구조 전환(메이저 업그레이드) 진행

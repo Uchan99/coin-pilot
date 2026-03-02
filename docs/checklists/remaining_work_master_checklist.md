@@ -47,6 +47,7 @@
 - 2026-03-02: 27 후속 이슈(pip-audit known vulnerabilities fail)로 상태를 `in_progress`로 재전환, 27-02 하위 계획/트러블슈팅 연결.
 - 2026-03-02: 27-02 1차 조치 반영(주요 의존성 상향 + pip-audit 상세 요약 게이트 추가), GitHub Actions 재검증 대기.
 - 2026-03-02: 27-02 2차 조치 반영(상향 불가 CVE allowlist 파일 도입 + ignored/blocking 분리 출력), GitHub Actions security 재검증 대기.
+- 2026-03-02: 27-02 3차 조치 반영(`streamlit`-`pillow` 충돌로 `pillow>=12.1.1` pin 철회, `CVE-2026-25990` allowlist 전환), CI 재검증 대기.
 
 ---
 
