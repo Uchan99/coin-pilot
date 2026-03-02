@@ -277,4 +277,29 @@
   - 로컬 코드 회귀 범위는 Phase 5(`67 passed`)와 동일하며, 이번 Phase 6은 allowlist/문서 정리 중심 변경이라 테스트 스킵
   - 최종 보안 게이트 판정은 GitHub Actions `security` 재실행으로 확인 필요
 - 제한 사항:
-  - `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2025-62727`, `CVE-2026-25990`는 여전히 allowlist에 남아 있으며, 메이저 호환성 검토가 선행되어야 함.
+  - 작성 시점 기준 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`이며, 메이저 호환성 검토가 선행되어야 함.
+
+---
+
+## 17. (선택) Phase 7 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) Phase D 2차로 `starlette` 취약점 축소 작업 수행
+  2) core/bot 공통 `fastapi`를 `0.129.0`으로 상향
+  3) `security/pip_audit_ignored_vulns.txt`에서 `CVE-2025-62727` 제거
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `security/pip_audit_ignored_vulns.txt`
+  4) `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+  7) `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `67 passed`
+- 제한 사항:
+  - 로컬 환경 네트워크 제한으로 실제 `pip-audit` 해소 여부는 GitHub Actions `security` 재실행으로 최종 판정 필요.
+  - 잔여 allowlist는 `CVE-2026-26013`, `CVE-2026-27794`, `CVE-2026-25990`.

@@ -1,6 +1,6 @@
 # Bot-specific requirements (lighter footprint)
 # Core
-fastapi==0.116.1
+fastapi==0.129.0
 sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
 # Mobile query API/agent tools에서 동기 엔진(postgresql+psycopg2)을 사용하므로 bot 런타임에도 필요
