@@ -78,6 +78,9 @@
     - `langgraph` 버전 차이로 깨질 수 있는 시작 노드/메시지 병합 API를 호환 레이어로 흡수(`src/agents/langgraph_compat.py`)
     - allowlist에서 `CVE-2026-26013`, `CVE-2026-27794` 제거(메이저 전환 성공 여부를 CI에서 직접 판정)
     - 로컬 회귀 테스트 `70 passed` (기존 환경 기준)
+  - 27-04 Phase M1/M2 2차 보정:
+    - CI resolver 실패 원인 확인: `langchain-community==0.4.1`가 `pydantic-settings>=2.10.1` 요구
+    - `requirements.txt`, `requirements-bot.txt`의 `pydantic-settings`를 `2.10.1`로 상향
 - 다음:
   - GitHub Actions 재실행 후 resolver 충돌/취약점 잔여 여부 확인
   - Phase D로 allowlist 축소 가능 항목(`CVE-2026-26013`, `CVE-2026-27794`) 재평가

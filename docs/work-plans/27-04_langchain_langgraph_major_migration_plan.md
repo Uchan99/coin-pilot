@@ -125,3 +125,4 @@
 ## Plan 변경 이력
 - 2026-03-02: 계획 초안 작성 및 사용자 승인(`Approved`).
 - 2026-03-02: Phase M1/M2 1차 착수. 의존성 후보를 1.x 계열(`langchain-core==1.2.11`, `langgraph==1.0.8` 등)로 상향하고, LangGraph 엔트리/메시지 병합 경로에 호환 레이어(`src/agents/langgraph_compat.py`)를 도입.
+- 2026-03-02: Phase M1/M2 2차 보정. CI resolver 충돌(`pydantic-settings==2.5.0` vs `langchain-community==0.4.1` 요구사항) 대응으로 core/bot `pydantic-settings==2.10.1` 상향.
