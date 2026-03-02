@@ -81,14 +81,18 @@ jobs:
       run: |
         bandit -r src -ll -ii
 
-    - name: Run pip-audit for core dependencies (fail on known vulnerabilities)
+    - name: Run pip-audit for core dependencies
+      id: pip_audit_core
+      continue-on-error: true
       run: |
         pip-audit -r requirements.txt \
           --progress-spinner off \
           --format json \
           --output pip-audit-report-core.json
 
-    - name: Run pip-audit for bot dependencies (fail on known vulnerabilities)
+    - name: Run pip-audit for bot dependencies
+      id: pip_audit_bot
+      continue-on-error: true
       run: |
         # requirements.txt와 requirements-bot.txt는 런타임 대상이 달라 일부 패키지 버전이 다르다.
         # 단일 환경에 동시 설치하면 resolver 충돌이 발생할 수 있어 파일 단위로 분리 감사한다.
@@ -96,6 +100,74 @@ jobs:
           --progress-spinner off \
           --format json \
           --output pip-audit-report-bot.json
+
+    - name: Summarize pip-audit results and enforce gate
+      env:
+        CORE_AUDIT_OUTCOME: ${{ steps.pip_audit_core.outcome }}
+        BOT_AUDIT_OUTCOME: ${{ steps.pip_audit_bot.outcome }}
+      run: |
+        python - <<'PY'
+        import json
+        import os
+        import sys
+        from pathlib import Path
+
+        # 두 requirements(core/bot)를 분리 감사한 결과를 다시 한 곳에서 합쳐서
+        # "어떤 패키지/버전이 어떤 ID로 걸렸는지"를 로그에 명확히 남긴다.
+        # 이렇게 해야 다음 수정 사이클에서 오탐/누락 없이 바로 대응 가능하다.
+        reports = [
+            ("core", Path("pip-audit-report-core.json")),
+            ("bot", Path("pip-audit-report-bot.json")),
+        ]
+        all_issues = []
+
+        for label, path in reports:
+            if not path.exists():
+                print(f"[ERROR] Missing report file: {path}")
+                sys.exit(2)
+
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:  # noqa: BLE001
+                print(f"[ERROR] Failed to parse {path}: {exc}")
+                sys.exit(2)
+
+            # pip-audit JSON 스키마가 예상과 다르면 "취약점 0건"으로 오판하면 안 되므로
+            # 즉시 실패 처리하여 보안 게이트의 신뢰성을 유지한다.
+            deps = data.get("dependencies", []) if isinstance(data, dict) else []
+            if not isinstance(deps, list):
+                print(f"[ERROR] Unexpected report schema: {path}")
+                sys.exit(2)
+
+            for dep in deps:
+                name = dep.get("name", "unknown")
+                version = dep.get("version", "unknown")
+                vulns = dep.get("vulns", [])
+                if not isinstance(vulns, list):
+                    continue
+                for vuln in vulns:
+                    vuln_id = vuln.get("id", "UNKNOWN")
+                    fixes = ",".join(vuln.get("fix_versions", [])) if isinstance(vuln.get("fix_versions"), list) else "-"
+                    all_issues.append((label, name, version, vuln_id, fixes))
+
+        if not all_issues:
+            core_outcome = os.getenv("CORE_AUDIT_OUTCOME", "")
+            bot_outcome = os.getenv("BOT_AUDIT_OUTCOME", "")
+            if core_outcome == "failure" or bot_outcome == "failure":
+                print(
+                    "[ERROR] pip-audit step failed but vulnerability records are empty. "
+                    "Resolver or runtime failure 가능성이 있으므로 보수적으로 실패 처리합니다."
+                )
+                sys.exit(2)
+            print("[PASS] pip-audit: no known vulnerabilities found in core/bot requirements.")
+            sys.exit(0)
+
+        # 취약점이 하나라도 있으면 job을 실패시켜 기존 보안 정책(차단)을 유지한다.
+        print(f"[FAIL] pip-audit found {len(all_issues)} vulnerability records:")
+        for label, name, version, vuln_id, fixes in all_issues:
+            print(f"- [{label}] {name}=={version} | {vuln_id} | fixed: {fixes}")
+        sys.exit(1)
+        PY
 
     - name: Upload pip-audit report
       if: always()

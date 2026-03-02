@@ -1,0 +1,49 @@
+# 27-02. pip-audit known vulnerabilities로 security job 실패
+
+작성일: 2026-03-02
+상태: Investigating
+우선순위: P1
+관련 문서:
+- Plan: `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
+- Result: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md` (Phase 3 예정)
+- Charter update 필요: TBD
+
+---
+
+## 1. 트리거(왜 시작했나)
+- 관측 내용:
+  - GitHub Actions security 단계에서 `pip-audit`가 `Found 11 known vulnerabilities in 7 packages`로 종료.
+- 영향:
+  - CI 보안 게이트가 차단되어 main 기준 자동 검증 흐름 중단.
+
+## 2. 증상/영향
+- 증상:
+  - `pip-audit -r requirements.txt` 단계 exit code 1.
+- 영향:
+  - 배포 전 검증 실패, 수동 확인 비용 증가.
+
+## 3. 1차 원인 가설
+1. 직접 pin된 패키지 버전 중 CVE 포함 버전 존재
+2. transitive dependency 취약점 포함
+3. runtime 비필수 패키지가 감사 대상에 포함
+
+## 4. 대응 방향(초안)
+1. audit 리포트에서 package/CVE/fix_version 매핑
+2. 최소 상향 버전으로 requirements 정리
+3. pytest/런타임 smoke/audit 재검증
+4. 해소 불가 CVE만 제한적 ignore 검토(만료일/사유 기록)
+
+## 5. 진행 상태
+- 현재:
+  - 사용자 승인 완료
+  - 1차 대응 반영 완료
+    - `requirements.txt`/`requirements-bot.txt` 보안 상향(예: `fastapi`, `httpx`, `redis`, `uvicorn`, `streamlit`, `plotly`, `langchain-openai`)
+    - security workflow에 pip-audit 상세 요약/게이트 스텝 추가(패키지/버전/CVE ID 로그 출력)
+- 다음:
+  - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
+  - 잔여 취약점이 있으면 2차 최소 상향 또는 제한적 예외 정책(`ignore-vuln`) 문서화
+
+## 6. References
+- `.github/workflows/ci.yml`
+- `requirements.txt`
+- `requirements-bot.txt`

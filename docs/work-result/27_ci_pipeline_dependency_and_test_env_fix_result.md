@@ -174,3 +174,28 @@
 - `docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md`
 - `docs/work-plans/27-01_bandit_findings_and_security_artifact_reliability_fix_plan.md`
 - `docs/troubleshooting/27-01_bandit_xml_and_bind_all_interfaces_findings.md`
+
+---
+
+## 13. (선택) Phase 3 선반영/추가 구현 결과
+- 관련 계획:
+  - `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+- 추가 변경 요약:
+  1) 보안 취약점 완화를 위한 의존성 1차 상향
+  2) `pip-audit` 결과를 CI 로그에 구조적으로 출력하는 요약 스텝 추가
+  3) 보안 게이트 차단 정책은 유지(취약점 발견 시 최종 step에서 `exit 1`)
+- 추가 변경 파일:
+  1) `requirements.txt`
+  2) `requirements-bot.txt`
+  3) `.github/workflows/ci.yml`
+  4) `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`
+  5) `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md`
+  6) `docs/checklists/remaining_work_master_checklist.md`
+- 추가 검증 결과:
+  - `DB_PASSWORD=ci_test_password DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test REDIS_URL=redis://localhost:6379/0 PYTHONPATH=. .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` -> `64 passed`
+  - `.github/workflows/ci.yml` YAML 파싱 -> `CI_YAML_OK`
+- 제한 사항:
+  - 로컬 네트워크 제한으로 `pip-audit` 자체 실행/검증은 불가.
+  - 최종 판정은 GitHub Actions 재실행 결과(`security` job)로 확인 필요.
