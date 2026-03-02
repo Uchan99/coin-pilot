@@ -30,7 +30,7 @@
 ## 3.1 취약점 매핑 (Phase A 산출)
 | CVE | 패키지(관측 버전) | 주 영향 영역 | 코드/서비스 매핑 | 즉시 조치 방향 |
 |---|---|---|---|---|
-| CVE-2024-7774 | `langchain==0.3.x` | 에이전트 체인 유틸 | `src/agents/rag_agent.py`, `src/agents/daily_reporter.py`, `src/analytics/exit_performance.py` | 현재 fix version 미제공으로 allowlist 유지, 후속 메이저 전환 때 재평가 |
+| CVE-2024-7774 | `langchain==0.3.x` | 에이전트 체인 유틸 | `src/agents/rag_agent.py`, `src/agents/daily_reporter.py`, `src/analytics/exit_performance.py` | Phase C에서 `langchain` 직접 의존/직접 import 제거 후 allowlist 제외(Phase D 1차) |
 | CVE-2026-26013 | `langchain-core==0.3.81` | 프롬프트/메시지 코어 | `src/agents/analyst.py`, `src/agents/guardian.py`, `src/agents/router.py`, `src/agents/state.py` | `langchain-core 1.x` 전환 필요(27-03 Phase C) |
 | CVE-2025-64439 | `langgraph-checkpoint==2.1.2` | 그래프 체크포인트 | 주로 bot requirements의 `langgraph==0.2.59` 경로에서 유입 | bot `langgraph`를 core와 정렬(`0.6.11`)해 제거 시도 |
 | CVE-2026-27794 | `langgraph-checkpoint==3.0.1` | 그래프 체크포인트 | core/bot 공통 `langgraph` 경로에서 유입 | `langgraph` 1.x/`checkpoint` 4.x 전환 필요(27-03 Phase B/C) |
@@ -59,6 +59,8 @@
     - `src/agents/daily_reporter.py`, `src/analytics/exit_performance.py`의 prompt import를 `langchain_core`로 전환
     - `src/agents/rag_agent.py`에서 `langchain.chains` 의존 제거(수동 체인 + retriever fallback)
     - `tests/agents/test_rag_agent.py` 신규 추가 후 회귀 테스트 `67 passed`
+  - 27-03 Phase D 1차 반영:
+    - 최근 security 로그에서 더 이상 관측되지 않는 `CVE-2024-7774`를 `security/pip_audit_ignored_vulns.txt`에서 제거
 - 다음:
   - GitHub Actions 재실행 후 실제 취약 패키지 목록 확인
   - Phase D로 allowlist 축소 가능 항목(`CVE-2024-7774` 등) 재평가

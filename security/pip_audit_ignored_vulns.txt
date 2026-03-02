@@ -6,9 +6,6 @@
 # - 현재 코드베이스/런타임과 즉시 호환되지 않아 단기 핫픽스로 해소 불가한 경우
 # - 반드시 트러블슈팅/계획 문서에 사유와 후속 작업을 기록한다
 
-# langchain package advisory (현재 pip-audit DB에 fix version 미제공)
-CVE-2024-7774
-
 # langchain-core advisory (fix가 1.2.11로 제시되어 대규모 1.x 전환 필요)
 CVE-2026-26013
 
