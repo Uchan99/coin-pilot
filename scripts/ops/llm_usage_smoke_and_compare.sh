@@ -36,7 +36,8 @@ if [[ ! -f "${COMPOSE_FILE}" ]]; then
 fi
 
 # 0) 계측 플래그/모듈 확인
-run_compose exec -T bot python -c 'import os; print(f"LLM_USAGE_ENABLED={os.getenv(""LLM_USAGE_ENABLED"", ""unset"")}")'
+# 주의: python -c 문자열은 셸/파이썬 따옴표 충돌이 잦아 f-string 대신 단순 문자열 결합을 사용한다.
+run_compose exec -T bot python -c 'import os; print("LLM_USAGE_ENABLED=" + os.getenv("LLM_USAGE_ENABLED", "unset"))'
 run_compose exec -T bot python -c 'import src.common.llm_usage as _m; print("llm_usage module ok")'
 
 # 1) 챗봇 경로 강제 호출 (classifier/rag/sql/premium_review)

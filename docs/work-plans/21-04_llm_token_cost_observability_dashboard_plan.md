@@ -148,3 +148,4 @@
 - 2026-03-04: 사용자 피드백 반영. “잔여 크레딧 중심”이 아닌 “호출 단위 원장 + 계정 크레딧 대조” 구조로 설계를 구체화하고, AI Decision 외 챗봇/리포트/임베딩 route 분리 관측 범위를 명시.
 - 2026-03-04: 사용자 승인 후 구현 착수. `llm_usage_events/llm_credit_snapshots` 스키마, 공통 usage 캡처 유틸, route별 계측(AI Decision/Chatbot/Daily Report/RAG embedding 추정), 운영 집계 스크립트 범위를 Phase 1로 확정.
 - 2026-03-04: 운영 확인 절차 자동화 요구 반영. 경로별 강제 호출(chat/rag/sql/premium-review + ai_decision analyst/guardian)과 usage/canary 리포트 연속 출력을 수행하는 smoke 스크립트를 Phase 1 범위에 추가.
+- 2026-03-04: OCI 실행 중 smoke 스크립트 초기 구동 실패(`python -c` 따옴표 충돌, `SyntaxError`) 이슈를 반영해, 계측 플래그 출력 구문을 f-string에서 안전한 문자열 결합 형태로 보정하는 hotfix를 Phase 1 범위에 추가.

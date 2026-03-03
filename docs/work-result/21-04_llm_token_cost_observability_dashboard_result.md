@@ -204,7 +204,16 @@
 
 ## 11. (선택) Phase 2+ 선반영/추가 구현 결과
 - 추가 변경 요약:
-  - 없음
+  - 운영 hotfix 1건 반영: `scripts/ops/llm_usage_smoke_and_compare.sh`의 계측 플래그 출력 구문에서 `python -c` 따옴표 충돌로 발생하던 `SyntaxError`를 제거.
+  - 변경 전: `f"LLM_USAGE_ENABLED={os.getenv(""LLM_USAGE_ENABLED"", ""unset"")}"` (OCI bash에서 구문 깨짐)
+  - 변경 후: `"LLM_USAGE_ENABLED=" + os.getenv("LLM_USAGE_ENABLED", "unset")` (따옴표 충돌 없음)
+  - 개선 효과: smoke 스크립트 실행이 시작 단계에서 즉시 중단되던 상태에서 정상 진행 가능한 상태로 복구.
+
+- 추가 검증 결과:
+  - 권장 명령:
+    - `scripts/ops/llm_usage_smoke_and_compare.sh 1`
+  - 기대 결과:
+    - 시작부 `SyntaxError` 없이 `[INFO] LLM usage smoke start` 이후 챗봇/AI Decision 호출 단계로 진행
 
 ---
 
