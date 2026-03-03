@@ -171,7 +171,7 @@ def extract_candle_pattern_features(market_context: List[Dict[str, Any]]) -> Dic
 async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     """시장 분석가 노드: 지표 기반 진입 타당성 검토"""
     
-    llm = get_analyst_llm()
+    llm = get_analyst_llm(state.get("llm_route"))
     structured_llm = llm.with_structured_output(AnalystDecision)
 
     sanitized_context = sanitize_market_context_for_analyst(

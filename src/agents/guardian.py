@@ -14,7 +14,7 @@ async def risk_guardian_node(state: AgentState) -> Dict[str, Any]:
         # 'SKIP'은 Pydantic 스키마(SAFE | WARNING)에 없으므로 'WARNING'으로 대체하고 사유에 명시
         return {"guardian_decision": {"decision": "WARNING", "reasoning": "Skipped: Analyst already rejected."}}
     
-    llm = get_guardian_llm()
+    llm = get_guardian_llm(state.get("llm_route"))
     structured_llm = llm.with_structured_output(GuardianDecision)
     
     prompt = ChatPromptTemplate.from_messages([

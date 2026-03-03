@@ -2,10 +2,10 @@
 
 **작성일**: 2026-02-26  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: In Progress  
 **관련 계획 문서**: `docs/work-plans/21_live_trading_transition_1m_krw_plan.md`, `docs/work-plans/21-02_llm_model_haiku_vs_gpt4omini_comparison_plan.md`  
-**관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트  
+**관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`, `docs/work-result/21-03_ai_decision_model_canary_experiment_result.md`  
+**승인 정보**: 사용자 / 2026-03-04 / "카나리 실험 구현하자"  
 
 ---
 
@@ -130,3 +130,7 @@
   1) `21-04` 모델별 토큰/비용 대시보드 구축
   2) 카나리 결과 기반 기본 모델 확정(`anthropic` 유지 vs `openai` 전환)
   3) 필요 시 shadow mode 확장(고위험 심볼만 병렬평가)
+
+## 11. 계획 변경 이력
+- 2026-03-04: 사용자 승인 반영으로 상태를 `In Progress`로 전환하고 구현 착수.
+- 2026-03-04: Phase 1 구현 완료(카나리 라우팅/모델 기록/운영 집계 스크립트/기본 테스트 통과), 운영 관찰 단계로 전환.

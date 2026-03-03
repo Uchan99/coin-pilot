@@ -1,5 +1,4 @@
 import asyncio
-import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
@@ -9,7 +8,7 @@ from src.agents.analyst import market_analyst_node
 from src.agents.guardian import risk_guardian_node
 from src.common.db import get_db_session
 from src.common.models import AgentDecision
-from src.agents.factory import get_analyst_llm
+from src.agents.factory import select_ai_decision_route
 from src.common.notification import notifier
 
 def create_agent_graph():
@@ -58,12 +57,20 @@ class AgentRunner:
         
         Returns: (is_approved, reasoning)
         """
+        llm_route = select_ai_decision_route(
+            symbol=symbol,
+            strategy_name=strategy_name,
+            market_context=market_context,
+            indicators=indicators,
+        )
+
         initial_state = {
             "messages": [],
             "symbol": symbol,
             "strategy_name": strategy_name,
             "market_context": market_context,
             "indicators": indicators,
+            "llm_route": llm_route,
             "analyst_decision": None,
             "guardian_decision": None,
             "final_decision": "REJECT",
@@ -107,6 +114,7 @@ class AgentRunner:
                 market_context=market_context,
                 boundary_violation=boundary_violation,
                 boundary_terms=boundary_terms,
+                model_used=self._format_model_used(llm_route),
             )
             
             return is_approved, reasoning
@@ -116,7 +124,9 @@ class AgentRunner:
             await self._log_decision(
                 symbol, strategy_name, "REJECT",
                 "AI Analysis Timed Out (Conservative Fallback)", None,
-                indicators=indicators, market_context=market_context
+                indicators=indicators,
+                market_context=market_context,
+                model_used=self._format_model_used(llm_route),
             )
             return False, "AI Analysis Timed Out (Conservative Fallback: REJECT)"
         except Exception as e:
@@ -125,9 +135,20 @@ class AgentRunner:
             await self._log_decision(
                 symbol, strategy_name, "REJECT",
                 f"AI Error: {str(e)}", None,
-                indicators=indicators, market_context=market_context
+                indicators=indicators,
+                market_context=market_context,
+                model_used=self._format_model_used(llm_route),
             )
             return False, f"AI Analysis Error: {str(e)}"
+
+    @staticmethod
+    def _format_model_used(llm_route: Dict[str, Any] | None) -> str:
+        if not llm_route:
+            return "unknown"
+        provider = (llm_route.get("provider") or "unknown").strip().lower()
+        model = (llm_route.get("model") or "unknown").strip()
+        route_label = (llm_route.get("route_label") or "unknown").strip().lower()
+        return f"{provider}:{model} ({route_label})"
 
     async def _log_decision(
         self,
@@ -140,6 +161,7 @@ class AgentRunner:
         market_context: Dict[str, Any] = None,
         boundary_violation: bool = False,
         boundary_terms: Any = None,
+        model_used: str = "unknown",
     ):
         """AI 판단 결과를 DB에 저장하고, REJECT 시 Discord 알림 전송"""
         try:
@@ -155,7 +177,7 @@ class AgentRunner:
                     decision=decision,
                     reasoning=reasoning,
                     confidence=confidence,
-                    model_used=get_analyst_llm().model,
+                    model_used=model_used,
                     price_at_decision=price_at_decision,
                     regime=regime
                 )
@@ -171,6 +193,7 @@ class AgentRunner:
                 "confidence": confidence,
                 "boundary_violation": boundary_violation,
                 "boundary_terms": boundary_terms or [],
+                "model_used": model_used,
                 "reason": reasoning[:1500] if reasoning else "No reason provided",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }))
