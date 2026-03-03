@@ -243,6 +243,22 @@ def get_llm(model_type: str = "general", temperature: float = 0):
     return _build_llm(provider=provider, model_name=model_name, temperature=temperature)
 
 
+def get_model_identity(model_type: str = "general") -> tuple[str, str]:
+    """
+    model_type에 대응하는 최종 provider/model 식별자를 반환합니다.
+
+    왜 필요한가:
+    - usage/cost 원장에서 route별 모델 사용량을 정확히 집계하려면
+      호출 시점의 provider/model 태깅이 일관되어야 합니다.
+    """
+    if model_type == "premium_review":
+        model_name = os.getenv("LLM_PREMIUM_MODEL", PREMIUM_REVIEW_MODEL)
+    else:
+        model_name = os.getenv("LLM_MODEL", get_default_model_name())
+    provider = _resolve_provider_with_fallback(os.getenv("LLM_PROVIDER", "anthropic"))
+    return provider, model_name
+
+
 def get_chat_llm(temperature: float = 0):
     """챗봇/도구 라우팅용 LLM 인스턴스를 반환합니다."""
     return get_llm(model_type="chatbot", temperature=temperature)

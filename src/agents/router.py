@@ -8,7 +8,7 @@ from typing import Any, Literal, TypedDict
 from langchain_core.messages import BaseMessage, HumanMessage
 from pydantic import BaseModel, Field
 
-from src.agents.factory import get_chat_llm, get_premium_review_llm
+from src.agents.factory import get_chat_llm, get_model_identity, get_premium_review_llm
 from src.agents.langgraph_compat import END, StateGraph, set_graph_entry
 from src.agents.rag_agent import run_rag_agent
 from src.agents.sql_agent import run_sql_agent
@@ -20,6 +20,11 @@ from src.agents.tools.strategy_policy_tool import run_strategy_policy_tool
 from src.agents.tools.strategy_review_tool import run_strategy_review_tool
 from src.agents.tools.trade_history_tool import run_trade_history_tool
 from src.common.async_utils import run_async_safely
+from src.common.llm_usage import (
+    UsageCaptureCallback,
+    build_usage_request_id,
+    log_llm_usage_event,
+)
 
 SAFETY_DISCLAIMER = "이 답변은 참고용 분석이며 투자 권유가 아닙니다. 최종 결정은 본인 판단과 리스크 한도 기준으로 진행하세요."
 SCENARIO_NOTE = "시장 예측은 단정할 수 없으며, 가능한 시나리오를 기준으로 해석해야 합니다."
@@ -414,8 +419,42 @@ async def _generate_premium_review_commentary(query: str, data: dict[str, Any]) 
 
     try:
         llm = get_premium_review_llm(temperature=0.1)
-        response = await asyncio.wait_for(llm.ainvoke(prompt), timeout=CHAT_PREMIUM_REVIEW_TIMEOUT_SEC)
-    except Exception:
+        usage_capture = UsageCaptureCallback()
+        started_at = time.perf_counter()
+        provider, model = get_model_identity("premium_review")
+        async def _invoke_premium():
+            try:
+                return await llm.ainvoke(prompt, config={"callbacks": [usage_capture]})
+            except TypeError:
+                return await llm.ainvoke(prompt)
+
+        response = await asyncio.wait_for(
+            _invoke_premium(),
+            timeout=CHAT_PREMIUM_REVIEW_TIMEOUT_SEC,
+        )
+        await log_llm_usage_event(
+            route="chat_premium_review",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="success",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("chat_premium_review", provider, model),
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={"query_len": len(query)},
+        )
+    except Exception as exc:
+        provider, model = get_model_identity("premium_review")
+        await log_llm_usage_event(
+            route="chat_premium_review",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="error",
+            request_id=build_usage_request_id("chat_premium_review", provider, model),
+            error_type=type(exc).__name__,
+            meta={"query_len": len(query)},
+        )
         return None
 
     content = getattr(response, "content", "")
@@ -444,9 +483,40 @@ async def classifier_node(state: AgentState):
 
     try:
         llm = get_classifier_llm()
-        decision: IntentDecision = await llm.ainvoke(last_message)
+        usage_capture = UsageCaptureCallback()
+        started_at = time.perf_counter()
+        provider, model = get_model_identity("chatbot")
+        try:
+            decision: IntentDecision = await llm.ainvoke(
+                last_message,
+                config={"callbacks": [usage_capture]},
+            )
+        except TypeError:
+            decision = await llm.ainvoke(last_message)
+        await log_llm_usage_event(
+            route="chat_classifier",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="success",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("chat_classifier", provider, model),
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={"query_len": len(last_message)},
+        )
         return {"intent": decision.intent}
     except Exception as exc:
+        provider, model = get_model_identity("chatbot")
+        await log_llm_usage_event(
+            route="chat_classifier",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="error",
+            request_id=build_usage_request_id("chat_classifier", provider, model),
+            error_type=type(exc).__name__,
+            meta={"query_len": len(last_message)},
+        )
         print(f"Router Error: {exc}")
         return {"intent": "general_chat"}
 

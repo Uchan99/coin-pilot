@@ -159,6 +159,60 @@ class AgentDecision(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class LlmUsageEvent(Base):
+    """
+    LLM 호출 단위 usage/cost 원장 테이블.
+
+    설계 의도:
+    - 계정 잔여 크레딧 감소량만으로는 원인 분리가 불가능하므로,
+      "어떤 경로(route)가 어떤 모델을 얼마나 사용했는지"를 이벤트 단위로 저장한다.
+    - 저장 실패 시 본 기능(매매/챗봇/리포트)을 중단하면 운영 리스크가 커지므로
+      호출부에서 soft-fail로 기록한다.
+    """
+    __tablename__ = "llm_usage_events"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_llm_usage_events_request_id"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    request_id = Column(String(128), nullable=True)
+
+    route = Column(String(64), nullable=False, index=True)
+    feature = Column(String(64), nullable=False, index=True)
+    provider = Column(String(32), nullable=False, index=True)
+    model = Column(String(128), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="success", index=True)
+    error_type = Column(String(80), nullable=True, index=True)
+
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    estimated_cost_usd = Column(Numeric(20, 8), nullable=True)
+    price_version = Column(String(32), nullable=False, default="v1")
+    latency_ms = Column(Integer, nullable=True)
+
+    meta = Column(JSONB, nullable=True)
+
+
+class LlmCreditSnapshot(Base):
+    """
+    LLM 계정 잔여 크레딧 스냅샷 테이블.
+
+    목적:
+    - usage 원장 합계와 계정 단위 변화를 대조(reconciliation)하기 위한 보조 지표.
+    """
+    __tablename__ = "llm_credit_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    provider = Column(String(32), nullable=False, index=True)
+    balance_usd = Column(Numeric(20, 8), nullable=False)
+    balance_unit = Column(String(20), nullable=False, default="usd")
+    source = Column(String(40), nullable=False, default="manual")
+    note = Column(Text, nullable=True)
+
+
 class NewsArticle(Base):
     """
     RSS에서 수집한 뉴스 원본/정규화 데이터를 저장하는 테이블.

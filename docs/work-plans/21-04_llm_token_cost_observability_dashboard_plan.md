@@ -2,10 +2,10 @@
 
 **작성일**: 2026-02-27  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-02_llm_model_haiku_vs_gpt4omini_comparison_plan.md`  
-**관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`, `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`  
+**승인 정보**: 사용자 승인 / 2026-03-04 / "12-04 계획 변경 커밋 푸시 완료했고, 이제 다음 구현 진행해주면 돼"
 
 ---
 
@@ -146,3 +146,4 @@
 
 ## 10. 계획 변경 이력
 - 2026-03-04: 사용자 피드백 반영. “잔여 크레딧 중심”이 아닌 “호출 단위 원장 + 계정 크레딧 대조” 구조로 설계를 구체화하고, AI Decision 외 챗봇/리포트/임베딩 route 분리 관측 범위를 명시.
+- 2026-03-04: 사용자 승인 후 구현 착수. `llm_usage_events/llm_credit_snapshots` 스키마, 공통 usage 캡처 유틸, route별 계측(AI Decision/Chatbot/Daily Report/RAG embedding 추정), 운영 집계 스크립트 범위를 Phase 1로 확정.

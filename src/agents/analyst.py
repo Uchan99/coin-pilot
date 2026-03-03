@@ -1,9 +1,15 @@
+import time
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
 from src.agents.state import AgentState
 from src.agents.structs import AnalystDecision
 from src.agents.prompts import ANALYST_SYSTEM_PROMPT, get_analyst_prompt
 from src.agents.factory import get_analyst_llm
+from src.common.llm_usage import (
+    UsageCaptureCallback,
+    build_usage_request_id,
+    log_llm_usage_event,
+)
 
 RULE_REVALIDATION_TERM_MAP = {
     # canonical: 감지 키워드 목록
@@ -196,20 +202,62 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     validation_error: Exception | None = None
     boundary_terms: List[str] = []
     boundary_violation = False
+    usage_capture = UsageCaptureCallback()
+    started_at = time.perf_counter()
+    llm_route = state.get("llm_route") or {}
+    provider = str(llm_route.get("provider") or "unknown")
+    model = str(llm_route.get("model") or "unknown")
 
     try:
-        candidate: AnalystDecision = await chain.ainvoke({
+        invoke_payload = {
             "symbol": state["symbol"],
             "pattern_features": pattern_features,
             "market_context_ohlc": sanitized_context,
             "analyst_prompt": base_prompt,
-        })
+        }
+        try:
+            candidate: AnalystDecision = await chain.ainvoke(
+                invoke_payload,
+                config={"callbacks": [usage_capture]},
+            )
+        except TypeError:
+            candidate = await chain.ainvoke(invoke_payload)
         result = candidate
         # 정책 전환(18-15): boundary는 차단하지 않고 audit 기록으로 남긴다.
         boundary_terms = detect_rule_revalidation_terms((candidate.reasoning or "").strip())
         boundary_violation = len(boundary_terms) > 0
+
+        await log_llm_usage_event(
+            route="ai_decision_analyst",
+            feature="ai_decision",
+            provider=provider,
+            model=model,
+            status="success",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("ai_decision_analyst", provider, model),
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={
+                "symbol": state.get("symbol"),
+                "strategy_name": state.get("strategy_name"),
+            },
+        )
     except Exception as e:
         validation_error = e
+        await log_llm_usage_event(
+            route="ai_decision_analyst",
+            feature="ai_decision",
+            provider=provider,
+            model=model,
+            status="error",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("ai_decision_analyst", provider, model),
+            error_type=type(e).__name__,
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={
+                "symbol": state.get("symbol"),
+                "strategy_name": state.get("strategy_name"),
+            },
+        )
 
     if result is None:
         # Structured output 파싱 실패(예: reasoning 누락) 시 보수적 거절

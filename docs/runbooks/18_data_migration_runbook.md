@@ -65,7 +65,8 @@ for f in /opt/coin-pilot/migrations/004_add_pgvector.sql \
          /opt/coin-pilot/migrations/v3_2_1_trade_count_split.sql \
          /opt/coin-pilot/migrations/v3_2_2_post_exit_tracking.sql \
          /opt/coin-pilot/migrations/v3_3_0_news_rss_only.sql \
-         /opt/coin-pilot/migrations/v3_3_1_agent_decisions_baseline.sql; do
+         /opt/coin-pilot/migrations/v3_3_1_agent_decisions_baseline.sql \
+         /opt/coin-pilot/migrations/v3_3_2_llm_usage_observability.sql; do
   docker exec -i -u postgres coinpilot-db psql -d coinpilot -v ON_ERROR_STOP=1 < "$f"
 done
 ```

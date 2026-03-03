@@ -92,6 +92,8 @@ services:
       AI_CANARY_PROVIDER: ${AI_CANARY_PROVIDER:-openai}
       AI_CANARY_MODEL: ${AI_CANARY_MODEL:-gpt-4o-mini}
       AI_CANARY_PERCENT: ${AI_CANARY_PERCENT:-10}
+      LLM_USAGE_ENABLED: ${LLM_USAGE_ENABLED:-true}
+      LLM_USAGE_PRICE_TABLE_JSON: ${LLM_USAGE_PRICE_TABLE_JSON:-}
 
   discord-bot:
     <<: *app_security

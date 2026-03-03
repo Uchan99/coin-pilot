@@ -68,10 +68,13 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/coinpilot
       REDIS_URL: redis://redis:6379/0
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       PAPER_BALANCE: ${PAPER_BALANCE:-10000000}
       VOLATILITY_HIGH_THRESHOLD: ${VOLATILITY_HIGH_THRESHOLD:-2.0}
       BOT_HOST: ${BOT_HOST:-0.0.0.0}
       BOT_PORT: ${BOT_PORT:-8000}
+      LLM_USAGE_ENABLED: ${LLM_USAGE_ENABLED:-true}
+      LLM_USAGE_PRICE_TABLE_JSON: ${LLM_USAGE_PRICE_TABLE_JSON:-}
     security_opt:
       - no-new-privileges:true
     cap_drop:
