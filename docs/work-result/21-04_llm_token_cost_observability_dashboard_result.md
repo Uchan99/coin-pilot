@@ -65,6 +65,7 @@
 ### 2.4 운영 집계 스크립트/환경변수 반영
 - 파일/모듈:
   - `scripts/ops/llm_usage_cost_report.sh` (신규)
+  - `scripts/ops/llm_usage_smoke_and_compare.sh` (신규)
   - `.env.example`
   - `deploy/cloud/oci/.env.example`
   - `deploy/cloud/oci/docker-compose.prod.yml`
@@ -73,6 +74,7 @@
 - 변경 내용:
   - 최근 N시간 기준 route/provider/model별 호출수/토큰/비용/오류율 집계 SQL 자동화
   - ledger 합계 vs credit snapshot delta 대조 SQL 포함
+  - 권장 확인 절차 자동화를 위해 chat/rag/sql/premium-review + ai_decision(analyst/guardian) 경로를 강제 호출하고 usage/canary 리포트를 연속 출력하는 smoke 스크립트 추가
   - `LLM_USAGE_ENABLED`, `LLM_USAGE_PRICE_TABLE_JSON` 환경변수 반영
 - 효과/의미:
   - 운영자가 OCI에서 단일 명령으로 비용/오류 분포를 즉시 확인 가능
@@ -105,7 +107,8 @@
 1) `src/common/llm_usage.py`
 2) `migrations/v3_3_2_llm_usage_observability.sql`
 3) `scripts/ops/llm_usage_cost_report.sh`
-4) `tests/utils/test_llm_usage.py`
+4) `scripts/ops/llm_usage_smoke_and_compare.sh`
+5) `tests/utils/test_llm_usage.py`
 
 ---
 
@@ -146,7 +149,8 @@
 1) `docker exec -i -u postgres coinpilot-db psql -d coinpilot < /opt/coin-pilot/migrations/v3_3_2_llm_usage_observability.sql` 실행
 2) `docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot`로 bot 재기동
 3) `scripts/ops/llm_usage_cost_report.sh 24`에서 route/provider/model 행이 출력되는지 확인
-4) README 동기화 검증: `rg -n "llm_usage_cost_report|LLM_USAGE_ENABLED|LLM_USAGE_PRICE_TABLE_JSON" README.md`
+4) `scripts/ops/llm_usage_smoke_and_compare.sh 1` 실행 후 `llm_usage_events`에 `chat_sql_agent`/`chat_rag_generation`/`ai_decision_analyst` 등 route가 저장되는지 확인
+5) README 동기화 검증: `rg -n "llm_usage_cost_report|llm_usage_smoke_and_compare|LLM_USAGE_ENABLED|LLM_USAGE_PRICE_TABLE_JSON" README.md`
 
 ---
 
@@ -208,4 +212,5 @@
 - 링크:
   - `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`
   - `scripts/ops/llm_usage_cost_report.sh`
+  - `scripts/ops/llm_usage_smoke_and_compare.sh`
   - `migrations/v3_3_2_llm_usage_observability.sql`

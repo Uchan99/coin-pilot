@@ -159,6 +159,15 @@ scripts/ops/llm_usage_cost_report.sh 24
 - route/provider/model별 `total_tokens`, `cost_usd`, `error_calls`
 - `ledger_cost_usd` vs `credit_delta_usd` 대조값(`delta_usd`)
 
+### LLM 계측 스모크 + 비교(권장)
+```bash
+scripts/ops/llm_usage_smoke_and_compare.sh 1
+```
+
+역할:
+- 챗봇(classifier/rag/sql/premium-review) + AI Decision(analyst/guardian) 경로를 강제 호출
+- 직후 `llm_usage_cost_report`/`ai_decision_canary_report`를 연속 출력
+
 ## Discord 모바일 조회 봇 (선택)
 서비스: `src/discord_bot/main.py`
 
