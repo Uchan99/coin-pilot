@@ -98,6 +98,8 @@
   - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps node-exporter container-map cadvisor prometheus grafana`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=topk(10, container_memory_working_set_bytes{job="cadvisor"})'`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_memory_working_set_bytes{job="node-exporter"})'`
   - Grafana 패널 시계열 확인
 - 결과:
   - JSON 문법 검증 통과

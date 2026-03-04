@@ -88,6 +88,7 @@
 - 2026-03-05: 21-05 가독성 보강 3차 반영. cAdvisor 라벨 의존을 제거하기 위해 `coinpilot-container-map`(docker ps→node-exporter textfile metric) 사이드카를 추가하고, Grafana 패널 쿼리를 `coinpilot_container_display_info` 조인 + ID fallback 구조로 전환.
 - 2026-03-05: 21-05 가독성 보강 4차 핫픽스. `docker_only=true` 환경에서 cAdvisor `id`가 `/docker/<id>`로 바뀌는 케이스를 반영해 Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 겸용으로 수정.
 - 2026-03-05: 21-05 가독성 보강 5차 핫픽스. 최근 구간 `No data` 재발을 완화하기 위해 `container-map` 조인 유지 조건에서 cAdvisor를 `docker_only=false`로 재조정.
+- 2026-03-05: 21-05 가독성 보강 6차 핫픽스. cAdvisor `id="/"` 단일 시계열 고착 환경을 우회하기 위해 컨테이너 패널 데이터 소스를 `coinpilot-container-map`의 CPU/Memory/Restart 메트릭으로 전환.
 
 ---
 

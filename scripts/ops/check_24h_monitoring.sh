@@ -261,6 +261,26 @@ check_prometheus_container_display_map() {
   else
     warn "container display map 메트릭이 비어 있음(범례 fallback ID 동작 예상): ${response}"
   fi
+
+  # display map만 존재하고 stats가 비면 CPU/Memory 패널은 No data가 될 수 있다.
+  local stats_response
+  stats_response="$(
+    curl -fsSG "${PROMETHEUS_URL}/api/v1/query" \
+      --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})' 2>/dev/null || true
+  )"
+  if [[ -z "${stats_response}" ]]; then
+    warn "container cpu metric 조회 응답 없음 (${PROMETHEUS_URL})"
+    return
+  fi
+  if ! grep -q '"status":"success"' <<<"${stats_response}"; then
+    warn "container cpu metric 조회 실패 응답: ${stats_response}"
+    return
+  fi
+  if grep -Eq '"value":[[][^]]*,"[1-9][0-9]*"' <<<"${stats_response}"; then
+    pass "container cpu metric 존재 확인"
+  else
+    warn "container cpu metric이 비어 있음(CPU 패널 No data 가능): ${stats_response}"
+  fi
 }
 
 check_manual_alert_routing_notice() {

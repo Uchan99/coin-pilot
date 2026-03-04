@@ -343,7 +343,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (display) (((label_replace(rate(container_cpu_usage_seconds_total{job=\"cadvisor\",id=~\".*docker[-/].*\"}[5m]), \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") * on (cid) group_left(display) max by (cid, display) (coinpilot_container_display_info{job=\"node-exporter\"})) or label_replace(label_replace(rate(container_cpu_usage_seconds_total{job=\"cadvisor\",id=~\".*docker[-/].*\"}[5m]), \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") unless on (cid) max by (cid) (coinpilot_container_display_info{job=\"node-exporter\"}), \"display\", \"$1\", \"cid\", \"(.+)\"))) * 100",
+          "expr": "sum by (display) (coinpilot_container_cpu_percent{job=\"node-exporter\"})",
           "legendFormat": "{{display}}",
           "range": true,
           "refId": "A"
@@ -399,7 +399,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (display) ((label_replace(container_memory_working_set_bytes{job=\"cadvisor\",id=~\".*docker[-/].*\"}, \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") * on (cid) group_left(display) max by (cid, display) (coinpilot_container_display_info{job=\"node-exporter\"})) or label_replace(label_replace(container_memory_working_set_bytes{job=\"cadvisor\",id=~\".*docker[-/].*\"}, \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") unless on (cid) max by (cid) (coinpilot_container_display_info{job=\"node-exporter\"}), \"display\", \"$1\", \"cid\", \"(.+)\"))",
+          "expr": "sum by (display) (coinpilot_container_memory_working_set_bytes{job=\"node-exporter\"})",
           "legendFormat": "{{display}}",
           "range": true,
           "refId": "A"
@@ -448,7 +448,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (display) ((label_replace(changes(container_start_time_seconds{job=\"cadvisor\",id=~\".*docker[-/].*\"}[24h]), \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") * on (cid) group_left(display) max by (cid, display) (coinpilot_container_display_info{job=\"node-exporter\"})) or label_replace(label_replace(changes(container_start_time_seconds{job=\"cadvisor\",id=~\".*docker[-/].*\"}[24h]), \"cid\", \"$1\", \"id\", \".*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\\\.scope)?\") unless on (cid) max by (cid) (coinpilot_container_display_info{job=\"node-exporter\"}), \"display\", \"$1\", \"cid\", \"(.+)\"))",
+          "expr": "sum by (display) (clamp_min(max_over_time(coinpilot_container_restart_count{job=\"node-exporter\"}[24h]) - min_over_time(coinpilot_container_restart_count{job=\"node-exporter\"}[24h]), 0))",
           "legendFormat": "{{display}}",
           "range": true,
           "refId": "A"

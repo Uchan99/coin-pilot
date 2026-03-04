@@ -262,7 +262,7 @@ docker inspect coinpilot-n8n --format '{{ range .Mounts }}{{ if eq .Destination 
 - 포함 패널:
   - Host CPU / Memory / Root Disk
   - Host Network RX/TX
-  - Container CPU / Memory / Restart changes(24h)
+  - Container CPU / Memory / Restart changes(24h) (`coinpilot-container-map` 메트릭 기반)
   - Scrape Target Status (`coinpilot-core`, `node-exporter`, `cadvisor`, `prometheus`)
   - Container Legend Mapping(`coinpilot_container_display_info` via node-exporter textfile)
 

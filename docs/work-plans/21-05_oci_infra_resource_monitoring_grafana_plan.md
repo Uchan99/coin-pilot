@@ -128,3 +128,4 @@
 - 2026-03-05: 라벨 수집 경로가 계속 비어 있는 환경을 기준으로, `container-map`(docker ps→node-exporter textfile metric) 사이드카를 도입해 Grafana에서 서비스명 조인을 안정적으로 복구하는 단계(Phase 4)를 추가.
 - 2026-03-05: `docker_only=true` 이후 cAdvisor `id`가 `/docker/<id>` 형식으로 바뀌는 케이스를 확인해, 대시보드 정규식을 `docker-`/`docker/` 동시 지원으로 보강하는 핫픽스를 범위에 추가.
 - 2026-03-05: 최근 구간(Last 5m/15m) `No data` 재발 케이스를 확인해, `container-map` 조인 유지 조건에서 cAdvisor를 `docker_only=false`로 재조정하여 cgroup 기반 시계열 복구를 우선하도록 변경.
+- 2026-03-05: cAdvisor 시계열이 `id="/"` 단일로 고착되는 환경을 확인해, 컨테이너 CPU/Memory/Restart 패널의 데이터 소스를 `coinpilot-container-map` 메트릭으로 전환하는 우회 전략(Phase 4-3)을 추가.

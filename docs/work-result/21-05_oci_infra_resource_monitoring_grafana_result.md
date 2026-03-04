@@ -264,19 +264,20 @@
   1) `node-exporter`에 textfile collector 경로(`--collector.textfile.directory=/host/root/var/lib/node_exporter/textfile_collector`) 추가
   2) `coinpilot-container-map` 사이드카 추가
   3) `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh` 추가
-  4) Grafana 컨테이너 3개 패널을 `coinpilot_container_display_info` 조인 방식으로 변경(매핑 없을 때 `cid` fallback 유지)
+  4) Grafana 컨테이너 3개 패널을 `coinpilot-container-map` 메트릭 기반으로 전환(`coinpilot_container_cpu_percent`, `coinpilot_container_memory_working_set_bytes`, `coinpilot_container_restart_count`)
   5) `scripts/ops/check_24h_monitoring.sh`에 `coinpilot_container_display_info` 존재 점검 추가
 
 ### 13.1 정량 증빙(구현 기준)
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
-| 서비스명 조인용 독립 메트릭 수(`coinpilot_container_display_info`) | 0 | 1 | +1 | N/A |
+| container-map 노출 메트릭 수(`display/cpu/memory/restart/running`) | 0 | 5 | +5 | N/A |
 | 서비스명 조인을 적용한 패널 수 | 0 | 3 | +3 | N/A |
 | 운영 점검 자동화 항목(서비스명 매핑 점검) | 0 | 1 | +1 | N/A |
 
 - 측정 근거 명령:
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
-  - `rg -n 'coinpilot_container_display_info|legendFormat\": \"\\{\\{display\\}\\}\"' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})'`
+  - `rg -n 'coinpilot_container_cpu_percent|coinpilot_container_memory_working_set_bytes|coinpilot_container_restart_count|legendFormat\": \"\\{\\{display\\}\\}\"' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `rg -n 'check_prometheus_container_display_map|container-map' scripts/ops/check_24h_monitoring.sh`
 
 ### 13.2 운영 검증 방법(OCI)
@@ -286,11 +287,10 @@
 
 ### 13.3 운영 핫픽스(최근 5m No data)
 - 증상:
-  - `docker_only=true` 전환 이후 cAdvisor `id` 포맷이 `/docker/<id>`로 바뀐 환경에서, 기존 정규식(`/system.slice/docker-...scope`)만 사용하면 최근 구간(Last 5m/15m) 패널이 `No data`로 표시됨.
+  - 운영 검증에서 `topk(20, count by (id) (container_memory_working_set_bytes{job="cadvisor"}))` 결과가 `id="/"` 1건만 반환되어 최근 구간(Last 5m/15m) 패널이 `No data`로 재발.
 - 조치:
-  - 컨테이너 3개 패널 쿼리의 `id` 필터/추출 정규식을 `docker-`와 `docker/`를 모두 허용하도록 확장.
-  - 적용 정규식: `.*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\.scope)?`
-  - `container-map` 조인 경로를 유지한 채 cAdvisor를 `docker_only=false`로 재조정하여 최근 구간 시계열 공백 재발을 완화.
+  - 컨테이너 3개 패널의 데이터 소스를 cAdvisor에서 `coinpilot-container-map` 메트릭(`coinpilot_container_cpu_percent`, `coinpilot_container_memory_working_set_bytes`, `coinpilot_container_restart_count`)으로 전환.
+  - `container-map` 스크립트에 CPU/메모리/재시작 수집 로직을 추가해, cAdvisor 시계열 공백과 무관하게 최근 구간 패널이 유지되도록 보강.
 
 ---
 
