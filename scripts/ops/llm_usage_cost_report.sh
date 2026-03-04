@@ -95,6 +95,19 @@ ORDER BY provider;
 SQL
 )
 
+SQL_SNAPSHOT_HEALTH=$(cat <<SQL
+SELECT
+  provider,
+  COUNT(*) AS snapshots,
+  MAX(created_at) AS last_snapshot_at,
+  ROUND(EXTRACT(EPOCH FROM (now() - MAX(created_at))) / 60.0, 2) AS lag_minutes
+FROM llm_credit_snapshots
+WHERE created_at >= now() - interval '${HOURS} hours'
+GROUP BY provider
+ORDER BY provider;
+SQL
+)
+
 docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_SUMMARY"
 echo
 
@@ -104,3 +117,7 @@ echo
 
 echo "[INFO] reconciliation (ledger sum vs credit snapshot delta)"
 docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_RECON"
+echo
+
+echo "[INFO] credit snapshot freshness"
+docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_SNAPSHOT_HEALTH"

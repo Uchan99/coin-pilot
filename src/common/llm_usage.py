@@ -1,10 +1,12 @@
 import json
 import os
+import re
 import uuid
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import httpx
 from langchain_core.callbacks.base import BaseCallbackHandler
 
 
@@ -22,6 +24,25 @@ class TokenUsage:
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+
+
+@dataclass
+class CreditSnapshotConfig:
+    """
+    provider별 잔여 크레딧 조회 설정.
+
+    운영 의도:
+    - 벤더별 API 포맷이 다르므로 URL/헤더/JSON 경로를 env에서 주입한다.
+    - 코드 하드코딩을 최소화해 운영 중 endpoint/path 변경에 유연하게 대응한다.
+    """
+
+    provider: str
+    url: str
+    balance_json_path: str
+    headers: Dict[str, str]
+    timeout_sec: float = 10.0
+    source: str = "provider_api"
+    balance_unit: str = "usd"
 
 
 class UsageCaptureCallback(BaseCallbackHandler):
@@ -55,12 +76,28 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on", "y"}
 
 
+def _to_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _to_int(value: Any) -> Optional[int]:
     if value is None:
         return None
     try:
         return int(value)
     except (TypeError, ValueError):
+        return None
+
+
+def _to_decimal(value: Any) -> Optional[Decimal]:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except Exception:
         return None
 
 
@@ -71,6 +108,156 @@ def _pick_first_int(mapping: Dict[str, Any], keys: list[str]) -> Optional[int]:
             if parsed is not None:
                 return parsed
     return None
+
+
+def _expand_env_placeholders(raw: str) -> str:
+    """
+    `${ENV_NAME}` 형식의 placeholder를 현재 환경변수 값으로 치환한다.
+
+    왜 필요한가:
+    - 헤더 JSON에 API 키를 직접 하드코딩하지 않고 `${OPENAI_API_KEY}`처럼
+      env 참조를 남겨 보안/운영 편의성을 확보하기 위함.
+    """
+    pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        return os.getenv(key, "")
+
+    return pattern.sub(_replace, raw or "")
+
+
+def _extract_json_path(payload: Any, path: str) -> Any:
+    """
+    dot 경로(`a.b.0.c`)로 중첩 JSON 값을 추출한다.
+    """
+    if not path:
+        return payload
+
+    current: Any = payload
+    for token in path.split("."):
+        if isinstance(current, dict):
+            if token not in current:
+                return None
+            current = current[token]
+            continue
+        if isinstance(current, list):
+            try:
+                idx = int(token)
+            except ValueError:
+                return None
+            if idx < 0 or idx >= len(current):
+                return None
+            current = current[idx]
+            continue
+        return None
+    return current
+
+
+def _parse_headers_json(raw: str) -> Dict[str, str]:
+    if not raw.strip():
+        return {}
+    expanded = _expand_env_placeholders(raw)
+    try:
+        payload = json.loads(expanded)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    headers: Dict[str, str] = {}
+    for key, value in payload.items():
+        if not isinstance(key, str):
+            continue
+        headers[key] = str(value)
+    return headers
+
+
+def is_llm_credit_snapshot_enabled() -> bool:
+    return _env_bool("LLM_CREDIT_SNAPSHOT_ENABLED", default=False)
+
+
+def get_llm_credit_snapshot_interval_minutes() -> int:
+    raw = os.getenv("LLM_CREDIT_SNAPSHOT_INTERVAL_MIN", "60").strip()
+    try:
+        minutes = int(raw)
+    except ValueError:
+        minutes = 60
+    # 외부 API polling은 과도한 호출을 피하기 위해 최소 5분으로 제한한다.
+    return max(5, minutes)
+
+
+def _read_credit_snapshot_providers() -> List[str]:
+    raw = os.getenv("LLM_CREDIT_SNAPSHOT_PROVIDERS", "anthropic,openai")
+    values = [item.strip().lower() for item in raw.split(",")]
+    return [item for item in values if item]
+
+
+def _read_credit_snapshot_config(provider: str) -> Optional[CreditSnapshotConfig]:
+    """
+    provider별 snapshot 설정을 env에서 읽어 구성한다.
+
+    필수값:
+    - LLM_CREDIT_SNAPSHOT_<PROVIDER>_URL
+    - LLM_CREDIT_SNAPSHOT_<PROVIDER>_BALANCE_JSON_PATH
+    """
+    p = provider.strip().lower()
+    if not p:
+        return None
+    env_prefix = f"LLM_CREDIT_SNAPSHOT_{p.upper()}"
+
+    url = os.getenv(f"{env_prefix}_URL", "").strip()
+    path = os.getenv(f"{env_prefix}_BALANCE_JSON_PATH", "").strip()
+    if not url or not path:
+        return None
+
+    headers_raw = os.getenv(f"{env_prefix}_HEADERS_JSON", "").strip()
+    headers = _parse_headers_json(headers_raw)
+
+    timeout_sec = _to_float(os.getenv(f"{env_prefix}_TIMEOUT_SEC"), 10.0)
+    source = os.getenv(f"{env_prefix}_SOURCE", "provider_api").strip() or "provider_api"
+    balance_unit = os.getenv(f"{env_prefix}_BALANCE_UNIT", "usd").strip() or "usd"
+
+    return CreditSnapshotConfig(
+        provider=p,
+        url=url,
+        balance_json_path=path,
+        headers=headers,
+        timeout_sec=max(1.0, timeout_sec),
+        source=source,
+        balance_unit=balance_unit,
+    )
+
+
+def load_llm_credit_snapshot_configs() -> List[CreditSnapshotConfig]:
+    configs: List[CreditSnapshotConfig] = []
+    for provider in _read_credit_snapshot_providers():
+        cfg = _read_credit_snapshot_config(provider)
+        if cfg is not None:
+            configs.append(cfg)
+    return configs
+
+
+async def fetch_llm_credit_balance(config: CreditSnapshotConfig) -> Decimal:
+    """
+    provider API에서 잔여 크레딧을 조회해 USD 값으로 반환한다.
+    """
+    timeout = httpx.Timeout(config.timeout_sec)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(config.url, headers=config.headers)
+        response.raise_for_status()
+        payload = response.json()
+
+    value = _extract_json_path(payload, config.balance_json_path)
+    balance = _to_decimal(value)
+    if balance is None:
+        raise ValueError(
+            f"balance path not found or not numeric: provider={config.provider}, "
+            f"path={config.balance_json_path}, value={value!r}"
+        )
+    if balance < 0:
+        raise ValueError(f"negative balance is invalid: provider={config.provider}, value={balance}")
+    return balance.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+
 
 
 def _normalize_usage(input_tokens: Optional[int], output_tokens: Optional[int], total_tokens: Optional[int]) -> Optional[TokenUsage]:
@@ -339,3 +526,101 @@ async def log_llm_usage_event(
             await session.commit()
     except Exception as exc:
         print(f"[LLM Usage] failed to persist event: {exc}")
+
+
+async def log_llm_credit_snapshot(
+    *,
+    provider: str,
+    balance_usd: Decimal,
+    source: str = "provider_api",
+    balance_unit: str = "usd",
+    note: Optional[str] = None,
+) -> None:
+    """
+    provider별 잔여 크레딧 스냅샷을 저장한다.
+
+    운영 원칙:
+    - usage 이벤트 저장과 동일하게 soft-fail을 유지한다.
+    - credit 수집 실패가 매매/챗봇 요청 자체를 실패시키면 안 된다.
+    """
+    if not is_llm_usage_enabled():
+        return
+
+    try:
+        from src.common.db import get_db_session
+        from src.common.models import LlmCreditSnapshot
+
+        async with get_db_session() as session:
+            row = LlmCreditSnapshot(
+                provider=(provider or "unknown").strip().lower(),
+                balance_usd=balance_usd,
+                balance_unit=(balance_unit or "usd").strip().lower(),
+                source=(source or "provider_api").strip().lower(),
+                note=(note or "").strip() or None,
+            )
+            session.add(row)
+            await session.commit()
+    except Exception as exc:
+        print(f"[LLM Usage] failed to persist credit snapshot: {exc}")
+
+
+async def collect_llm_credit_snapshots_once() -> Dict[str, Any]:
+    """
+    설정된 provider API를 1회 순회하여 credit snapshot을 저장한다.
+
+    반환값은 스케줄러/운영 스크립트에서 요약 로그를 출력하기 위한 집계 정보다.
+    """
+    enabled = is_llm_credit_snapshot_enabled()
+    if not enabled:
+        return {
+            "enabled": False,
+            "configured_providers": 0,
+            "success_count": 0,
+            "failure_count": 0,
+            "details": [],
+        }
+
+    configs = load_llm_credit_snapshot_configs()
+    summary: Dict[str, Any] = {
+        "enabled": True,
+        "configured_providers": len(configs),
+        "success_count": 0,
+        "failure_count": 0,
+        "details": [],
+    }
+    if not configs:
+        return summary
+
+    for config in configs:
+        try:
+            balance = await fetch_llm_credit_balance(config)
+            await log_llm_credit_snapshot(
+                provider=config.provider,
+                balance_usd=balance,
+                source=config.source,
+                balance_unit=config.balance_unit,
+                note=f"url={config.url}",
+            )
+            summary["success_count"] += 1
+            summary["details"].append(
+                {
+                    "provider": config.provider,
+                    "status": "ok",
+                    "balance_usd": str(balance),
+                }
+            )
+        except Exception as exc:
+            summary["failure_count"] += 1
+            summary["details"].append(
+                {
+                    "provider": config.provider,
+                    "status": "error",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            print(
+                f"[LLM Credit] snapshot failed for provider={config.provider}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return summary

@@ -32,6 +32,11 @@ from src.agents.context_features import (
 )
 from src.agents.guardrails import should_block_ai_call, mark_ai_call_started
 from src.common.json_utils import dumps_json
+from src.common.llm_usage import (
+    collect_llm_credit_snapshots_once,
+    get_llm_credit_snapshot_interval_minutes,
+    is_llm_credit_snapshot_enabled,
+)
 from src.mobile.query_api import mobile_router
 
 # Graceful Shutdown Handler
@@ -635,6 +640,32 @@ async def news_summary_job():
         traceback.print_exc()
 
 
+async def llm_credit_snapshot_job():
+    """
+    provider API 기반 LLM 크레딧 스냅샷을 주기적으로 수집한다.
+
+    주의:
+    - 설정이 비활성/미구성인 경우도 장애로 보지 않고 skip 처리한다.
+    - 외부 API 실패가 매매 루프를 막지 않도록 예외는 내부에서 소비한다.
+    """
+    try:
+        summary = await collect_llm_credit_snapshots_once()
+        if not summary.get("enabled"):
+            print("[Scheduler] LLM credit snapshot disabled.")
+            return
+        configured = int(summary.get("configured_providers", 0))
+        success_count = int(summary.get("success_count", 0))
+        failure_count = int(summary.get("failure_count", 0))
+        print(
+            "[Scheduler] LLM credit snapshot done "
+            f"(configured={configured}, success={success_count}, failure={failure_count})"
+        )
+    except Exception as e:
+        print(f"[Scheduler] LLM credit snapshot failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 # FastAPI App Setup for Health & Metrics
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -680,6 +711,14 @@ async def lifespan(app: FastAPI):
         misfire_grace_time=300,
         coalesce=True,
     )
+    if is_llm_credit_snapshot_enabled():
+        scheduler.add_job(
+            llm_credit_snapshot_job,
+            'interval',
+            minutes=get_llm_credit_snapshot_interval_minutes(),
+            misfire_grace_time=300,
+            coalesce=True,
+        )
     scheduler.start()
     
     # 서버 기동 직후 즉시 레짐 업데이트 1회 실행
@@ -694,6 +733,8 @@ async def lifespan(app: FastAPI):
     # 서버 기동 직후 뉴스 파이프라인도 1회 실행
     asyncio.create_task(news_ingest_job())
     asyncio.create_task(news_summary_job())
+    if is_llm_credit_snapshot_enabled():
+        asyncio.create_task(llm_credit_snapshot_job())
     
     print("[*] Scheduler started (Regime job added).")
     

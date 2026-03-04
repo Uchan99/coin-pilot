@@ -5,7 +5,7 @@
 **상태**: In Progress  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-02_llm_model_haiku_vs_gpt4omini_comparison_plan.md`  
 **관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`, `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`  
-**승인 정보**: 사용자 승인 / 2026-03-04 / "12-04 계획 변경 커밋 푸시 완료했고, 이제 다음 구현 진행해주면 돼"
+**승인 정보**: 사용자 승인 / 2026-03-04 / "12-04 계획 변경 커밋 푸시 완료했고, 이제 다음 구현 진행해주면 돼", 추가 승인 / 2026-03-05 / "21-04 계획 문서 검증 한 번 하고 구현해보자."
 
 ---
 
@@ -75,7 +75,7 @@
     - 장점: 과금 명세에 근접
     - 단점: 실시간성/세분화 한계, 벤더 종속성 높음
 
-## 5. 구현/수정 내용 (예정)
+## 5. 구현/수정 내용 (Phase 1 완료, Phase 2 진행)
 - 변경 파일(예상):
   1) `src/common/models.py` (usage 이벤트 + 크레딧 스냅샷 모델 추가)
   2) `migrations/` (신규 테이블/인덱스 추가)
@@ -85,8 +85,9 @@
   6) `src/agents/daily_reporter.py` (리포트 경로 usage 캡처)
   7) 임베딩 호출 경로 모듈(존재 시) usage 캡처
   8) `monitoring/grafana-provisioning/dashboards/` (비용 대시보드 JSON 추가)
-  9) `scripts/ops/` (수동 reconciliation 리포트 스크립트 추가)
-  10) `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md` (신규)
+  9) `scripts/ops/` (수동 reconciliation 리포트 + credit snapshot 1회 수집 스크립트 추가)
+  10) `src/bot/main.py` (credit snapshot scheduler job 추가)
+  11) `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md` (신규)
 
 - 데이터 스키마(초안):
   - `llm_usage_events`
@@ -151,3 +152,4 @@
 - 2026-03-04: OCI 실행 중 smoke 스크립트 초기 구동 실패(`python -c` 따옴표 충돌, `SyntaxError`) 이슈를 반영해, 계측 플래그 출력 구문을 f-string에서 안전한 문자열 결합 형태로 보정하는 hotfix를 Phase 1 범위에 추가.
 - 2026-03-04: OCI 운영 반영에서 `CHAT_PREMIUM_REVIEW_TIMEOUT_SEC` env projection 누락을 확인해 compose 보정 항목을 계획 가드레일로 추가. 관련 트러블슈팅 문서 `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` 연결.
 - 2026-03-04: Phase 1 운영 검증은 통과했으나 `llm_credit_snapshots` 자동 수집 부재로 reconciliation 정밀 검증은 Phase 2로 이월.
+- 2026-03-05: 사용자 재승인 후 Phase 2 구현 착수. `LLM_CREDIT_SNAPSHOT_*` env 기반 provider API 수집, scheduler 주기 실행, one-shot 수집 스크립트(`scripts/ops/llm_credit_snapshot_collect.sh`), 리포트 snapshot freshness 구간을 계획 범위에 추가.

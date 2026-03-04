@@ -3,9 +3,9 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-상태: In Progress (Phase 1 Implemented)
-완료 범위: Phase 1
-선반영/추가 구현: 있음(Phase 2 운영 대시보드/크레딧 자동 수집은 후속)
+상태: In Progress (Phase 1 + Phase 2 Code Implemented)
+완료 범위: Phase 1, Phase 2(코드 반영)
+선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
 
 ---
@@ -74,10 +74,13 @@
 - 변경 내용:
   - 최근 N시간 기준 route/provider/model별 호출수/토큰/비용/오류율 집계 SQL 자동화
   - ledger 합계 vs credit snapshot delta 대조 SQL 포함
+  - credit snapshot freshness(최근 시점/지연 분) 구간 추가
   - 권장 확인 절차 자동화를 위해 chat/rag/sql/premium-review + ai_decision(analyst/guardian) 경로를 강제 호출하고 usage/canary 리포트를 연속 출력하는 smoke 스크립트 추가
-  - `LLM_USAGE_ENABLED`, `LLM_USAGE_PRICE_TABLE_JSON` 환경변수 반영
+  - one-shot 수집 스크립트 `scripts/ops/llm_credit_snapshot_collect.sh` 추가
+  - `LLM_USAGE_ENABLED`, `LLM_USAGE_PRICE_TABLE_JSON`, `LLM_CREDIT_SNAPSHOT_*` 환경변수 반영
 - 효과/의미:
   - 운영자가 OCI에서 단일 명령으로 비용/오류 분포를 즉시 확인 가능
+  - credit snapshot 자동수집을 scheduler에 붙일 수 있는 운영 경로 확보
 
 ---
 
@@ -102,6 +105,7 @@
 17) `docs/checklists/remaining_work_master_checklist.md`
 18) `docs/PROJECT_CHARTER.md`
 19) `README.md`
+20) `scripts/ops/llm_credit_snapshot_collect.sh`
 
 ### 3.2 신규
 1) `src/common/llm_usage.py`
@@ -109,6 +113,7 @@
 3) `scripts/ops/llm_usage_cost_report.sh`
 4) `scripts/ops/llm_usage_smoke_and_compare.sh`
 5) `tests/utils/test_llm_usage.py`
+6) `scripts/ops/llm_credit_snapshot_collect.sh`
 
 ---
 
@@ -137,6 +142,15 @@
 - 결과:
   - 26 passed / 0 failed
 
+### 5.4 Phase 2 코드 검증 (2026-03-05)
+- 실행 명령:
+  - `.venv/bin/python -m pytest tests/utils/test_llm_usage.py -q`
+  - `.venv/bin/python -m pytest tests/agents/test_factory_canary.py -q`
+  - `.venv/bin/python -m py_compile src/common/llm_usage.py src/bot/main.py`
+  - `bash -n scripts/ops/llm_usage_cost_report.sh && bash -n scripts/ops/llm_usage_smoke_and_compare.sh && bash -n scripts/ops/llm_credit_snapshot_collect.sh`
+- 결과:
+  - 통과(`test_llm_usage`: 10 passed, `test_factory_canary`: 4 passed, py_compile/bash syntax OK)
+
 ### 5.3 런타임/운영 반영 확인(선택)
 - 확인 방법:
   - `scripts/ops/llm_usage_smoke_and_compare.sh 1`
@@ -153,7 +167,9 @@
 2) `docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot`로 bot 재기동
 3) `scripts/ops/llm_usage_cost_report.sh 24`에서 route/provider/model 행이 출력되는지 확인
 4) `scripts/ops/llm_usage_smoke_and_compare.sh 1` 실행 후 `llm_usage_events`에 `chat_sql_agent`/`chat_rag_generation`/`ai_decision_analyst` 등 route가 저장되는지 확인
-5) README 동기화 검증: `rg -n "llm_usage_cost_report|llm_usage_smoke_and_compare|LLM_USAGE_ENABLED|LLM_USAGE_PRICE_TABLE_JSON" README.md`
+5) README 동기화 검증: `rg -n "llm_usage_cost_report|llm_usage_smoke_and_compare|llm_credit_snapshot_collect|LLM_CREDIT_SNAPSHOT_ENABLED" README.md`
+6) credit snapshot one-shot 검증: `scripts/ops/llm_credit_snapshot_collect.sh`
+7) scheduler env 확인: `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo LLM_CREDIT_SNAPSHOT_ENABLED=$LLM_CREDIT_SNAPSHOT_ENABLED; echo LLM_CREDIT_SNAPSHOT_PROVIDERS=$LLM_CREDIT_SNAPSHOT_PROVIDERS'`
 
 ---
 
@@ -201,7 +217,8 @@
   - 21-04 Phase 1(데이터 수집/집계 기반) 구현 완료
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) Grafana 패널(토큰/비용/오류율) 시각화 반영
-  2) `llm_credit_snapshots` 자동 수집(job) 추가 및 대조 오차 알람 연동
+  2) provider별 실제 credit API endpoint/path/header를 OCI `.env`에 연결하고 24h 대조 오차 관측
+  3) 대조 오차 알람 rule(허용 오차 초과 시 경고) 연동
 
 ---
 
@@ -248,4 +265,33 @@
   - `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
   - `scripts/ops/llm_usage_cost_report.sh`
   - `scripts/ops/llm_usage_smoke_and_compare.sh`
+  - `scripts/ops/llm_credit_snapshot_collect.sh`
   - `migrations/v3_3_2_llm_usage_observability.sql`
+
+---
+
+## 14. Phase 2 구현 반영 (2026-03-05)
+- 구현 요약:
+  - `src/common/llm_usage.py`에 provider API 기반 credit snapshot 수집/저장 로직을 추가했다.
+    - env-driven config(`LLM_CREDIT_SNAPSHOT_<PROVIDER>_URL`, `..._BALANCE_JSON_PATH`, `..._HEADERS_JSON`)
+    - `${ENV_NAME}` placeholder 치환 지원
+    - dot-path JSON 추출(`a.b.0.c`) 지원
+    - 실패 시 soft-fail 유지(매매/챗봇 흐름 비중단)
+  - `src/bot/main.py` scheduler에 `llm_credit_snapshot_job`을 추가했다.
+    - `LLM_CREDIT_SNAPSHOT_ENABLED=true`일 때만 주기 실행
+    - startup 시 1회 즉시 실행
+  - 운영 스크립트 보강:
+    - `scripts/ops/llm_credit_snapshot_collect.sh` 추가(one-shot 수집 + 최근 snapshot 조회)
+    - `scripts/ops/llm_usage_cost_report.sh`에 snapshot freshness 섹션 추가
+    - `scripts/ops/llm_usage_smoke_and_compare.sh`에서 snapshot 1회 실행 결과 출력
+- 정량 증빙:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `tests/utils/test_llm_usage.py` 통과 건수 | 6 | 10 | +4 | +66.7 |
+| credit snapshot 수집 실행 경로(스케줄러/one-shot) | 0 | 2 | +2 | N/A |
+| `llm_usage_cost_report.sh` 내 snapshot 상태 섹션 수 | 0 | 1 | +1 | N/A |
+
+- 남은 운영 검증:
+  - OCI `.env`에 provider API endpoint/path/header를 넣어 실제 snapshot row 생성 확인 필요
+  - 생성 확인 명령: `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT created_at, provider, balance_usd, source FROM llm_credit_snapshots ORDER BY created_at DESC LIMIT 20;"`

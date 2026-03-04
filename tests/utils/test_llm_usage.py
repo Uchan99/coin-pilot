@@ -2,10 +2,14 @@ from types import SimpleNamespace
 
 from src.common.llm_usage import (
     TokenUsage,
+    _expand_env_placeholders,
+    _extract_json_path,
+    _parse_headers_json,
     estimate_cost_usd,
     estimate_tokens_from_text,
     extract_usage_from_llm_result,
     extract_usage_from_response_message,
+    load_llm_credit_snapshot_configs,
 )
 
 
@@ -92,3 +96,45 @@ def test_estimate_cost_usd_known_model():
     assert cost is not None
     # 0.15 + 0.60 = 0.75
     assert float(cost) == 0.75
+
+
+def test_expand_env_placeholders(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+    raw = "Bearer ${OPENAI_API_KEY}"
+    assert _expand_env_placeholders(raw) == "Bearer test-openai-key"
+
+
+def test_extract_json_path_nested():
+    payload = {
+        "data": {
+            "credits": [
+                {"provider": "openai", "balance": 12.34},
+            ]
+        }
+    }
+    value = _extract_json_path(payload, "data.credits.0.balance")
+    assert value == 12.34
+
+
+def test_parse_headers_json_with_placeholder(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-anthropic-key")
+    raw = '{"x-api-key":"${ANTHROPIC_API_KEY}","x-version":"2026-01-01"}'
+    headers = _parse_headers_json(raw)
+    assert headers["x-api-key"] == "test-anthropic-key"
+    assert headers["x-version"] == "2026-01-01"
+
+
+def test_load_llm_credit_snapshot_configs(monkeypatch):
+    monkeypatch.setenv("LLM_CREDIT_SNAPSHOT_PROVIDERS", "openai")
+    monkeypatch.setenv("LLM_CREDIT_SNAPSHOT_OPENAI_URL", "https://example.test/openai/credits")
+    monkeypatch.setenv("LLM_CREDIT_SNAPSHOT_OPENAI_BALANCE_JSON_PATH", "credits.balance_usd")
+    monkeypatch.setenv("LLM_CREDIT_SNAPSHOT_OPENAI_HEADERS_JSON", '{"Authorization":"Bearer ${OPENAI_API_KEY}"}')
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
+
+    configs = load_llm_credit_snapshot_configs()
+
+    assert len(configs) == 1
+    assert configs[0].provider == "openai"
+    assert configs[0].url == "https://example.test/openai/credits"
+    assert configs[0].balance_json_path == "credits.balance_usd"
+    assert configs[0].headers["Authorization"] == "Bearer test-openai-key"
