@@ -22,6 +22,10 @@
 - 영향:
   - 배포 전 검증 실패, 수동 확인 비용 증가.
 
+### 해결한 문제(요약)
+- 해결 전: `pip-audit`가 known vulnerabilities로 `security` job을 차단해 main 기준 CI가 멈춤.
+- 해결 후: backend/agent 계열 취약점은 해소하고, 즉시 상향 불가한 `pillow` 1건만 allowlist로 제한해 `security` 게이트를 복구.
+
 ## 3. 1차 원인 가설
 1. 직접 pin된 패키지 버전 중 CVE 포함 버전 존재
 2. transitive dependency 취약점 포함
@@ -88,6 +92,18 @@
     - GitHub Actions `security` 기준 allowlist 잔여는 `CVE-2026-25990(pillow)` 1건만 확인
     - backend/agent 계열 CVE(`CVE-2026-26013`, `CVE-2026-27794` 등)는 해소
     - `27` 스트림은 마감, `pillow`는 프론트 전환 스트림(`22`, `23`)에서 제거
+
+### 5.1 정량 개선(결과 문서 대조)
+출처: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`, GitHub Actions security 로그
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `pip-audit` blocking 취약점 건수 | 11 | 0 | -11 | -100.0 |
+| GitHub Actions `security` job 상태(실패=0, 성공=1) | 0 | 1 | +1 | N/A |
+| allowlist 잔여 건수 | N/A | 1 | N/A | N/A |
+
+정량 기록이 없는 항목:
+- CVE별 Mean Time To Remediate(MTTR)는 단계별 타임스탬프를 구조화 저장하지 않아 계산하지 않음.
 
 ## 5. 결론/처리 결정
 1. 본 장애의 본질이었던 CI 보안 게이트 차단은 해소됨.

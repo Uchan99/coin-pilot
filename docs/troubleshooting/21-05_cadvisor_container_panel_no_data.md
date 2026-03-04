@@ -99,6 +99,15 @@
   1) Grafana 컨테이너 패널 3개가 `No data`에서 시계열로 전환되는지 확인
   2) `scripts/ops/check_24h_monitoring.sh t1h` PASS 유지 확인
 
+### 7.1 정량 근거(결과 문서 대조)
+출처: `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `No data` 컨테이너 패널 수 | 3 | 0 | -3 | -100.0 |
+| 루트 cgroup 외 컨테이너 시계열 존재 여부(0/1) | 0 | 1 | +1 | N/A |
+| `container_scrape_error{job="cadvisor"}` | N/A | 0 | N/A | N/A |
+
 ---
 
 ## 8. 재발 방지

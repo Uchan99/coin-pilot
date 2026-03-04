@@ -28,6 +28,8 @@
 | 7 | 23 | Next.js 점진 이관 | todo | 22에서 확정된 정보구조/운영요건 확보 | 최소 핵심 화면의 병행 운영(기존 대비 기능 동등) + Streamlit 대체 전략 확정(잔여 `pillow` CVE 제거 경로 포함) | (예정) 기능 동등성 체크리스트 | `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md` | (생성 예정) |
 | 8 | 26 | README 최신 운영 상태 반영 개편 | done | 문서 드리프트 확인 | README 기준 실행/운영 안내가 Charter/현재 배포 구조와 정합 | `rg -n \"PROJECT_CHARTER|check_24h_monitoring|discord-bot\" README.md` + README 링크 경로 존재 점검 | `docs/work-plans/26_readme_current_state_refresh_plan.md` | `docs/work-result/26_readme_current_state_refresh_result.md` |
 | 9 | 99-01 | Result/Troubleshooting 정량 증빙 의무화 정책 반영 | done | 사용자 승인 완료 | AGENTS/Charter/템플릿에 문제 정의 + before/after 수치 + 측정 근거 필수 규칙 반영 완료 + 결과 문서 작성 완료 | `rg -n \"before|after|정량|증빙|측정|문제\" AGENTS.md docs/PROJECT_CHARTER.md docs/templates/work-result.template.md docs/templates/troubleshooting.template.md` | `docs/work-plans/99-01_result_troubleshooting_quantified_evidence_policy_plan.md` | `docs/work-result/99-01_result_troubleshooting_quantified_evidence_policy_result.md` |
+| 10 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
+| 11 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
 
 ---
 
@@ -71,6 +73,10 @@
 - 2026-03-04: 99-01 신규 메타 계획 등록(결과/트러블슈팅 문서의 문제 정의/정량 증빙 의무화, 현재 `Approval Pending`).
 - 2026-03-04: 99-01 사용자 승인 후 정책 반영 착수(`in_progress`) 및 AGENTS/Charter/템플릿/README 동기화.
 - 2026-03-04: 99-01 구현 및 결과 문서 작성 완료(`done`).
+- 2026-03-04: 24/27/21-05 트러블슈팅 문서를 결과 문서와 대조해 정량 근거(명령 수/테스트 통과 수/취약점 건수/패널 복구 수치) 섹션을 보강.
+- 2026-03-04: 99-02 전수 백필 수행. 정량 섹션 누락 트러블슈팅 문서 24개에 `정량 증빙 상태`를 일괄 추가해 누락 0건으로 정리.
+- 2026-03-04: 99-02 정밀 보강 2차 반영. 백필 24개 문서 중 18개에 원문 수치 라인(%, 건수, passed/failed, 시간)을 자동 추출해 정량 증빙 밀도를 상향.
+- 2026-03-05: 99-03 완료. 트러블슈팅 32개 문서 전부를 5열 표준표 형식으로 통일했고, 기존 4열 표(7개)와 표준표 누락(24개)을 모두 해소.
 
 ---
 

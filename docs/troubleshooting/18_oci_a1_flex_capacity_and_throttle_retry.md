@@ -69,3 +69,27 @@ bash -n scripts/cloud/run_oci_retry_from_env.sh
 1. retry 프로세스는 계정당 1개만 실행
 2. Discord 알림으로 장시간 상태 모니터링
 3. 필요 시 `THROTTLE_RETRY_MAX_SECONDS`를 상향
+
+---
+
+## 정량 증빙 상태 (2026-03-04 백필)
+- 해결한 문제:
+  - 본문의 "증상/원인/조치" 섹션에 정의된 이슈를 해결 대상으로 유지한다.
+- 현재 문서에서 확인 가능한 구체 수치(원문 기반):
+  - - `500 InternalError / Out of host capacity`는 재시도됨
+  - - 이후 `429 TooManyRequests` 발생 시 `non-retryable launch failure`로 즉시 종료됨
+  - - `429 TooManyRequests`는 비재시도 오류로 분류되어 종료
+  - 1. 현행 유지(429 즉시 종료)
+  - 2. 429도 고정 600초 재시도
+- 표준 Before/After 비교표:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 문서 내 확인 가능한 수치 라인 수(자동 추출 기준) | 0 | 5 | +5 | N/A |
+| 표준 비교표 포함 여부(0/1) | 0 | 1 | +1 | N/A |
+
+- 현재 기록 한계:
+  - 결과 문서 대비 표준 Before/After 표(변화량/변화율)가 문서별로 일부 누락되어 있다.
+- 추후 보강 기준:
+  1) 관련 Result 문서와 로그 명령을 연결해 Before/After 표를 추가한다.
+  2) 수치가 없는 경우 "측정 불가 사유"와 "추후 수집 계획"을 함께 기록한다.
