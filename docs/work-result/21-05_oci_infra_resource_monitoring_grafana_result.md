@@ -5,7 +5,7 @@
 관련 계획서: docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md
 상태: Implemented
 완료 범위: Phase 1
-선반영/추가 구현: 있음(Phase 2 + Phase 3 일부)
+선반영/추가 구현: 있음(Phase 2 + Phase 3 + Phase 4 일부)
 관련 트러블슈팅(있다면): docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md
 
 ---
@@ -31,6 +31,7 @@
 - 변경 내용:
   - `coinpilot-node-exporter` 추가
   - `coinpilot-cadvisor` 추가
+  - `coinpilot-container-map` 추가(docker ps 결과를 node-exporter textfile metric으로 변환)
   - `prometheus`가 exporter 서비스에 의존하도록 `depends_on` 확장
 - 효과/의미:
   - 호스트/컨테이너 자원 지표를 Prometheus가 직접 수집 가능
@@ -245,7 +246,47 @@
 
 ---
 
-## 13. References
+## 13. Phase 4 추가 구현(cAdvisor 라벨 비의존 서비스명 매핑)
+- 문제:
+  - OCI 환경에서 `container_label_com_docker_compose_service`가 계속 0건으로 관측되어, cAdvisor 라벨 기반 서비스명 표기가 구조적으로 불안정했다.
+- 아키텍처 선택 이유:
+  - cAdvisor 라벨 유무와 무관하게 `docker ps`는 항상 id/name을 제공하므로, 이를 Prometheus 메트릭으로 변환하면 환경 편차를 제거할 수 있다.
+  - 기존 Prometheus/node-exporter/Grafana 스택을 재사용해 운영 복잡도를 최소화한다.
+- 고려한 대안:
+  1) cAdvisor 라벨 복구만 계속 시도(`docker_only`/권한 튜닝 반복)
+  2) Grafana 운영 가이드로만 ID↔서비스명을 수동 해석
+  3) `container-map` 사이드카로 id/name 매핑 메트릭을 별도 생성(채택)
+- 대안 비교:
+  - (1) 장점: 구성 추가 없음 / 단점: 환경 의존성 높아 재발 가능성 큼
+  - (2) 장점: 구현 비용 0 / 단점: 운영자 수동 대응 비용이 지속 발생
+  - (3) 장점: 자동 매핑 + fallback 유지 / 단점: 사이드카 1개 추가 운영 필요
+- 변경:
+  1) `node-exporter`에 textfile collector 경로(`--collector.textfile.directory=/host/root/var/lib/node_exporter/textfile_collector`) 추가
+  2) `coinpilot-container-map` 사이드카 추가
+  3) `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh` 추가
+  4) Grafana 컨테이너 3개 패널을 `coinpilot_container_display_info` 조인 방식으로 변경(매핑 없을 때 `cid` fallback 유지)
+  5) `scripts/ops/check_24h_monitoring.sh`에 `coinpilot_container_display_info` 존재 점검 추가
+
+### 13.1 정량 증빙(구현 기준)
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 서비스명 조인용 독립 메트릭 수(`coinpilot_container_display_info`) | 0 | 1 | +1 | N/A |
+| 서비스명 조인을 적용한 패널 수 | 0 | 3 | +3 | N/A |
+| 운영 점검 자동화 항목(서비스명 매핑 점검) | 0 | 1 | +1 | N/A |
+
+- 측정 근거 명령:
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
+  - `rg -n 'coinpilot_container_display_info|legendFormat\": \"\\{\\{display\\}\\}\"' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `rg -n 'check_prometheus_container_display_map|container-map' scripts/ops/check_24h_monitoring.sh`
+
+### 13.2 운영 검증 방법(OCI)
+1) `cd /opt/coin-pilot/deploy/cloud/oci && docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate --no-deps node-exporter container-map cadvisor prometheus grafana`
+2) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'` 결과가 1 이상인지 확인
+3) Grafana 컨테이너 패널 범례가 `coinpilot-*` 서비스명으로 표시되는지 확인
+
+---
+
+## 14. References
 - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`
 - `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
 - `docs/PROJECT_CHARTER.md`

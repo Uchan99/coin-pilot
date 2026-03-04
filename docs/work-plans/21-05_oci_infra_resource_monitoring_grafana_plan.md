@@ -125,3 +125,4 @@
 - 2026-02-28: cAdvisor docker factory API 버전 불일치(1.41<1.44)로 Docker 라벨(`name`) 기반 필터가 불안정함을 확인. 컨테이너 패널 쿼리를 `id=/system.slice/docker-...scope` 기준으로 전환하는 보정 단계를 계획 범위에 추가.
 - 2026-03-05: 컨테이너 패널 가독성 보강 범위를 추가. 범례를 `서비스명 우선 + ID fallback`(12자리) 방식으로 전환해 운영자가 `docker ps` 결과와 즉시 대응 가능하도록 한다.
 - 2026-03-05: cAdvisor 시계열에 `container_label_*`이 비어 있는 환경을 확인해, 운영 설정을 `--docker_only=true --store_container_labels=true`로 전환해 서비스명 라벨 수집을 우선 복구하도록 계획 범위를 확장.
+- 2026-03-05: 라벨 수집 경로가 계속 비어 있는 환경을 기준으로, `container-map`(docker ps→node-exporter textfile metric) 사이드카를 도입해 Grafana에서 서비스명 조인을 안정적으로 복구하는 단계(Phase 4)를 추가.

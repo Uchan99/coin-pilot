@@ -73,9 +73,12 @@
   - 컨테이너 3개 패널 쿼리를 `name` 기준에서 `id` 기준으로 전환
   - cAdvisor 권한/마운트 보강 및 `docker_only=false` 전환
   - 후속 운영 관측에서 `container_label_*` 라벨 공백이 재확인되어 `docker_only=true` + `store_container_labels=true`로 재전환
+  - 라벨 공백이 지속되는 환경을 기준으로 `coinpilot-container-map` 사이드카를 추가해 `coinpilot_container_display_info` 매핑 메트릭을 node-exporter textfile collector로 주입
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
+  - `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh`
   - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `scripts/ops/check_24h_monitoring.sh`
   - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` (변경 이력 추가)
   - `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` (Phase 2 기록)
   - `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md` (본 문서)
@@ -90,7 +93,9 @@
 - 실행 명령/절차:
   - `python3 -m json.tool deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json >/dev/null`
   - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps cadvisor prometheus grafana`
+  - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps node-exporter container-map cadvisor prometheus grafana`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=topk(10, container_memory_working_set_bytes{job="cadvisor"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
   - Grafana 패널 시계열 확인
 - 결과:
   - JSON 문법 검증 통과
