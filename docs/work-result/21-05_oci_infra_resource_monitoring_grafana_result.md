@@ -240,6 +240,8 @@
 1) `cd /opt/coin-pilot/deploy/cloud/oci && docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate --no-deps grafana`
 2) Grafana `CoinPilot Infra Overview`에서 컨테이너 3개 패널 범례가 `coinpilot-bot` 같은 서비스명으로 우선 표시되는지 확인
 3) 서비스 라벨이 없는 시계열은 12자리 ID로 fallback되는지 확인
+4) 서비스명이 계속 나오지 않으면 `cadvisor`를 `--docker_only=true --store_container_labels=true`로 재기동 후 아래 쿼리로 라벨 건수 재확인:
+   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(container_memory_working_set_bytes{job="cadvisor",container_label_com_docker_compose_service!=""})'`
 
 ---
 

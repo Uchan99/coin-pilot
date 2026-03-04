@@ -72,6 +72,7 @@
 - 변경 요약:
   - 컨테이너 3개 패널 쿼리를 `name` 기준에서 `id` 기준으로 전환
   - cAdvisor 권한/마운트 보강 및 `docker_only=false` 전환
+  - 후속 운영 관측에서 `container_label_*` 라벨 공백이 재확인되어 `docker_only=true` + `store_container_labels=true`로 재전환
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
   - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`

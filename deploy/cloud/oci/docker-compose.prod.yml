@@ -193,7 +193,9 @@ services:
     restart: unless-stopped
     privileged: true
     command:
-      - --docker_only=false
+      # 운영 가독성 우선: docker container 라벨(name/compose service) 수집을 강제한다.
+      - --docker_only=true
+      - --store_container_labels=true
       - --housekeeping_interval=30s
     volumes:
       - /:/rootfs:ro
