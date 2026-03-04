@@ -4,8 +4,8 @@
 작성자: Codex
 관련 계획서: docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md
 상태: Implemented
-완료 범위: Phase 1
-선반영/추가 구현: 있음(Phase 2 + Phase 3 + Phase 4 일부)
+완료 범위: Phase 1 + Phase 2 + Phase 3 + Phase 4-3
+선반영/추가 구현: 있음(운영 핫픽스 포함)
 관련 트러블슈팅(있다면): docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md
 
 ---
@@ -291,6 +291,33 @@
 - 조치:
   - 컨테이너 3개 패널의 데이터 소스를 cAdvisor에서 `coinpilot-container-map` 메트릭(`coinpilot_container_cpu_percent`, `coinpilot_container_memory_working_set_bytes`, `coinpilot_container_restart_count`)으로 전환.
   - `container-map` 스크립트에 CPU/메모리/재시작 수집 로직을 추가해, cAdvisor 시계열 공백과 무관하게 최근 구간 패널이 유지되도록 보강.
+
+### 13.4 최종 운영 검증(2026-03-05)
+- 실행 명령:
+  1) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info)'`
+  2) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_cpu_percent)'`
+  3) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_memory_working_set_bytes)'`
+  4) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_restart_count)'`
+  5) `scripts/ops/check_24h_monitoring.sh t1h`
+- 결과:
+  - 4개 메트릭 count 모두 `12` 확인
+  - `t1h` 점검 결과 `FAIL: 0`, `WARN: 1`(알림 라우팅 수동확인 안내) 확인
+  - Grafana `CoinPilot Infra Overview` Last 5m에서 컨테이너 범례가 `coinpilot-*` 서비스명으로 표시됨
+
+### 13.5 정량 증빙(최종)
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| Last 5m 컨테이너 패널 `No data` 여부(0/1) | 1 | 0 | -1 | -100.0 |
+| 서비스명 표기 가능한 컨테이너 시계열 수 | 0 | 12 | +12 | N/A |
+| `check_24h_monitoring.sh t1h` FAIL 건수 | 1 이상(이슈 시) | 0 | 개선 | N/A |
+
+### 13.6 현재 상태 및 잔여 작업
+- 현재 상태:
+  - 컨테이너 패널 가독성/즉시성 이슈는 해소된 상태이며, 운영 기준 검증(`t1h`)은 통과했다.
+  - `coinpilot_container_*` 메트릭 계열은 Prometheus에서 count `12`로 안정 노출 중이다.
+- 잔여 작업:
+  1) `check_24h_monitoring.sh t24h`까지 수집 연속성 확인
+  2) Grafana Alert Rule/Notification Policy의 Discord 라우팅 수동 점검 완료 기록 추가
 
 ---
 

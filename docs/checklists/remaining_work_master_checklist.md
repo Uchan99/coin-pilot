@@ -89,6 +89,7 @@
 - 2026-03-05: 21-05 가독성 보강 4차 핫픽스. `docker_only=true` 환경에서 cAdvisor `id`가 `/docker/<id>`로 바뀌는 케이스를 반영해 Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 겸용으로 수정.
 - 2026-03-05: 21-05 가독성 보강 5차 핫픽스. 최근 구간 `No data` 재발을 완화하기 위해 `container-map` 조인 유지 조건에서 cAdvisor를 `docker_only=false`로 재조정.
 - 2026-03-05: 21-05 가독성 보강 6차 핫픽스. cAdvisor `id="/"` 단일 시계열 고착 환경을 우회하기 위해 컨테이너 패널 데이터 소스를 `coinpilot-container-map`의 CPU/Memory/Restart 메트릭으로 전환.
+- 2026-03-05: 21-05 운영 검증 기록 업데이트. `coinpilot_container_*` 4개 핵심 메트릭 count `12`, `check_24h_monitoring.sh t1h` 결과 `FAIL:0/WARN:1` 확인. 남은 마감 조건은 `t24h` 연속성 확인.
 
 ---
 

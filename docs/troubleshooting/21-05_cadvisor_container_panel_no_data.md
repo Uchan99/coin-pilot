@@ -96,18 +96,21 @@
   - `python3 -m json.tool deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json >/dev/null`
   - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps cadvisor prometheus grafana`
   - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps node-exporter container-map cadvisor prometheus grafana`
-  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=topk(10, container_memory_working_set_bytes{job="cadvisor"})'`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})'`
   - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_memory_working_set_bytes{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_restart_count{job="node-exporter"})'`
+  - `scripts/ops/check_24h_monitoring.sh t1h`
   - Grafana 패널 시계열 확인
 - 결과:
   - JSON 문법 검증 통과
-  - 운영 반영 후 `topk(...container_memory_working_set_bytes...)`가 루트 cgroup 외 컨테이너 시계열을 반환해야 정상
+  - 운영 반영 후 `coinpilot_container_{display_info,cpu_percent,memory_working_set_bytes,restart_count}` count가 모두 `12`로 확인됨
+  - `scripts/ops/check_24h_monitoring.sh t1h` 결과 `FAIL: 0`, `WARN: 1` 확인
 
 - 운영 확인 체크:
-  1) Grafana 컨테이너 패널 3개가 `No data`에서 시계열로 전환되는지 확인
-  2) `scripts/ops/check_24h_monitoring.sh t1h` PASS 유지 확인
+  1) Grafana 컨테이너 패널 3개가 Last 5m에서도 `No data` 없이 시계열로 표시되는지 확인
+  2) 컨테이너 범례가 `coinpilot-*` 서비스명으로 표시되는지 확인
+  3) `scripts/ops/check_24h_monitoring.sh t1h` PASS 유지 확인
 
 ### 7.1 정량 근거(결과 문서 대조)
 출처: `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md`
@@ -115,8 +118,22 @@
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | `No data` 컨테이너 패널 수 | 3 | 0 | -3 | -100.0 |
-| 루트 cgroup 외 컨테이너 시계열 존재 여부(0/1) | 0 | 1 | +1 | N/A |
-| `container_scrape_error{job="cadvisor"}` | N/A | 0 | N/A | N/A |
+| 서비스명 매핑 메트릭 count (`coinpilot_container_display_info`) | 0 | 12 | +12 | N/A |
+| 컨테이너 CPU 메트릭 count (`coinpilot_container_cpu_percent`) | 0 | 12 | +12 | N/A |
+| `check_24h_monitoring.sh t1h` FAIL 건수 | 1 이상(이슈 시) | 0 | 개선 | N/A |
+
+### 7.2 현재 상태(2026-03-05 기준)
+- 상태 판정:
+  - `Fixed` 유지
+  - 단, 본 이슈는 cgroup/런타임 환경 영향이 큰 유형이므로 `t24h` 관찰 전까지는 운영 관찰 상태를 병행한다.
+- 확인된 정상 지표:
+  - `count(coinpilot_container_display_info)=12`
+  - `count(coinpilot_container_cpu_percent)=12`
+  - `count(coinpilot_container_memory_working_set_bytes)=12`
+  - `count(coinpilot_container_restart_count)=12`
+- 남은 확인 항목:
+  1) `scripts/ops/check_24h_monitoring.sh t24h` 실행 후 FAIL 0 유지
+  2) Grafana Alerting의 Discord 라우팅 수동 테스트 기록 추가
 
 ---
 
