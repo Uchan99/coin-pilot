@@ -144,6 +144,28 @@ CREATE TABLE IF NOT EXISTS llm_credit_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_llm_credit_snapshots_provider_created ON llm_credit_snapshots (provider, created_at DESC);
 
+-- Provider Cost Snapshot (21-04 Phase 2.1)
+-- 참고:
+-- - 공식 API에서 "잔여 크레딧" 대신 "구간 비용"을 제공하는 경우가 있어
+--   reconciliation 기준을 balance delta가 아닌 cost sum으로 확장한다.
+CREATE TABLE IF NOT EXISTS llm_provider_cost_snapshots (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    provider VARCHAR(32) NOT NULL,
+    window_start TIMESTAMPTZ NOT NULL,
+    window_end TIMESTAMPTZ NOT NULL,
+    cost_usd NUMERIC(20, 8) NOT NULL,
+    currency VARCHAR(10) NOT NULL DEFAULT 'usd',
+    source VARCHAR(40) NOT NULL DEFAULT 'provider_cost_api',
+    note TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_llm_provider_cost_snapshots_provider_created
+ON llm_provider_cost_snapshots (provider, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_llm_provider_cost_snapshots_window
+ON llm_provider_cost_snapshots (window_start, window_end, created_at DESC);
+
 -- Week 2: Additional Tables
 CREATE TABLE IF NOT EXISTS daily_risk_state (
     date DATE PRIMARY KEY,

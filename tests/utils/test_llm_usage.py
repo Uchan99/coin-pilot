@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from src.common.llm_usage import (
     TokenUsage,
+    _build_cost_snapshot_url,
     _expand_env_placeholders,
     _extract_json_path,
     _parse_headers_json,
@@ -10,7 +11,9 @@ from src.common.llm_usage import (
     extract_usage_from_llm_result,
     extract_usage_from_response_message,
     load_llm_credit_snapshot_configs,
+    load_llm_cost_snapshot_configs,
 )
+from datetime import datetime, timezone
 
 
 class _FakeMessage:
@@ -138,3 +141,41 @@ def test_load_llm_credit_snapshot_configs(monkeypatch):
     assert configs[0].url == "https://example.test/openai/credits"
     assert configs[0].balance_json_path == "credits.balance_usd"
     assert configs[0].headers["Authorization"] == "Bearer test-openai-key"
+
+
+def test_build_cost_snapshot_url_with_runtime_and_env(monkeypatch):
+    monkeypatch.setenv("OPENAI_ADMIN_KEY", "test-admin-key")
+    template = (
+        "https://api.example.test/costs?"
+        "start=${START_UNIX}&end=${END_UNIX}&token=${OPENAI_ADMIN_KEY}"
+    )
+    url = _build_cost_snapshot_url(
+        url_template=template,
+        window_start=datetime(2026, 3, 5, 9, 0, tzinfo=timezone.utc),
+        window_end=datetime(2026, 3, 5, 10, 0, tzinfo=timezone.utc),
+    )
+    assert "start=1772701200" in url
+    assert "end=1772704800" in url
+    assert "token=test-admin-key" in url
+
+
+def test_load_llm_cost_snapshot_configs(monkeypatch):
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_PROVIDERS", "openai")
+    monkeypatch.setenv(
+        "LLM_COST_SNAPSHOT_OPENAI_URL_TEMPLATE",
+        "https://api.example.test/costs?start=${START_UNIX}&end=${END_UNIX}",
+    )
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_OPENAI_VALUE_JSON_PATH", "data.0.amount.usd")
+    monkeypatch.setenv(
+        "LLM_COST_SNAPSHOT_OPENAI_HEADERS_JSON",
+        '{"Authorization":"Bearer ${OPENAI_ADMIN_KEY}"}',
+    )
+    monkeypatch.setenv("OPENAI_ADMIN_KEY", "test-admin-key")
+
+    configs = load_llm_cost_snapshot_configs()
+
+    assert len(configs) == 1
+    assert configs[0].provider == "openai"
+    assert configs[0].value_json_path == "data.0.amount.usd"
+    assert "START_UNIX" in configs[0].url_template
+    assert configs[0].headers["Authorization"] == "Bearer test-admin-key"

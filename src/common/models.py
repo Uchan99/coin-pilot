@@ -213,6 +213,29 @@ class LlmCreditSnapshot(Base):
     note = Column(Text, nullable=True)
 
 
+class LlmProviderCostSnapshot(Base):
+    """
+    provider 비용 스냅샷 테이블.
+
+    목적:
+    - provider의 공식 비용 API(기간 비용)를 저장해
+      내부 usage 원장 합계와 외부 비용 합계를 대조(reconciliation)한다.
+    - "잔여 크레딧(balance)"가 아닌 "구간 비용(cost)" 기반이므로
+      route 분리 원장과 함께 해석해야 정확한 운영 판단이 가능하다.
+    """
+    __tablename__ = "llm_provider_cost_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    provider = Column(String(32), nullable=False, index=True)
+    window_start = Column(DateTime(timezone=True), nullable=False, index=True)
+    window_end = Column(DateTime(timezone=True), nullable=False, index=True)
+    cost_usd = Column(Numeric(20, 8), nullable=False)
+    currency = Column(String(10), nullable=False, default="usd")
+    source = Column(String(40), nullable=False, default="provider_cost_api")
+    note = Column(Text, nullable=True)
+
+
 class NewsArticle(Base):
     """
     RSS에서 수집한 뉴스 원본/정규화 데이터를 저장하는 테이블.

@@ -76,21 +76,21 @@ WITH usage_cost AS (
   WHERE created_at >= now() - interval '${HOURS} hours'
   GROUP BY provider
 ),
-credit_delta AS (
+provider_cost AS (
   SELECT
     provider,
-    ROUND((MAX(balance_usd) - MIN(balance_usd))::numeric, 6) AS credit_delta_usd
-  FROM llm_credit_snapshots
+    ROUND(COALESCE(SUM(cost_usd), 0)::numeric, 6) AS provider_cost_usd
+  FROM llm_provider_cost_snapshots
   WHERE created_at >= now() - interval '${HOURS} hours'
   GROUP BY provider
 )
 SELECT
   COALESCE(u.provider, c.provider) AS provider,
   COALESCE(u.ledger_cost_usd, 0) AS ledger_cost_usd,
-  COALESCE(c.credit_delta_usd, 0) AS credit_delta_usd,
-  ROUND((COALESCE(u.ledger_cost_usd, 0) - ABS(COALESCE(c.credit_delta_usd, 0)))::numeric, 6) AS delta_usd
+  COALESCE(c.provider_cost_usd, 0) AS provider_cost_usd,
+  ROUND((COALESCE(u.ledger_cost_usd, 0) - COALESCE(c.provider_cost_usd, 0))::numeric, 6) AS delta_usd
 FROM usage_cost u
-FULL OUTER JOIN credit_delta c ON u.provider = c.provider
+FULL OUTER JOIN provider_cost c ON u.provider = c.provider
 ORDER BY provider;
 SQL
 )
@@ -101,7 +101,7 @@ SELECT
   COUNT(*) AS snapshots,
   MAX(created_at) AS last_snapshot_at,
   ROUND(EXTRACT(EPOCH FROM (now() - MAX(created_at))) / 60.0, 2) AS lag_minutes
-FROM llm_credit_snapshots
+FROM llm_provider_cost_snapshots
 WHERE created_at >= now() - interval '${HOURS} hours'
 GROUP BY provider
 ORDER BY provider;
@@ -115,9 +115,9 @@ echo "[INFO] hourly breakdown"
 docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_DAILY"
 echo
 
-echo "[INFO] reconciliation (ledger sum vs credit snapshot delta)"
+echo "[INFO] reconciliation (ledger sum vs provider cost snapshot sum)"
 docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_RECON"
 echo
 
-echo "[INFO] credit snapshot freshness"
+echo "[INFO] cost snapshot freshness"
 docker exec -u "$DB_USER" "$DB_CONTAINER" psql -d "$DB_NAME" -c "$SQL_SNAPSHOT_HEALTH"

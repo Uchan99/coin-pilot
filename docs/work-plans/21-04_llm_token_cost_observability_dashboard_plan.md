@@ -85,8 +85,8 @@
   6) `src/agents/daily_reporter.py` (리포트 경로 usage 캡처)
   7) 임베딩 호출 경로 모듈(존재 시) usage 캡처
   8) `monitoring/grafana-provisioning/dashboards/` (비용 대시보드 JSON 추가)
-  9) `scripts/ops/` (수동 reconciliation 리포트 + credit snapshot 1회 수집 스크립트 추가)
-  10) `src/bot/main.py` (credit snapshot scheduler job 추가)
+  9) `scripts/ops/` (수동 reconciliation 리포트 + cost snapshot 1회 수집 스크립트 추가)
+  10) `src/bot/main.py` (cost snapshot scheduler job 추가)
   11) `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md` (신규)
 
 - 데이터 스키마(초안):
@@ -95,8 +95,8 @@
     - `input_tokens`, `output_tokens`, `total_tokens`
     - `estimated_cost_usd`, `price_version`
     - `request_id`(중복 방지), `status`(success/error), `error_type`(nullable)
-  - `llm_credit_snapshots`
-    - `created_at`, `provider`, `balance_usd`, `balance_unit`, `source`
+  - `llm_provider_cost_snapshots`
+    - `created_at`, `provider`, `window_start`, `window_end`, `cost_usd`, `currency`, `source`
     - `note`(nullable)
 
 - route/feature 분류(초안):
@@ -112,13 +112,13 @@
   2) 모델별/route별 시간당 input/output token
   3) 모델별/route별 일간 추정비용(USD)
   4) route별 평균 비용/호출, 오류율
-  5) `ledger_sum` vs `credit_delta` 차이(대조 오차율)
+  5) `ledger_sum` vs `provider_cost_sum` 차이(대조 오차율)
 
 ## 6. 검증 기준
 - 재현 케이스에서 해결 확인:
   1) AI Decision/챗봇/리포트/임베딩 호출 후 route별 usage 이벤트가 DB에 기록됨
   2) Grafana에서 모델/route 비용 시계열이 표시됨
-  3) `ledger_sum`과 `credit_delta`가 허용 오차 내(예: ±10%)로 수렴
+  3) `ledger_sum`과 `provider_cost_sum`가 허용 오차 내(예: ±10%)로 수렴
 - 회귀 테스트:
   - usage 저장 실패 시 매매 판단 흐름은 중단되지 않아야 함
   - DB write 실패 시 경고 로그만 남기고 기능 지속
@@ -153,3 +153,4 @@
 - 2026-03-04: OCI 운영 반영에서 `CHAT_PREMIUM_REVIEW_TIMEOUT_SEC` env projection 누락을 확인해 compose 보정 항목을 계획 가드레일로 추가. 관련 트러블슈팅 문서 `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` 연결.
 - 2026-03-04: Phase 1 운영 검증은 통과했으나 `llm_credit_snapshots` 자동 수집 부재로 reconciliation 정밀 검증은 Phase 2로 이월.
 - 2026-03-05: 사용자 재승인 후 Phase 2 구현 착수. `LLM_CREDIT_SNAPSHOT_*` env 기반 provider API 수집, scheduler 주기 실행, one-shot 수집 스크립트(`scripts/ops/llm_credit_snapshot_collect.sh`), 리포트 snapshot freshness 구간을 계획 범위에 추가.
+- 2026-03-05: Phase 2.1 계획 보정. provider 공식 API의 balance endpoint 의존을 제거하고, `LLM_COST_SNAPSHOT_*` env 기반 구간 비용 수집(`llm_provider_cost_snapshots`)으로 전환해 route 원장(`llm_usage_events`)과 비용 합계를 대조하는 방식으로 변경.

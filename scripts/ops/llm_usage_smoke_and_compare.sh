@@ -39,16 +39,16 @@ fi
 # 주의: python -c 문자열은 셸/파이썬 따옴표 충돌이 잦아 f-string 대신 단순 문자열 결합을 사용한다.
 run_compose exec -T bot python -c 'import os; print("LLM_USAGE_ENABLED=" + os.getenv("LLM_USAGE_ENABLED", "unset"))'
 run_compose exec -T bot python -c 'import src.common.llm_usage as _m; print("llm_usage module ok")'
-run_compose exec -T bot python -c 'import os; print("LLM_CREDIT_SNAPSHOT_ENABLED=" + os.getenv("LLM_CREDIT_SNAPSHOT_ENABLED", "unset"))'
+run_compose exec -T bot python -c 'import os; print("LLM_COST_SNAPSHOT_ENABLED=" + os.getenv("LLM_COST_SNAPSHOT_ENABLED", "unset"))'
 
-# 0-1) credit snapshot 1회 강제 실행 (비활성 상태여도 summary 출력)
+# 0-1) cost snapshot 1회 강제 실행 (비활성 상태여도 summary 출력)
 run_compose exec -T bot python - <<'PY'
 import asyncio
 import json
-from src.common.llm_usage import collect_llm_credit_snapshots_once
+from src.common.llm_usage import collect_llm_cost_snapshots_once
 
-summary = asyncio.run(collect_llm_credit_snapshots_once())
-print("[CREDIT][SNAPSHOT]", json.dumps(summary, ensure_ascii=False))
+summary = asyncio.run(collect_llm_cost_snapshots_once())
+print("[COST][SNAPSHOT]", json.dumps(summary, ensure_ascii=False))
 PY
 
 # 1) 챗봇 경로 강제 호출 (classifier/rag/sql/premium_review)

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
@@ -43,6 +44,25 @@ class CreditSnapshotConfig:
     timeout_sec: float = 10.0
     source: str = "provider_api"
     balance_unit: str = "usd"
+
+
+@dataclass
+class CostSnapshotConfig:
+    """
+    provider별 구간 비용 조회 설정.
+
+    운영 의도:
+    - 일부 벤더는 balance 대신 기간 비용(cost) API를 제공한다.
+    - URL 템플릿에 시간 placeholder를 넣어 구간 비용을 정기 수집한다.
+    """
+
+    provider: str
+    url_template: str
+    value_json_path: str
+    headers: Dict[str, str]
+    timeout_sec: float = 10.0
+    source: str = "provider_cost_api"
+    currency: str = "usd"
 
 
 class UsageCaptureCallback(BaseCallbackHandler):
@@ -127,6 +147,26 @@ def _expand_env_placeholders(raw: str) -> str:
     return pattern.sub(_replace, raw or "")
 
 
+def _expand_runtime_placeholders(raw: str, values: Dict[str, str]) -> str:
+    """
+    `${KEY}` 형식 placeholder를 전달된 값으로 먼저 치환한다.
+
+    사용 맥락:
+    - cost snapshot URL 템플릿에 `${START_UNIX}`, `${END_UNIX}` 같은
+      시간 window placeholder를 넣고 런타임에 확정값으로 바꾼다.
+    - 이후 남은 placeholder는 `_expand_env_placeholders`로 env 치환한다.
+    """
+    pattern = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+    def _replace(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in values:
+            return values[key]
+        return match.group(0)
+
+    return pattern.sub(_replace, raw or "")
+
+
 def _extract_json_path(payload: Any, path: str) -> Any:
     """
     dot 경로(`a.b.0.c`)로 중첩 JSON 값을 추출한다.
@@ -186,10 +226,40 @@ def get_llm_credit_snapshot_interval_minutes() -> int:
     return max(5, minutes)
 
 
+def is_llm_cost_snapshot_enabled() -> bool:
+    return _env_bool("LLM_COST_SNAPSHOT_ENABLED", default=False)
+
+
+def get_llm_cost_snapshot_interval_minutes() -> int:
+    raw = os.getenv("LLM_COST_SNAPSHOT_INTERVAL_MIN", "60").strip()
+    try:
+        minutes = int(raw)
+    except ValueError:
+        minutes = 60
+    # 외부 비용 API polling 최소 주기는 5분으로 고정한다.
+    return max(5, minutes)
+
+
 def _read_credit_snapshot_providers() -> List[str]:
     raw = os.getenv("LLM_CREDIT_SNAPSHOT_PROVIDERS", "anthropic,openai")
     values = [item.strip().lower() for item in raw.split(",")]
     return [item for item in values if item]
+
+
+def _read_cost_snapshot_providers() -> List[str]:
+    raw = os.getenv("LLM_COST_SNAPSHOT_PROVIDERS", "anthropic,openai")
+    values = [item.strip().lower() for item in raw.split(",")]
+    return [item for item in values if item]
+
+
+def get_llm_cost_snapshot_lookback_hours() -> int:
+    raw = os.getenv("LLM_COST_SNAPSHOT_LOOKBACK_HOURS", "1").strip()
+    try:
+        hours = int(raw)
+    except ValueError:
+        hours = 1
+    # 창 크기가 0 이하이면 의미가 없으므로 최소 1시간 보장.
+    return max(1, hours)
 
 
 def _read_credit_snapshot_config(provider: str) -> Optional[CreditSnapshotConfig]:
@@ -228,10 +298,54 @@ def _read_credit_snapshot_config(provider: str) -> Optional[CreditSnapshotConfig
     )
 
 
+def _read_cost_snapshot_config(provider: str) -> Optional[CostSnapshotConfig]:
+    """
+    provider별 cost snapshot 설정을 env에서 읽어 구성한다.
+
+    필수값:
+    - LLM_COST_SNAPSHOT_<PROVIDER>_URL_TEMPLATE
+    - LLM_COST_SNAPSHOT_<PROVIDER>_VALUE_JSON_PATH
+    """
+    p = provider.strip().lower()
+    if not p:
+        return None
+    env_prefix = f"LLM_COST_SNAPSHOT_{p.upper()}"
+
+    url_template = os.getenv(f"{env_prefix}_URL_TEMPLATE", "").strip()
+    value_json_path = os.getenv(f"{env_prefix}_VALUE_JSON_PATH", "").strip()
+    if not url_template or not value_json_path:
+        return None
+
+    headers_raw = os.getenv(f"{env_prefix}_HEADERS_JSON", "").strip()
+    headers = _parse_headers_json(headers_raw)
+    timeout_sec = _to_float(os.getenv(f"{env_prefix}_TIMEOUT_SEC"), 10.0)
+    source = os.getenv(f"{env_prefix}_SOURCE", "provider_cost_api").strip() or "provider_cost_api"
+    currency = os.getenv(f"{env_prefix}_CURRENCY", "usd").strip() or "usd"
+
+    return CostSnapshotConfig(
+        provider=p,
+        url_template=url_template,
+        value_json_path=value_json_path,
+        headers=headers,
+        timeout_sec=max(1.0, timeout_sec),
+        source=source,
+        currency=currency.lower(),
+    )
+
+
 def load_llm_credit_snapshot_configs() -> List[CreditSnapshotConfig]:
     configs: List[CreditSnapshotConfig] = []
     for provider in _read_credit_snapshot_providers():
         cfg = _read_credit_snapshot_config(provider)
+        if cfg is not None:
+            configs.append(cfg)
+    return configs
+
+
+def load_llm_cost_snapshot_configs() -> List[CostSnapshotConfig]:
+    configs: List[CostSnapshotConfig] = []
+    for provider in _read_cost_snapshot_providers():
+        cfg = _read_cost_snapshot_config(provider)
         if cfg is not None:
             configs.append(cfg)
     return configs
@@ -257,6 +371,61 @@ async def fetch_llm_credit_balance(config: CreditSnapshotConfig) -> Decimal:
     if balance < 0:
         raise ValueError(f"negative balance is invalid: provider={config.provider}, value={balance}")
     return balance.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP)
+
+
+def _build_cost_snapshot_url(
+    *,
+    url_template: str,
+    window_start: datetime,
+    window_end: datetime,
+) -> str:
+    start_utc = window_start.astimezone(timezone.utc)
+    end_utc = window_end.astimezone(timezone.utc)
+    runtime_values = {
+        "START_UNIX": str(int(start_utc.timestamp())),
+        "END_UNIX": str(int(end_utc.timestamp())),
+        "START_ISO": start_utc.isoformat().replace("+00:00", "Z"),
+        "END_ISO": end_utc.isoformat().replace("+00:00", "Z"),
+    }
+    runtime_expanded = _expand_runtime_placeholders(url_template, runtime_values)
+    return _expand_env_placeholders(runtime_expanded)
+
+
+async def fetch_llm_cost_value(
+    config: CostSnapshotConfig,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> tuple[Decimal, str]:
+    """
+    provider API에서 구간 비용을 조회해 USD 값을 반환한다.
+
+    반환값:
+    - cost_usd: window 비용
+    - url: 런타임 placeholder 치환이 완료된 실제 호출 URL(운영 추적용)
+    """
+    resolved_url = _build_cost_snapshot_url(
+        url_template=config.url_template,
+        window_start=window_start,
+        window_end=window_end,
+    )
+
+    timeout = httpx.Timeout(config.timeout_sec)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.get(resolved_url, headers=config.headers)
+        response.raise_for_status()
+        payload = response.json()
+
+    value = _extract_json_path(payload, config.value_json_path)
+    cost = _to_decimal(value)
+    if cost is None:
+        raise ValueError(
+            f"cost path not found or not numeric: provider={config.provider}, "
+            f"path={config.value_json_path}, value={value!r}"
+        )
+    if cost < 0:
+        raise ValueError(f"negative cost is invalid: provider={config.provider}, value={cost}")
+    return cost.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP), resolved_url
 
 
 
@@ -564,6 +733,45 @@ async def log_llm_credit_snapshot(
         print(f"[LLM Usage] failed to persist credit snapshot: {exc}")
 
 
+async def log_llm_provider_cost_snapshot(
+    *,
+    provider: str,
+    window_start: datetime,
+    window_end: datetime,
+    cost_usd: Decimal,
+    currency: str = "usd",
+    source: str = "provider_cost_api",
+    note: Optional[str] = None,
+) -> None:
+    """
+    provider 구간 비용 스냅샷을 저장한다.
+
+    운영 원칙:
+    - 외부 비용 API 저장 실패는 기능 실패로 전파하지 않는다(soft-fail).
+    """
+    if not is_llm_usage_enabled():
+        return
+
+    try:
+        from src.common.db import get_db_session
+        from src.common.models import LlmProviderCostSnapshot
+
+        async with get_db_session() as session:
+            row = LlmProviderCostSnapshot(
+                provider=(provider or "unknown").strip().lower(),
+                window_start=window_start,
+                window_end=window_end,
+                cost_usd=cost_usd,
+                currency=(currency or "usd").strip().lower(),
+                source=(source or "provider_cost_api").strip().lower(),
+                note=(note or "").strip() or None,
+            )
+            session.add(row)
+            await session.commit()
+    except Exception as exc:
+        print(f"[LLM Usage] failed to persist provider cost snapshot: {exc}")
+
+
 async def collect_llm_credit_snapshots_once() -> Dict[str, Any]:
     """
     설정된 provider API를 1회 순회하여 credit snapshot을 저장한다.
@@ -620,6 +828,79 @@ async def collect_llm_credit_snapshots_once() -> Dict[str, Any]:
             )
             print(
                 f"[LLM Credit] snapshot failed for provider={config.provider}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return summary
+
+
+async def collect_llm_cost_snapshots_once() -> Dict[str, Any]:
+    """
+    설정된 provider 비용 API를 1회 순회하여 구간 비용 스냅샷을 저장한다.
+    """
+    enabled = is_llm_cost_snapshot_enabled()
+    if not enabled:
+        return {
+            "enabled": False,
+            "configured_providers": 0,
+            "success_count": 0,
+            "failure_count": 0,
+            "window_start": None,
+            "window_end": None,
+            "details": [],
+        }
+
+    lookback_hours = get_llm_cost_snapshot_lookback_hours()
+    window_end = datetime.now(timezone.utc)
+    window_start = window_end - timedelta(hours=lookback_hours)
+    configs = load_llm_cost_snapshot_configs()
+    summary: Dict[str, Any] = {
+        "enabled": True,
+        "configured_providers": len(configs),
+        "success_count": 0,
+        "failure_count": 0,
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+        "details": [],
+    }
+    if not configs:
+        return summary
+
+    for config in configs:
+        try:
+            cost_usd, resolved_url = await fetch_llm_cost_value(
+                config,
+                window_start=window_start,
+                window_end=window_end,
+            )
+            await log_llm_provider_cost_snapshot(
+                provider=config.provider,
+                window_start=window_start,
+                window_end=window_end,
+                cost_usd=cost_usd,
+                currency=config.currency,
+                source=config.source,
+                note=f"url={resolved_url}",
+            )
+            summary["success_count"] += 1
+            summary["details"].append(
+                {
+                    "provider": config.provider,
+                    "status": "ok",
+                    "cost_usd": str(cost_usd),
+                }
+            )
+        except Exception as exc:
+            summary["failure_count"] += 1
+            summary["details"].append(
+                {
+                    "provider": config.provider,
+                    "status": "error",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            print(
+                f"[LLM Cost] snapshot failed for provider={config.provider}: "
                 f"{type(exc).__name__}: {exc}"
             )
 

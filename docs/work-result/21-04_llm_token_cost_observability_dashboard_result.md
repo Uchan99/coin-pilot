@@ -3,8 +3,8 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-상태: In Progress (Phase 1 + Phase 2 Code Implemented)
-완료 범위: Phase 1, Phase 2(코드 반영)
+상태: In Progress (Phase 1 + Phase 2 + Phase 2.1 Code Implemented)
+완료 범위: Phase 1, Phase 2, Phase 2.1(코드 반영)
 선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
 
@@ -267,6 +267,7 @@
   - `scripts/ops/llm_usage_smoke_and_compare.sh`
   - `scripts/ops/llm_credit_snapshot_collect.sh`
   - `migrations/v3_3_2_llm_usage_observability.sql`
+  - `migrations/v3_3_3_llm_provider_cost_snapshots.sql`
 
 ---
 
@@ -295,3 +296,37 @@
 - 남은 운영 검증:
   - OCI `.env`에 provider API endpoint/path/header를 넣어 실제 snapshot row 생성 확인 필요
   - 생성 확인 명령: `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT created_at, provider, balance_usd, source FROM llm_credit_snapshots ORDER BY created_at DESC LIMIT 20;"`
+
+---
+
+## 15. Phase 2.1 구현 반영 (2026-03-05)
+- 문제 정의:
+  - provider 공식 API에서 "잔여 크레딧(balance)" endpoint 의존성이 불명확해 운영 자동화가 막혔다.
+  - 결과적으로 `llm_credit_snapshots` 기반 대조는 0건 상태에 머물렀고, 실측 검증이 지연됐다.
+- 구현 요약:
+  - `llm_provider_cost_snapshots` 테이블을 추가하고, provider 구간 비용(cost) 스냅샷을 저장하도록 전환했다.
+    - 스키마: `migrations/v3_3_3_llm_provider_cost_snapshots.sql`, `deploy/db/init.sql`, `src/common/models.py`
+  - `src/common/llm_usage.py`에 비용 수집 경로를 추가했다.
+    - `LLM_COST_SNAPSHOT_*` env 기반 설정
+    - URL 템플릿 placeholder 지원: `${START_UNIX}`, `${END_UNIX}`, `${START_ISO}`, `${END_ISO}`
+    - `collect_llm_cost_snapshots_once()` one-shot 수집
+  - `src/bot/main.py` 스케줄러를 `llm_cost_snapshot_job`으로 전환했다.
+  - 운영 스크립트를 비용 스냅샷 기준으로 보정했다.
+    - `scripts/ops/llm_usage_cost_report.sh`: `provider_cost_usd` 대조
+    - `scripts/ops/llm_usage_smoke_and_compare.sh`: `LLM_COST_SNAPSHOT_ENABLED` 및 cost snapshot one-shot
+    - `scripts/ops/llm_credit_snapshot_collect.sh`: 이름은 유지, 내부 동작은 cost snapshot 수집으로 전환
+- 정량 증빙:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| provider 외부 대조 저장 대상 테이블 수 | 1 (`llm_credit_snapshots`) | 2 (`+ llm_provider_cost_snapshots`) | +1 | +100.0 |
+| 비용 스냅샷 env 설정 키 수 | 0 | 10 (`LLM_COST_SNAPSHOT_*`) | +10 | N/A |
+| `tests/utils/test_llm_usage.py` 통과 건수 | 10 | 12 | +2 | +20.0 |
+
+- 운영 적용 후 확인 명령:
+  - 마이그레이션: `docker exec -i -u postgres coinpilot-db psql -d coinpilot < /opt/coin-pilot/migrations/v3_3_3_llm_provider_cost_snapshots.sql`
+  - 수집 확인: `scripts/ops/llm_credit_snapshot_collect.sh`
+  - 행 확인: `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT created_at, provider, window_start, window_end, cost_usd FROM llm_provider_cost_snapshots ORDER BY created_at DESC LIMIT 20;"`
+
+- README 동기화 검증:
+  - `rg -n "LLM_COST_SNAPSHOT|provider_cost_usd|llm_provider_cost_snapshots" README.md`

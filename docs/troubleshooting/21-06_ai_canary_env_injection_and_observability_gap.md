@@ -115,7 +115,7 @@
 
 - 운영 확인 체크:
   1) 모델별 최소 표본 충족 전에는 카나리 승격/판정 보류.
-  2) `llm_credit_snapshots` 자동 수집 전까지 reconciliation은 참고치로만 사용.
+  2) `llm_provider_cost_snapshots` 수집 전까지 reconciliation은 참고치로만 사용.
 
 ### 7.1 정량 개선 증빙(필수)
 - 측정 기간/표본:
