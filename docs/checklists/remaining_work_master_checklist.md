@@ -30,6 +30,7 @@
 | 9 | 99-01 | Result/Troubleshooting 정량 증빙 의무화 정책 반영 | done | 사용자 승인 완료 | AGENTS/Charter/템플릿에 문제 정의 + before/after 수치 + 측정 근거 필수 규칙 반영 완료 + 결과 문서 작성 완료 | `rg -n \"before|after|정량|증빙|측정|문제\" AGENTS.md docs/PROJECT_CHARTER.md docs/templates/work-result.template.md docs/templates/troubleshooting.template.md` | `docs/work-plans/99-01_result_troubleshooting_quantified_evidence_policy_plan.md` | `docs/work-result/99-01_result_troubleshooting_quantified_evidence_policy_result.md` |
 | 10 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
 | 11 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
+| 12 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
 
 ---
 
@@ -77,6 +78,7 @@
 - 2026-03-04: 99-02 전수 백필 수행. 정량 섹션 누락 트러블슈팅 문서 24개에 `정량 증빙 상태`를 일괄 추가해 누락 0건으로 정리.
 - 2026-03-04: 99-02 정밀 보강 2차 반영. 백필 24개 문서 중 18개에 원문 수치 라인(%, 건수, passed/failed, 시간)을 자동 추출해 정량 증빙 밀도를 상향.
 - 2026-03-05: 99-03 완료. 트러블슈팅 32개 문서 전부를 5열 표준표 형식으로 통일했고, 기존 4열 표(7개)와 표준표 누락(24개)을 모두 해소.
+- 2026-03-05: 21-03에 임시 메모로 넣었던 RAG 방향 문구를 제거하고, 별도 main 계획 `28`(전략문서/과거사례 기반 RAG 보강)으로 분리 등록.
 
 ---
 
