@@ -330,3 +330,40 @@
 
 - README 동기화 검증:
   - `rg -n "LLM_COST_SNAPSHOT|provider_cost_usd|llm_provider_cost_snapshots" README.md`
+
+---
+
+## 16. Phase 2.1 OCI 운영 검증 (2026-03-05)
+- 실행 요약:
+  - `git pull --ff-only origin f21`: 최신 상태 확인(`Already up to date`)
+  - 마이그레이션 멱등 재실행:
+    - `v3_3_2_llm_usage_observability.sql`
+    - `v3_3_3_llm_provider_cost_snapshots.sql`
+  - bot 재빌드/재기동 후 env 투영 확인:
+    - `LLM_USAGE_ENABLED=true`
+    - `CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=20`
+    - `LLM_COST_SNAPSHOT_ENABLED=false`
+    - `LLM_COST_SNAPSHOT_INTERVAL_MIN=60`
+    - `LLM_COST_SNAPSHOT_LOOKBACK_HOURS=1`
+- 운영 스모크 결과:
+  - `scripts/ops/llm_usage_smoke_and_compare.sh 1`: `PASS`
+  - route coverage: 6개
+    - `ai_decision_analyst`, `ai_decision_guardian`, `chat_sql_agent`, `chat_rag_generation`, `chat_premium_review`, `embedding_query`
+  - `scripts/ops/llm_usage_cost_report.sh 24` 집계 정상 출력
+  - `scripts/ops/llm_credit_snapshot_collect.sh` 실행 시 cost snapshot summary:
+    - `enabled=false`, `configured_providers=0`, `success_count=0`, `failure_count=0`
+  - `llm_provider_cost_snapshots` 행 수:
+    - `0 rows` (비활성 모드 기준 정상)
+
+- 정량 증빙:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| smoke 스크립트 완료 여부(성공=1, 실패=0) | 0 | 1 | +1 | +100.0 |
+| 1h route coverage(개수) | 0 | 6 | +6 | N/A |
+| `llm_provider_cost_snapshots` 누적 건수(비활성 모드) | 0 | 0 | 0 | 0.0 |
+| `LLM_COST_SNAPSHOT_ENABLED` 유효값 반영 여부(미설정→기본 false) | 0 | 1 | +1 | +100.0 |
+
+- 해석:
+  - 현재 모드는 "현상 유지(비활성)"로 정상 운영 중이며, 내부 원장(`llm_usage_events`) 기반 비용 관측은 안정적으로 동작한다.
+  - provider 외부 비용 대조는 향후 `LLM_COST_SNAPSHOT_ENABLED=true` 전환 시점에 활성화한다.
