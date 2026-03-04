@@ -2,7 +2,7 @@
 
 **작성일**: 2026-02-27  
 **작성자**: Codex  
-**상태**: Approved  
+**상태**: In Progress  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-02_llm_model_haiku_vs_gpt4omini_comparison_plan.md`  
 **관련 결과 문서**: `docs/work-result/21-02_llm_model_haiku_vs_gpt4omini_comparison_result.md`, `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`  
 **승인 정보**: 사용자 승인 / 2026-03-04 / "12-04 계획 변경 커밋 푸시 완료했고, 이제 다음 구현 진행해주면 돼"
@@ -149,3 +149,5 @@
 - 2026-03-04: 사용자 승인 후 구현 착수. `llm_usage_events/llm_credit_snapshots` 스키마, 공통 usage 캡처 유틸, route별 계측(AI Decision/Chatbot/Daily Report/RAG embedding 추정), 운영 집계 스크립트 범위를 Phase 1로 확정.
 - 2026-03-04: 운영 확인 절차 자동화 요구 반영. 경로별 강제 호출(chat/rag/sql/premium-review + ai_decision analyst/guardian)과 usage/canary 리포트 연속 출력을 수행하는 smoke 스크립트를 Phase 1 범위에 추가.
 - 2026-03-04: OCI 실행 중 smoke 스크립트 초기 구동 실패(`python -c` 따옴표 충돌, `SyntaxError`) 이슈를 반영해, 계측 플래그 출력 구문을 f-string에서 안전한 문자열 결합 형태로 보정하는 hotfix를 Phase 1 범위에 추가.
+- 2026-03-04: OCI 운영 반영에서 `CHAT_PREMIUM_REVIEW_TIMEOUT_SEC` env projection 누락을 확인해 compose 보정 항목을 계획 가드레일로 추가. 관련 트러블슈팅 문서 `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` 연결.
+- 2026-03-04: Phase 1 운영 검증은 통과했으나 `llm_credit_snapshots` 자동 수집 부재로 reconciliation 정밀 검증은 Phase 2로 이월.

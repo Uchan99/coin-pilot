@@ -3,10 +3,10 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-상태: Implemented
+상태: In Progress (Phase 1 Implemented)
 완료 범위: Phase 1
 선반영/추가 구현: 있음(Phase 2 운영 대시보드/크레딧 자동 수집은 후속)
-관련 트러블슈팅(있다면): 없음
+관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
 
 ---
 
@@ -139,9 +139,12 @@
 
 ### 5.3 런타임/운영 반영 확인(선택)
 - 확인 방법:
-  - 마이그레이션 적용 후 `scripts/ops/llm_usage_cost_report.sh 24`
+  - `scripts/ops/llm_usage_smoke_and_compare.sh 1`
+  - `scripts/ops/llm_usage_cost_report.sh 1`
 - 결과:
-  - 본 커밋에서는 코드/테스트까지만 검증 완료, OCI 실데이터 확인은 운영 반영 단계에서 수행
+  - OCI에서 smoke 실행 완료(챗봇/AI Decision/임베딩 route 커버리지 확인).
+  - `llm_usage_cost_report.sh 1` 기준 6개 route 집계 확인.
+  - `chat_premium_review` timeout 1건은 `error_type=TimeoutError`로 기록 확인.
 
 ---
 
@@ -217,9 +220,32 @@
 
 ---
 
-## 12. References
+## 12. Phase 2 운영 관측 업데이트 (2026-03-04)
+- 운영 검증 요약:
+  - `scripts/ops/llm_usage_smoke_and_compare.sh 1` 실행이 정상 완료되었고, 챗봇/AI Decision/임베딩 route 커버리지가 출력됨.
+  - `llm_usage_cost_report.sh 1` 기준 route 커버리지는 6개(`chat_sql_agent`, `chat_rag_generation`, `chat_premium_review`, `ai_decision_analyst`, `ai_decision_guardian`, `embedding_query`) 확인.
+  - `chat_premium_review`는 1건 `TimeoutError`가 기록됐고, timeout 상향 env(`CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=20`)를 컨테이너에 반영함.
+  - `llm_credit_snapshots`는 여전히 0건으로, reconciliation의 `credit_delta_usd`는 참고치(0)로만 해석해야 함.
+- 운영 쿼리 정정 사항:
+  - `llm_usage_events`에는 `error_message` 컬럼이 없고 `error_type`, `meta`를 조회해야 함.
+  - OCI 기본 환경에 `rg`가 없어서 로그 필터는 `grep -E` 기준으로 운영.
+- 정량 관측(운영 로그 기반):
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| smoke 스크립트 완료 여부(성공=1, 실패=0) | 0 | 1 | +1 | +100.0 |
+| `llm_usage_cost_report.sh 1` 집계 행 수 | 0 | 6 | +6 | N/A |
+| `llm_credit_snapshots` 행 수 | 0 | 0 | 0 | 0.0 |
+
+- 상태 판단:
+  - Phase 1 구현은 완료됐지만, `llm_credit_snapshots` 자동 수집/대조 고도화가 남아 있으므로 `21-04`는 `in_progress`를 유지한다.
+
+---
+
+## 13. References
 - 링크:
   - `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`
+  - `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
   - `scripts/ops/llm_usage_cost_report.sh`
   - `scripts/ops/llm_usage_smoke_and_compare.sh`
   - `migrations/v3_3_2_llm_usage_observability.sql`
