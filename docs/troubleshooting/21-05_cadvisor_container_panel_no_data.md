@@ -74,6 +74,7 @@
   - cAdvisor 권한/마운트 보강 및 `docker_only=false` 전환
   - 후속 운영 관측에서 `container_label_*` 라벨 공백이 재확인되어 `docker_only=true` + `store_container_labels=true`로 재전환
   - 라벨 공백이 지속되는 환경을 기준으로 `coinpilot-container-map` 사이드카를 추가해 `coinpilot_container_display_info` 매핑 메트릭을 node-exporter textfile collector로 주입
+  - `docker_only=true` 이후 `id` 포맷이 `/docker/<id>`로 바뀌는 환경을 반영해, Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 동시 지원으로 보강
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
   - `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh`

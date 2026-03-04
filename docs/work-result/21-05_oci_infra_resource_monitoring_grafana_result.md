@@ -284,6 +284,13 @@
 2) `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'` 결과가 1 이상인지 확인
 3) Grafana 컨테이너 패널 범례가 `coinpilot-*` 서비스명으로 표시되는지 확인
 
+### 13.3 운영 핫픽스(최근 5m No data)
+- 증상:
+  - `docker_only=true` 전환 이후 cAdvisor `id` 포맷이 `/docker/<id>`로 바뀐 환경에서, 기존 정규식(`/system.slice/docker-...scope`)만 사용하면 최근 구간(Last 5m/15m) 패널이 `No data`로 표시됨.
+- 조치:
+  - 컨테이너 3개 패널 쿼리의 `id` 필터/추출 정규식을 `docker-`와 `docker/`를 모두 허용하도록 확장.
+  - 적용 정규식: `.*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\.scope)?`
+
 ---
 
 ## 14. References
