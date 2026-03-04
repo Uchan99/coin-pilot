@@ -290,6 +290,7 @@
 - 조치:
   - 컨테이너 3개 패널 쿼리의 `id` 필터/추출 정규식을 `docker-`와 `docker/`를 모두 허용하도록 확장.
   - 적용 정규식: `.*docker[-/]([0-9a-f]{12})[0-9a-f]*(\\.scope)?`
+  - `container-map` 조인 경로를 유지한 채 cAdvisor를 `docker_only=false`로 재조정하여 최근 구간 시계열 공백 재발을 완화.
 
 ---
 

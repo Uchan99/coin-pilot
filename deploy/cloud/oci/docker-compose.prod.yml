@@ -209,8 +209,8 @@ services:
     restart: unless-stopped
     privileged: true
     command:
-      # 운영 가독성 우선: docker container 라벨(name/compose service) 수집을 강제한다.
-      - --docker_only=true
+      # container-map 메트릭으로 서비스명 조인을 수행하므로, cgroup 기반 시계열 안정성을 우선한다.
+      - --docker_only=false
       - --store_container_labels=true
       - --housekeeping_interval=30s
     volumes:
