@@ -83,6 +83,7 @@
 - 2026-03-05: 21-04 Phase 2.1 코드 반영. balance endpoint 의존을 줄이기 위해 `LLM_COST_SNAPSHOT_*` + `llm_provider_cost_snapshots` 기반 provider 비용 스냅샷 수집으로 전환, 리포트 대조축을 `provider_cost_usd`로 보정.
 - 2026-03-05: 21-04 Phase 2.1 OCI 운영 검증 완료. `smoke + compare` PASS, 1h route coverage 6개, `LLM_COST_SNAPSHOT_ENABLED=false`(현상 유지) 상태에서 `llm_provider_cost_snapshots` 0건 정상 확인.
 - 2026-03-05: 다음 실행 포커스를 `21-05`(OCI 인프라 모니터링 가독성 마감 및 24h 관찰 증빙)으로 고정.
+- 2026-03-05: 21-05 가독성 보강 1차 반영. `coinpilot-infra.json` 컨테이너 3개 패널을 `서비스명 우선 + 12자리 ID fallback` 범례로 전환해 운영 식별성을 개선했고, 상태는 24h 운영 관찰 대기(`in_progress`)로 유지.
 
 ---
 

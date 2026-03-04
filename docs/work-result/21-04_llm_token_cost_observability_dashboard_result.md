@@ -29,6 +29,7 @@
 - 변경 내용:
   - `llm_usage_events` 테이블 추가: route/feature/provider/model/status/tokens/cost/latency/meta 저장
   - `llm_credit_snapshots` 테이블 추가: provider별 잔여 크레딧 스냅샷 저장
+  - `llm_provider_cost_snapshots` 테이블 추가: provider 구간 비용 스냅샷 저장
   - 인덱스/unique(request_id) 반영
 - 효과/의미:
   - 모델 비교/비용 이상징후 탐지/재집계가 가능한 기본 데이터 구조 확보
@@ -73,14 +74,14 @@
   - `docs/runbooks/18_data_migration_runbook.md`
 - 변경 내용:
   - 최근 N시간 기준 route/provider/model별 호출수/토큰/비용/오류율 집계 SQL 자동화
-  - ledger 합계 vs credit snapshot delta 대조 SQL 포함
-  - credit snapshot freshness(최근 시점/지연 분) 구간 추가
+  - ledger 합계 vs provider cost snapshot 합계 대조 SQL 포함
+  - cost snapshot freshness(최근 시점/지연 분) 구간 추가
   - 권장 확인 절차 자동화를 위해 chat/rag/sql/premium-review + ai_decision(analyst/guardian) 경로를 강제 호출하고 usage/canary 리포트를 연속 출력하는 smoke 스크립트 추가
-  - one-shot 수집 스크립트 `scripts/ops/llm_credit_snapshot_collect.sh` 추가
-  - `LLM_USAGE_ENABLED`, `LLM_USAGE_PRICE_TABLE_JSON`, `LLM_CREDIT_SNAPSHOT_*` 환경변수 반영
+  - one-shot 수집 스크립트 `scripts/ops/llm_credit_snapshot_collect.sh` 추가(파일명 유지, 내부는 cost snapshot 수집)
+  - `LLM_USAGE_ENABLED`, `LLM_USAGE_PRICE_TABLE_JSON`, `LLM_COST_SNAPSHOT_*` 환경변수 반영
 - 효과/의미:
   - 운영자가 OCI에서 단일 명령으로 비용/오류 분포를 즉시 확인 가능
-  - credit snapshot 자동수집을 scheduler에 붙일 수 있는 운영 경로 확보
+  - provider 비용 스냅샷 자동수집을 scheduler에 붙일 수 있는 운영 경로 확보
 
 ---
 
@@ -119,12 +120,12 @@
 
 ## 4. DB/스키마 변경
 - 변경 사항:
-  - `llm_usage_events`, `llm_credit_snapshots` 테이블/인덱스 추가
+  - `llm_usage_events`, `llm_credit_snapshots`, `llm_provider_cost_snapshots` 테이블/인덱스 추가
 - 마이그레이션:
   - `migrations/v3_3_2_llm_usage_observability.sql`
 - 롤백 전략/주의점:
   - 코드 롤백 시에도 테이블은 데이터 보존 관점에서 유지 가능
-  - 완전 롤백이 필요하면 `DROP TABLE llm_usage_events, llm_credit_snapshots;` 순서로 명시 수행
+  - 완전 롤백이 필요하면 `DROP TABLE llm_provider_cost_snapshots, llm_credit_snapshots, llm_usage_events;` 순서로 명시 수행
 
 ---
 
@@ -167,9 +168,9 @@
 2) `docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot`로 bot 재기동
 3) `scripts/ops/llm_usage_cost_report.sh 24`에서 route/provider/model 행이 출력되는지 확인
 4) `scripts/ops/llm_usage_smoke_and_compare.sh 1` 실행 후 `llm_usage_events`에 `chat_sql_agent`/`chat_rag_generation`/`ai_decision_analyst` 등 route가 저장되는지 확인
-5) README 동기화 검증: `rg -n "llm_usage_cost_report|llm_usage_smoke_and_compare|llm_credit_snapshot_collect|LLM_CREDIT_SNAPSHOT_ENABLED" README.md`
-6) credit snapshot one-shot 검증: `scripts/ops/llm_credit_snapshot_collect.sh`
-7) scheduler env 확인: `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo LLM_CREDIT_SNAPSHOT_ENABLED=$LLM_CREDIT_SNAPSHOT_ENABLED; echo LLM_CREDIT_SNAPSHOT_PROVIDERS=$LLM_CREDIT_SNAPSHOT_PROVIDERS'`
+5) README 동기화 검증: `rg -n "llm_usage_cost_report|llm_usage_smoke_and_compare|llm_credit_snapshot_collect|LLM_COST_SNAPSHOT_ENABLED" README.md`
+6) cost snapshot one-shot 검증: `scripts/ops/llm_credit_snapshot_collect.sh`
+7) scheduler env 확인: `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo LLM_COST_SNAPSHOT_ENABLED=$LLM_COST_SNAPSHOT_ENABLED; echo LLM_COST_SNAPSHOT_PROVIDERS=$LLM_COST_SNAPSHOT_PROVIDERS'`
 
 ---
 
@@ -217,7 +218,7 @@
   - 21-04 Phase 1(데이터 수집/집계 기반) 구현 완료
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) Grafana 패널(토큰/비용/오류율) 시각화 반영
-  2) provider별 실제 credit API endpoint/path/header를 OCI `.env`에 연결하고 24h 대조 오차 관측
+  2) provider별 실제 cost API endpoint/path/header를 OCI `.env`에 연결하고 24h 대조 오차 관측
   3) 대조 오차 알람 rule(허용 오차 초과 시 경고) 연동
 
 ---

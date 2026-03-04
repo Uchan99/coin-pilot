@@ -5,7 +5,7 @@
 관련 계획서: docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md
 상태: Implemented
 완료 범위: Phase 1
-선반영/추가 구현: 있음(Phase 2 일부)
+선반영/추가 구현: 있음(Phase 2 + Phase 3 일부)
 관련 트러블슈팅(있다면): docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md
 
 ---
@@ -187,7 +187,7 @@
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
   - exporter 추가 및 t0/t1h 점검 경로는 OCI에서 동작 확인됨
-  - 컨테이너 패널 `No data` 이슈를 해결했고, 컨테이너 지표는 `cid`(container id) 기준으로 표시됨
+  - 컨테이너 패널 `No data` 이슈를 해결했고, 컨테이너 지표는 `서비스명 우선 + 12자리 ID fallback` 기준으로 표시되도록 보강됨
 - 후속 작업(다음 plan 번호로 넘길 것):
   1) `24_discord_mobile_chatbot_query_plan` 구현 착수
   2) 21-03 카나리 실험 전, 21-05 인프라 알람 임계치 튜닝
@@ -214,7 +214,36 @@
 
 ---
 
-## 12. References
+## 12. Phase 3 추가 구현(컨테이너 서비스명 매핑 가독성 개선)
+- 문제:
+  - 컨테이너 패널 범례가 긴 해시(`cid`) 중심으로 표시되어 운영자가 `docker ps` 서비스명과 즉시 매칭하기 어려웠음.
+- 변경:
+  - 파일: `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - 대상 패널 3개(`Container CPU Usage by Container`, `Container Memory Working Set`, `Container Restart Changes (24h)`)
+  - 쿼리 로직을 `display` 라벨 기준으로 전환:
+    1) `id`에서 12자리 컨테이너 ID 추출(fallback)
+    2) `container_label_com_docker_compose_service` 라벨이 있으면 `coinpilot-<service>`로 override
+  - `legendFormat`을 `{{cid}}` → `{{display}}`로 변경
+
+### 12.1 정량 증빙(정적 검증)
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 서비스명 매핑 로직이 적용된 컨테이너 패널 수 | 0 | 3 | +3 | N/A |
+| `legendFormat={{display}}` 적용 패널 수 | 0 | 3 | +3 | N/A |
+| Fallback ID 길이(표시 기준) | 64자(해시 전체) | 12자(요약) | -52자 | -81.25 |
+
+- 측정 근거 명령:
+  - `rg -n '"title": "Container CPU Usage by Container"|"title": "Container Memory Working Set"|"title": "Container Restart Changes \\(24h\\)"|"legendFormat": "\\{\\{display\\}\\}"' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `rg -n 'container_label_com_docker_compose_service|docker-\\(\\[0-9a-f\\]\\{12\\}\\)' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+
+### 12.2 운영 검증 방법(OCI)
+1) `cd /opt/coin-pilot/deploy/cloud/oci && docker compose --env-file .env -f docker-compose.prod.yml up -d --force-recreate --no-deps grafana`
+2) Grafana `CoinPilot Infra Overview`에서 컨테이너 3개 패널 범례가 `coinpilot-bot` 같은 서비스명으로 우선 표시되는지 확인
+3) 서비스 라벨이 없는 시계열은 12자리 ID로 fallback되는지 확인
+
+---
+
+## 13. References
 - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`
 - `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
 - `docs/PROJECT_CHARTER.md`
