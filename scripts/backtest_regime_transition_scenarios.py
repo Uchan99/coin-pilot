@@ -45,6 +45,17 @@ class ScenarioResult:
     max_drawdown_krw: float
 
 
+@dataclass
+class ScenarioSpec:
+    """
+    시나리오 정의.
+    - configure: 전략 파라미터(레짐/진입/청산) 수정 함수
+    - symbol_size_multipliers: 심볼별 포지션 사이즈 배율(미지정 심볼은 1.0)
+    """
+    configure: Callable[[StrategyConfig], None]
+    symbol_size_multipliers: dict[str, float] | None = None
+
+
 def _configure_baseline(cfg: StrategyConfig) -> None:
     """기준선 시나리오: 현재 전략값 유지."""
     return
@@ -81,11 +92,32 @@ def _configure_exit_rr_rebalanced(cfg: StrategyConfig) -> None:
         exit_cfg["stop_loss_pct"] = min(exit_cfg["stop_loss_pct"], 0.03)
 
 
-SCENARIOS: dict[str, Callable[[StrategyConfig], None]] = {
-    "baseline": _configure_baseline,
-    "transition_sensitive": _configure_transition_sensitive,
-    "bull_entry_relaxed": _configure_bull_entry_relaxed,
-    "exit_rr_rebalanced": _configure_exit_rr_rebalanced,
+SYMBOL_REBALANCED_MULTIPLIERS = {
+    # 요청 반영:
+    # - DOGE/XRP 비중 축소
+    # - BTC/ETH/SOL 비중 확대
+    # - 배율 합(1.2*3 + 0.7*2 = 5.0)을 맞춰 총 리스크 레벨을 최대한 유지
+    "KRW-BTC": 1.2,
+    "KRW-ETH": 1.2,
+    "KRW-SOL": 1.2,
+    "KRW-XRP": 0.7,
+    "KRW-DOGE": 0.7,
+}
+
+
+SCENARIOS: dict[str, ScenarioSpec] = {
+    "baseline": ScenarioSpec(configure=_configure_baseline),
+    "transition_sensitive": ScenarioSpec(configure=_configure_transition_sensitive),
+    "bull_entry_relaxed": ScenarioSpec(configure=_configure_bull_entry_relaxed),
+    "exit_rr_rebalanced": ScenarioSpec(configure=_configure_exit_rr_rebalanced),
+    "symbol_rebalanced": ScenarioSpec(
+        configure=_configure_baseline,
+        symbol_size_multipliers=SYMBOL_REBALANCED_MULTIPLIERS,
+    ),
+    "transition_sensitive_symbol_rebalanced": ScenarioSpec(
+        configure=_configure_transition_sensitive,
+        symbol_size_multipliers=SYMBOL_REBALANCED_MULTIPLIERS,
+    ),
 }
 
 
@@ -113,6 +145,25 @@ def _compute_max_drawdown_krw(trades: list[Trade]) -> float:
         peak = max(peak, equity)
         max_dd = max(max_dd, peak - equity)
     return max_dd
+
+
+def _apply_symbol_size_multiplier(
+    trades: list[Trade],
+    symbol: str,
+    multipliers: dict[str, float] | None,
+) -> None:
+    """
+    심볼별 포지션 비중 배율을 거래 결과에 반영한다.
+    - simulate_trades()가 산출한 position_size를 직접 조정해
+      동일 전략에서도 심볼 비중 차이가 손익/MDD에 반영되게 한다.
+    """
+    if not multipliers:
+        return
+    multiplier = multipliers.get(symbol, 1.0)
+    if multiplier <= 0:
+        return
+    for trade in trades:
+        trade.position_size *= multiplier
 
 
 def _analyze_trades(name: str, symbol: str, trades: list[Trade]) -> ScenarioResult:
@@ -198,15 +249,20 @@ async def main() -> None:
     frames = await _load_frames(symbols, args.days)
 
     results: list[ScenarioResult] = []
-    for scenario_name, scenario_fn in SCENARIOS.items():
+    for scenario_name, scenario_spec in SCENARIOS.items():
         scenario_cfg = copy.deepcopy(base_config)
-        scenario_fn(scenario_cfg)
+        scenario_spec.configure(scenario_cfg)
 
         for symbol in symbols:
             frame = frames.get(symbol)
             if frame is None or frame.empty:
                 continue
             trades = simulate_trades(frame, scenario_cfg, symbol)
+            _apply_symbol_size_multiplier(
+                trades=trades,
+                symbol=symbol,
+                multipliers=scenario_spec.symbol_size_multipliers,
+            )
             results.append(_analyze_trades(scenario_name, symbol, trades))
 
     if not results:

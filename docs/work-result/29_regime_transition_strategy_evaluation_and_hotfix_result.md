@@ -66,6 +66,21 @@
 - 효과/의미:
   - 백테스트 기간 확장 전에 `market_data`를 안전하게 누적할 수 있어, 120/180/240일 결과 동일 문제를 구조적으로 해소할 수 있게 됨.
 
+### 2.4 심볼 비중 재배분 시나리오 추가(Phase 4)
+- 파일/모듈: `scripts/backtest_regime_transition_scenarios.py`
+- 변경 내용:
+  - 사용자 요청을 반영해 심볼 비중 재배분 시나리오 2종 추가:
+    - `symbol_rebalanced`
+    - `transition_sensitive_symbol_rebalanced`
+  - 비중 정책:
+    - BTC/ETH/SOL `1.2x`
+    - XRP/DOGE `0.7x`
+  - 총 리스크 수준을 크게 바꾸지 않도록 배율 합을 보정(`1.2*3 + 0.7*2 = 5.0`).
+  - 구현 방식:
+    - `simulate_trades()` 결과의 `position_size`에 심볼 배율을 적용해 손익/MDD 계산에 반영.
+- 효과/의미:
+  - “DOGE/XRP 축소 시 다른 심볼 비중 확대” 효과를 동일 백테스트 프레임에서 즉시 비교 가능.
+
 ---
 
 ## 3. 변경 파일 목록
@@ -77,6 +92,7 @@
 2) `docs/checklists/remaining_work_master_checklist.md`
 3) `docs/work-result/29_regime_transition_strategy_evaluation_and_hotfix_result.md`
 4) `scripts/backfill_for_regime.py`
+5) `scripts/backtest_regime_transition_scenarios.py`
 
 ---
 
@@ -87,6 +103,7 @@
   - `PYTHONPATH=. .venv/bin/python scripts/backtest_regime_transition_scenarios.py --help`
   - `python3 -m py_compile scripts/backfill_for_regime.py`
   - `PYTHONPATH=. .venv/bin/python scripts/backfill_for_regime.py --help`
+  - `python3 -m py_compile scripts/backtest_regime_transition_scenarios.py`
 - 결과:
   - 통과. 스크립트 구문 오류 없음, CLI 옵션 정상 출력.
 
@@ -162,6 +179,28 @@
   - 불가 사유: 실제 DB rows 증가량은 OCI 실행 결과가 필요하며 본 변경셋에서는 코드/명령 정합만 검증
   - 대체 지표: CLI 옵션/정적 검증 통과
   - 추후 측정 계획: OCI에서 `--days 90/120` 실행 후 `market_data` row 증가량, first_ts 확장폭(일수) 기록
+
+### 4.5 심볼 비중 재배분 기능 개선 증빙(Phase 4)
+- 측정 기간/표본:
+  - 2026-03-06, 코드/정적 검증 1회
+- 측정 기준:
+  - 심볼 비중 재배분 시나리오를 동일 백테스트 러너에서 재현 가능한지
+- 데이터 출처:
+  - 코드 diff + `py_compile` 결과
+- 재현 명령:
+  - `python3 -m py_compile scripts/backtest_regime_transition_scenarios.py`
+  - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv`
+- Before/After 비교표:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 심볼 비중 재배분 시나리오 수 | 0 | 2 | +2 | 측정 불가(분모 0) |
+| 비중 정책 반영 가능 여부 | 불가 | 가능 | +1 | 측정 불가(분모 0) |
+
+- 정량 측정 불가 시(예외):
+  - 불가 사유: 성능 수치(손익/MDD)는 사용자 OCI 실행 결과 반영 단계
+  - 대체 지표: 시나리오 정의/실행 경로 추가 및 정적 검증 통과
+  - 추후 측정 계획: 21일/120일 결과에서 `transition_sensitive` 대비 재배분 시나리오 손익/MDD 비교표 추가
 
 ---
 

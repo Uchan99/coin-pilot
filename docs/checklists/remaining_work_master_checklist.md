@@ -103,6 +103,7 @@
 - 2026-03-06: 29 Phase 2 1차(OCI 120일) 실행 반영. `transition_sensitive`가 baseline 대비 수익/승률/MDD 개선을 보였고, 표본 부족으로 추가 검증(180/240일) 후 핫픽스 확정 예정.
 - 2026-03-06: 29 Phase 2 확장(OCI 180/240일) 실행 반영. 결과가 120일과 동일하여 데이터 윈도우 점검(SQL) 및 표본 확대 후 핫픽스 최종 결정을 진행.
 - 2026-03-06: 29 Phase 3 반영. 장기 데이터 윈도우 확보를 위해 `scripts/backfill_for_regime.py`를 `--days/--symbols` 기반으로 확장하고, 기본 12,000분 동작 호환을 유지.
+- 2026-03-06: 29 Phase 4 반영. DOGE/XRP 비중 축소 + BTC/ETH/SOL 비중 확대 요청을 반영해 `symbol_rebalanced`/`transition_sensitive_symbol_rebalanced` 시나리오를 추가.
 - 2026-03-06: 독립 main 계획 `30` 추가(전략 피드백 자동화 Spec-First). 자동 분석/자동 제안/승인형 배포 원칙을 명시하고 체크리스트에 `todo`로 등록.
 
 ---

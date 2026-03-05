@@ -104,6 +104,11 @@
 2. `scripts/backfill_for_regime.py`를 장기 백필 모드(`--days`, `--symbols`)로 실행해 표본 확대
 3. 백필 후 7/21/120+/240일 재실행으로 시나리오 순위의 안정성 확인
 
+### Phase E. 심볼 비중 재배분 시나리오 검증
+1. DOGE/XRP 비중 축소와 BTC/ETH/SOL 비중 확대 시나리오를 별도 비교
+2. 총 리스크 수준 유지(배율 합 보정) 원칙 하에서 성과/리스크 변화 측정
+3. `transition_sensitive`와 조합한 복합 시나리오까지 포함해 우선순위 재평가
+
 ## 7. 정량 검증 기준
 - 공통 측정 기준:
   - 기간: 최근 90일(기본) + 최근 전환 구간(별도)
@@ -135,6 +140,9 @@
 5. 장기 백필:
    - `PYTHONPATH=. python scripts/backfill_for_regime.py --days 120`
    - `PYTHONPATH=. python scripts/backfill_for_regime.py --days 240 --symbols KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE`
+6. 심볼 비중 재배분 비교:
+   - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 21 --output /tmp/regime_scenarios_21d.csv`
+   - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv`
 
 ## 9. 롤백
 - 코드/설정 롤백:
@@ -160,3 +168,4 @@
 - 2026-03-06: Phase 2 1차 실행 반영(OCI 120일). baseline 대비 `transition_sensitive`가 수익/승률/MDD 동시 개선을 보였으나 표본 부족으로 추가 검증 게이트(180/240일, 심볼별 확인)를 유지.
 - 2026-03-06: Phase 2 확장 실행(OCI 180/240일) 결과가 120일과 동일함을 확인. 유효 데이터 윈도우 점검(SQL)과 표본 확대를 선행 조건으로 추가.
 - 2026-03-06: Phase D 착수. `scripts/backfill_for_regime.py`를 장기 백필 대응(`--days`, `--symbols`, 진행률/재시도/중복통계)으로 확장하고, 기존 무인자 실행(12,000분) 호환을 유지.
+- 2026-03-06: Phase E 착수. 사용자 요청(“DOGE/XRP 축소 시 BTC/ETH/SOL 확대 고려”)을 반영해 시나리오 스크립트에 `symbol_rebalanced`/`transition_sensitive_symbol_rebalanced`를 추가.
