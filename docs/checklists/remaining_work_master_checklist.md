@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-05  
+최종 수정일: 2026-03-06  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -25,13 +25,14 @@
 | 4 | 21-03 | AI Decision 카나리 실험 | in_progress | 24 최소 기능 반영 후 | 카나리 기간 동안 승인율/거절율/오류율/비용 비교 리포트 확보 | `scripts/ops/ai_decision_canary_report.sh 24` + `agent_decisions.model_used` 모델 혼재 확인 | `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md` | `docs/work-result/21-03_ai_decision_model_canary_experiment_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 5 | 21-04 | LLM 토큰/비용 관측 대시보드 | in_progress | 21-03 실험 데이터 구조 확정 | 모델별 토큰/비용 추이가 Grafana 또는 리포트로 확인 가능 | `scripts/ops/llm_usage_cost_report.sh 24` + `scripts/ops/llm_credit_snapshot_collect.sh` + `SELECT route, provider, model, count(*) FROM llm_usage_events GROUP BY 1,2,3;` + `SELECT provider, count(*) FROM llm_provider_cost_snapshots GROUP BY 1;` | `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md` | `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 6 | 29 | 레짐 전환 구간 전략 평가 + 조건부 핫픽스 | in_progress | 사용자 승인 + 운영 데이터 감사 가능 상태 | 백테스트 시나리오 비교 + 핫픽스 적용/보류 결론 확정 + 결과 문서 작성 | `PYTHONPATH=. python scripts/backtest_v3.py` + `scripts/ops/ai_decision_canary_report.sh 24` + `SELECT count(*) FILTER (WHERE side='SELL') FROM trading_history ...` | `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md` | `docs/work-result/29_regime_transition_strategy_evaluation_and_hotfix_result.md` |
-| 7 | 22 | 대시보드 가독성/실시간성 표준화(Spec-First) | todo | 24/21-03 관측 요구사항 반영 | 프론트 무관 운영 UI/freshness/stale 표준 확정 + 23 수용 기준 체크리스트 완성 | (예정) 22 spec 문서 + acceptance checklist 검토 | `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md` | (생성 예정) |
-| 8 | 23 | Next.js 점진 이관 | blocked | 21-03 카나리 관측 마감 + 21-04 관측성 안정화 + 28 실험 설계 승인 + 22 spec 확정 + 29 전략 평가 결론 확정 | 핵심 화면 병행 운영(기능 동등) + 안정화 후 FE 레포 분리 게이트 정의/충족 | (예정) 기능 동등성 체크리스트 + 분리 게이트 점검 | `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`, `docs/work-plans/23-01_frontend_backend_repository_split_timing_plan.md` | (생성 예정) |
-| 9 | 26 | README 최신 운영 상태 반영 개편 | done | 문서 드리프트 확인 | README 기준 실행/운영 안내가 Charter/현재 배포 구조와 정합 | `rg -n \"PROJECT_CHARTER|check_24h_monitoring|discord-bot\" README.md` + README 링크 경로 존재 점검 | `docs/work-plans/26_readme_current_state_refresh_plan.md` | `docs/work-result/26_readme_current_state_refresh_result.md` |
-| 10 | 99-01 | Result/Troubleshooting 정량 증빙 의무화 정책 반영 | done | 사용자 승인 완료 | AGENTS/Charter/템플릿에 문제 정의 + before/after 수치 + 측정 근거 필수 규칙 반영 완료 + 결과 문서 작성 완료 | `rg -n \"before|after|정량|증빙|측정|문제\" AGENTS.md docs/PROJECT_CHARTER.md docs/templates/work-result.template.md docs/templates/troubleshooting.template.md` | `docs/work-plans/99-01_result_troubleshooting_quantified_evidence_policy_plan.md` | `docs/work-result/99-01_result_troubleshooting_quantified_evidence_policy_result.md` |
-| 11 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
-| 12 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
-| 13 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
+| 7 | 30 | 전략 피드백 자동화(Spec-First, 승인형 배포) | todo | 29 결과(기준선) 확보 + 21-03/21-04 관측 데이터 사용 가능 | 관측->원인분해->제안->검증->승인 배포 루프 spec 확정 + 자동 분석/게이트 PoC 결과 문서화 | (예정) `scripts/ops/strategy_feedback_report.sh` + `scripts/ops/strategy_feedback_gate.sh` + KPI SQL 검증 | `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md` | (생성 예정) |
+| 8 | 22 | 대시보드 가독성/실시간성 표준화(Spec-First) | todo | 24/21-03 관측 요구사항 반영 | 프론트 무관 운영 UI/freshness/stale 표준 확정 + 23 수용 기준 체크리스트 완성 | (예정) 22 spec 문서 + acceptance checklist 검토 | `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md` | (생성 예정) |
+| 9 | 23 | Next.js 점진 이관 | blocked | 21-03 카나리 관측 마감 + 21-04 관측성 안정화 + 28 실험 설계 승인 + 22 spec 확정 + 29 전략 평가 결론 확정 | 핵심 화면 병행 운영(기능 동등) + 안정화 후 FE 레포 분리 게이트 정의/충족 | (예정) 기능 동등성 체크리스트 + 분리 게이트 점검 | `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`, `docs/work-plans/23-01_frontend_backend_repository_split_timing_plan.md` | (생성 예정) |
+| 10 | 26 | README 최신 운영 상태 반영 개편 | done | 문서 드리프트 확인 | README 기준 실행/운영 안내가 Charter/현재 배포 구조와 정합 | `rg -n \"PROJECT_CHARTER|check_24h_monitoring|discord-bot\" README.md` + README 링크 경로 존재 점검 | `docs/work-plans/26_readme_current_state_refresh_plan.md` | `docs/work-result/26_readme_current_state_refresh_result.md` |
+| 11 | 99-01 | Result/Troubleshooting 정량 증빙 의무화 정책 반영 | done | 사용자 승인 완료 | AGENTS/Charter/템플릿에 문제 정의 + before/after 수치 + 측정 근거 필수 규칙 반영 완료 + 결과 문서 작성 완료 | `rg -n \"before|after|정량|증빙|측정|문제\" AGENTS.md docs/PROJECT_CHARTER.md docs/templates/work-result.template.md docs/templates/troubleshooting.template.md` | `docs/work-plans/99-01_result_troubleshooting_quantified_evidence_policy_plan.md` | `docs/work-result/99-01_result_troubleshooting_quantified_evidence_policy_result.md` |
+| 12 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
+| 13 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
+| 14 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
 
 ---
 
@@ -102,6 +103,7 @@
 - 2026-03-06: 29 Phase 2 1차(OCI 120일) 실행 반영. `transition_sensitive`가 baseline 대비 수익/승률/MDD 개선을 보였고, 표본 부족으로 추가 검증(180/240일) 후 핫픽스 확정 예정.
 - 2026-03-06: 29 Phase 2 확장(OCI 180/240일) 실행 반영. 결과가 120일과 동일하여 데이터 윈도우 점검(SQL) 및 표본 확대 후 핫픽스 최종 결정을 진행.
 - 2026-03-06: 29 Phase 3 반영. 장기 데이터 윈도우 확보를 위해 `scripts/backfill_for_regime.py`를 `--days/--symbols` 기반으로 확장하고, 기본 12,000분 동작 호환을 유지.
+- 2026-03-06: 독립 main 계획 `30` 추가(전략 피드백 자동화 Spec-First). 자동 분석/자동 제안/승인형 배포 원칙을 명시하고 체크리스트에 `todo`로 등록.
 
 ---
 
