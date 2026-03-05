@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-05  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: In Progress  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**승인 정보**: 사용자 / 2026-03-06 / "f29 브랜치로 옮겨서 시작해줘"
 
 ---
 
@@ -147,3 +147,5 @@
 ## 11. 계획 변경 이력
 - 2026-03-05: 초기 계획 생성(Approval Pending). FE/BE 이관보다 전략 성능 검증을 우선하도록 실행 순서를 명시.
 - 2026-03-06: 사용자 운영 관측(체결 27회, 누적 -13,000 KRW, max loss -7,000 / max win +5,000)을 반영해 “손익 규모(체결 효율)”를 핵심 검증 축으로 추가하고 핫픽스 승인 게이트를 보강.
+- 2026-03-06: 사용자 승인 후 `f29` 브랜치에서 구현 착수. 상태를 `In Progress`로 전환.
+- 2026-03-06: Phase 1 도구 준비 반영. `scripts/backtest_regime_transition_scenarios.py`를 추가해 baseline+3개 시나리오 자동 비교 실행 경로를 마련.
