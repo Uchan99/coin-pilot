@@ -15,6 +15,18 @@ data:
   indicator_timeframe: "1h"
   min_hourly_candles_for_regime: 200
 
+position_sizing:
+  # 심볼별 주문 비중 배율:
+  # - BTC/ETH/SOL 상향(1.2), XRP/DOGE 하향(0.7)
+  # - 배율 합: 1.2+1.2+1.2+0.7+0.7 = 5.0 (기존 1.0*5와 동일)
+  #   -> 전체 리스크 레벨은 크게 바꾸지 않고 심볼 구성만 재배분
+  symbol_position_multipliers:
+    KRW-BTC: 1.2
+    KRW-ETH: 1.2
+    KRW-SOL: 1.2
+    KRW-XRP: 0.7
+    KRW-DOGE: 0.7
+
 regimes:
   BULL:
     entry:

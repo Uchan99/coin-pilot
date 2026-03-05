@@ -109,6 +109,14 @@
 2. 총 리스크 수준 유지(배율 합 보정) 원칙 하에서 성과/리스크 변화 측정
 3. `transition_sensitive`와 조합한 복합 시나리오까지 포함해 우선순위 재평가
 
+### Phase F. 실거래/백테스트 동기화 핫픽스 적용
+1. 심볼 비중 배율을 전략 공통 설정(`StrategyConfig` + `config/strategy_v3.yaml`)으로 승격
+2. 실거래 경로(`src/bot/main.py`)와 백테스트 경로(`scripts/backtest_v3.py`)에 동일 배율 적용
+3. 시나리오 러너(`scripts/backtest_regime_transition_scenarios.py`)는 배율을 "추가 곱"이 아닌 "설정 오버라이드" 방식으로 정렬
+4. 적용 후 운영 검증:
+   - 포지션 사이즈가 심볼별 배율에 따라 다르게 계산되는지 로그/체결로 확인
+   - `check_24h_monitoring.sh t1h`, `ai_decision_canary_report.sh 24`, `llm_usage_cost_report.sh 24`로 회귀 점검
+
 ## 7. 정량 검증 기준
 - 공통 측정 기준:
   - 기간: 최근 90일(기본) + 최근 전환 구간(별도)
@@ -143,6 +151,9 @@
 6. 심볼 비중 재배분 비교:
    - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 21 --output /tmp/regime_scenarios_21d.csv`
    - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv`
+7. 실거래 배율 반영 확인:
+   - `python -c "from src.config.strategy import get_config; c=get_config(); print(c.SYMBOL_POSITION_MULTIPLIERS)"`
+   - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python -c \"from src.config.strategy import get_config; c=get_config(); print(c.SYMBOL_POSITION_MULTIPLIERS)\"'`
 
 ## 9. 롤백
 - 코드/설정 롤백:
@@ -169,3 +180,5 @@
 - 2026-03-06: Phase 2 확장 실행(OCI 180/240일) 결과가 120일과 동일함을 확인. 유효 데이터 윈도우 점검(SQL)과 표본 확대를 선행 조건으로 추가.
 - 2026-03-06: Phase D 착수. `scripts/backfill_for_regime.py`를 장기 백필 대응(`--days`, `--symbols`, 진행률/재시도/중복통계)으로 확장하고, 기존 무인자 실행(12,000분) 호환을 유지.
 - 2026-03-06: Phase E 착수. 사용자 요청(“DOGE/XRP 축소 시 BTC/ETH/SOL 확대 고려”)을 반영해 시나리오 스크립트에 `symbol_rebalanced`/`transition_sensitive_symbol_rebalanced`를 추가.
+- 2026-03-06: 사용자 추가 승인("그렇게 진행해줘")에 따라 Phase F(실거래/백테스트 공통 심볼 비중 배율 핫픽스) 적용을 계획 범위에 포함.
+- 2026-03-06: Phase F 구현 반영. `StrategyConfig`/`strategy_v3.yaml`/`main.py`/`backtest_v3.py`를 공통 배율 규칙으로 정렬하고, 결과 문서 및 Charter changelog를 동기화.

@@ -50,7 +50,7 @@ class ScenarioSpec:
     """
     시나리오 정의.
     - configure: 전략 파라미터(레짐/진입/청산) 수정 함수
-    - symbol_size_multipliers: 심볼별 포지션 사이즈 배율(미지정 심볼은 1.0)
+    - symbol_size_multipliers: 심볼별 포지션 배율 오버라이드(미지정 심볼은 1.0)
     """
     configure: Callable[[StrategyConfig], None]
     symbol_size_multipliers: dict[str, float] | None = None
@@ -147,25 +147,6 @@ def _compute_max_drawdown_krw(trades: list[Trade]) -> float:
     return max_dd
 
 
-def _apply_symbol_size_multiplier(
-    trades: list[Trade],
-    symbol: str,
-    multipliers: dict[str, float] | None,
-) -> None:
-    """
-    심볼별 포지션 비중 배율을 거래 결과에 반영한다.
-    - simulate_trades()가 산출한 position_size를 직접 조정해
-      동일 전략에서도 심볼 비중 차이가 손익/MDD에 반영되게 한다.
-    """
-    if not multipliers:
-        return
-    multiplier = multipliers.get(symbol, 1.0)
-    if multiplier <= 0:
-        return
-    for trade in trades:
-        trade.position_size *= multiplier
-
-
 def _analyze_trades(name: str, symbol: str, trades: list[Trade]) -> ScenarioResult:
     total_trades = len(trades)
     profits = [_trade_profit_krw(t) for t in trades]
@@ -252,17 +233,18 @@ async def main() -> None:
     for scenario_name, scenario_spec in SCENARIOS.items():
         scenario_cfg = copy.deepcopy(base_config)
         scenario_spec.configure(scenario_cfg)
+        if scenario_spec.symbol_size_multipliers is not None:
+            # backtest_v3가 config의 배율을 직접 적용하므로, 시나리오별 배율은
+            # post-processing 곱이 아니라 설정 오버라이드로 주입한다.
+            scenario_cfg.SYMBOL_POSITION_MULTIPLIERS = (
+                scenario_spec.symbol_size_multipliers.copy()
+            )
 
         for symbol in symbols:
             frame = frames.get(symbol)
             if frame is None or frame.empty:
                 continue
             trades = simulate_trades(frame, scenario_cfg, symbol)
-            _apply_symbol_size_multiplier(
-                trades=trades,
-                symbol=symbol,
-                multipliers=scenario_spec.symbol_size_multipliers,
-            )
             results.append(_analyze_trades(scenario_name, symbol, trades))
 
     if not results:

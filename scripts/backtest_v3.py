@@ -238,7 +238,13 @@ def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str) -> Li
             if check_entry_signal(row, regime, config, df_clean, idx):
                 # 레짐별 포지션 사이징
                 size_ratio = config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
-                if size_ratio == 0:
+                # 실거래(main.py)와 동일하게 심볼별 비중 배율을 적용한다.
+                # 목적:
+                # - 백테스트/실거래 사이징 규칙을 일치시켜 핫픽스 효과를 왜곡 없이 검증
+                # - 심볼별 배율 미정의/비정상 값은 config 폴백(1.0)으로 처리
+                symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+                effective_ratio = float(size_ratio) * float(symbol_multiplier)
+                if effective_ratio <= 0:
                     continue
 
                 position = Trade(
@@ -246,7 +252,7 @@ def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str) -> Li
                     regime=regime,
                     entry_time=current_time,
                     entry_price=row['close'],
-                    position_size=BASE_POSITION_SIZE * size_ratio,
+                    position_size=BASE_POSITION_SIZE * effective_ratio,
                     high_water_mark=row['close']
                 )
 

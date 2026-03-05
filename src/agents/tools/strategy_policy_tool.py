@@ -35,4 +35,8 @@ def run_strategy_policy_tool() -> Dict[str, Any]:
         "strategy_name": "Adaptive Mean Reversion (Regime-based)",
         "regime_exit_policy": regime_exit,
         "risk_limits": risk_limits,
+        "symbol_position_multipliers": {
+            symbol: float(cfg.get_symbol_position_multiplier(symbol))
+            for symbol in cfg.SYMBOLS
+        },
     }

@@ -320,7 +320,16 @@ async def bot_loop():
                                 regime_ratio = Decimal(str(
                                     config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
                                 ))
-                                target_invest_amount = reference_equity * risk_manager.max_per_order * regime_ratio
+                                # 심볼별 배율은 "레짐 비중" 위에 곱해 최종 타깃 비중을 만든다.
+                                # 이렇게 하면 기존 리스크 정책(3중 캡/min, max_per_order, max_total_exposure)은
+                                # 그대로 유지하면서, 심볼 구성만 운영 의도대로 재배분할 수 있다.
+                                symbol_multiplier = Decimal(str(
+                                    config.get_symbol_position_multiplier(symbol)
+                                ))
+                                effective_ratio = regime_ratio * symbol_multiplier
+                                target_invest_amount = (
+                                    reference_equity * risk_manager.max_per_order * effective_ratio
+                                )
 
                                 cash_cap = balance * (Decimal("1") - risk_manager.fee_buffer)
                                 current_exposure = await risk_manager.get_total_exposure(session)
@@ -395,6 +404,9 @@ async def bot_loop():
                                                     "market_context": market_context,
                                                     "regime": regime,
                                                     "entry_config": regime_entry_config,
+                                                    "position_size_ratio": float(regime_ratio),
+                                                    "symbol_position_multiplier": float(symbol_multiplier),
+                                                    "effective_position_ratio": float(effective_ratio),
                                                 }
                                                 metrics.ai_requests.inc()
                                                 success = await executor.execute_order(

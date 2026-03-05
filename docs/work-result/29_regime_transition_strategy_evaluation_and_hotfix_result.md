@@ -3,9 +3,9 @@
 작성일: 2026-03-06
 작성자: Codex
 관련 계획서: `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`
-상태: Partial
-완료 범위: Phase 1~3
-선반영/추가 구현: 있음(Phase 2~3 일부)
+상태: In Progress
+완료 범위: Phase 1~5
+선반영/추가 구현: 있음(Phase 2~5)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -77,15 +77,32 @@
     - XRP/DOGE `0.7x`
   - 총 리스크 수준을 크게 바꾸지 않도록 배율 합을 보정(`1.2*3 + 0.7*2 = 5.0`).
   - 구현 방식:
-    - `simulate_trades()` 결과의 `position_size`에 심볼 배율을 적용해 손익/MDD 계산에 반영.
+    - 시나리오별로 `StrategyConfig.SYMBOL_POSITION_MULTIPLIERS`를 오버라이드해 손익/MDD 계산에 반영.
 - 효과/의미:
   - “DOGE/XRP 축소 시 다른 심볼 비중 확대” 효과를 동일 백테스트 프레임에서 즉시 비교 가능.
+
+### 2.5 실거래/백테스트 공통 심볼 비중 핫픽스 적용(Phase 5)
+- 파일/모듈:
+  - `src/config/strategy.py`
+  - `config/strategy_v3.yaml`
+  - `src/bot/main.py`
+  - `scripts/backtest_v3.py`
+  - `src/agents/tools/strategy_policy_tool.py`
+- 변경 내용:
+  - 전략 공통 설정에 `SYMBOL_POSITION_MULTIPLIERS`와 안전 조회 함수(`get_symbol_position_multiplier`)를 추가.
+  - `config/strategy_v3.yaml`에 운영 배율 정책(BTC/ETH/SOL 1.2, XRP/DOGE 0.7) 반영.
+  - 실거래 진입 금액 계산을 `regime_ratio * symbol_multiplier` 기준으로 변경.
+  - 백테스트도 동일 계산식을 적용해 실거래/백테스트 비중 규칙을 정렬.
+  - 전략 정책 조회 도구에 심볼 배율 노출 필드 추가.
+- 효과/의미:
+  - 백테스트에서 유리한 비중 정책을 실거래 경로에 동일하게 반영해, 검증-운영 간 괴리를 축소.
 
 ---
 
 ## 3. 변경 파일 목록
 ### 3.1 신규
 1) `scripts/backtest_regime_transition_scenarios.py`
+2) `tests/test_strategy_position_sizing.py`
 
 ### 3.2 수정
 1) `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`
@@ -93,19 +110,26 @@
 3) `docs/work-result/29_regime_transition_strategy_evaluation_and_hotfix_result.md`
 4) `scripts/backfill_for_regime.py`
 5) `scripts/backtest_regime_transition_scenarios.py`
+6) `docs/PROJECT_CHARTER.md`
+7) `src/config/strategy.py`
+8) `config/strategy_v3.yaml`
+9) `src/bot/main.py`
+10) `scripts/backtest_v3.py`
+11) `src/agents/tools/strategy_policy_tool.py`
 
 ---
 
 ## 4. 검증 결과
 ### 4.1 코드/정적 검증
 - 실행 명령:
-  - `python3 -m py_compile scripts/backtest_regime_transition_scenarios.py`
+  - `python3 -m py_compile src/config/strategy.py src/bot/main.py scripts/backtest_v3.py scripts/backtest_regime_transition_scenarios.py src/agents/tools/strategy_policy_tool.py`
   - `PYTHONPATH=. .venv/bin/python scripts/backtest_regime_transition_scenarios.py --help`
   - `python3 -m py_compile scripts/backfill_for_regime.py`
   - `PYTHONPATH=. .venv/bin/python scripts/backfill_for_regime.py --help`
-  - `python3 -m py_compile scripts/backtest_regime_transition_scenarios.py`
+  - `PYTHONPATH=. .venv/bin/python -m pytest tests/test_strategy_position_sizing.py -q`
+  - `PYTHONPATH=. .venv/bin/python -m pytest tests/test_strategy_v3_logic.py -q`
 - 결과:
-  - 통과. 스크립트 구문 오류 없음, CLI 옵션 정상 출력.
+  - 통과. 구문 오류 없음, 신규/기존 단위 테스트 통과.
 
 ### 4.2 정량 개선 증빙
 - 측정 기간/표본:
@@ -119,7 +143,7 @@
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | 시나리오 비교 자동화 스크립트 수 | 0 | 1 | +1 | 측정 불가(분모 0) |
-| 단일 실행 지원 시나리오 수 | 1(baseline 수동) | 4(자동 집계) | +3 | +300.0 |
+| 단일 실행 지원 시나리오 수 | 1(baseline 수동) | 6(자동 집계) | +5 | +500.0 |
 
 - 정량 측정 불가 시(예외):
   - 불가 사유: 실제 전략 성과(수익률/MDD)는 DB 기반 백테스트 실행 전이라 미확정
@@ -202,6 +226,30 @@
   - 대체 지표: 시나리오 정의/실행 경로 추가 및 정적 검증 통과
   - 추후 측정 계획: 21일/120일 결과에서 `transition_sensitive` 대비 재배분 시나리오 손익/MDD 비교표 추가
 
+### 4.6 실거래 반영 가능 상태 증빙(Phase 5)
+- 측정 기간/표본:
+  - 2026-03-06, 설정 로드/계산 경로 검증 1회 + 사용자 OCI 백테스트 재실행 결과
+- 측정 기준:
+  - 실거래/백테스트에서 동일 배율 규칙을 사용할 수 있는지
+- 데이터 출처:
+  - 로컬 검증 출력(`get_config()`), 사용자 OCI 실행 로그(21일/120일 시나리오 결과)
+- 재현 명령:
+  - `PYTHONPATH=. .venv/bin/python - <<'PY' ... get_config().SYMBOL_POSITION_MULTIPLIERS ... PY`
+  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv'`
+- Before/After 비교표 (120일, 동일 전환 민감 시나리오 기준):
+
+| 지표 | Before (`transition_sensitive`) | After (`transition_sensitive_symbol_rebalanced`) | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 총 실현손익 (KRW) | -80,142 | -77,691 | +2,451 | +3.06 *(손실 축소율)* |
+| 체결당 평균손익 (KRW) | -673 | -653 | +20 | +2.97 *(손실 축소율)* |
+| Profit Factor | 0.5749 | 0.5839 | +0.0090 | +1.57 |
+| Max Drawdown (KRW) | 113,210 | 112,854 | -356 | -0.31 |
+
+- 정량 측정 불가 시(예외):
+  - 불가 사유: 실거래 적용 후 24h/72h 운영 데이터는 아직 관측 전
+  - 대체 지표: 동일 배율이 실거래/백테스트 코드 경로에 동시에 반영됐는지 정적/단위 검증으로 확인
+  - 추후 측정 계획: 적용 후 `trading_history` SELL 표본 20건 이상 누적 시 실운영 성과로 재평가
+
 ---
 
 ## 5. 계획 대비 리뷰
@@ -214,15 +262,20 @@
 
 ## 6. 결론 및 다음 단계
 - 현재 상태 요약:
-  - 29는 `In Progress`. 도구 준비 + OCI 120일 1차 비교 완료.
-  - 1차 결론은 `transition_sensitive` 우세이나, 표본 부족으로 확정 핫픽스 전 추가 검증 필요.
+  - 29는 `In Progress`. 도구/데이터/시나리오 검증을 거쳐 심볼 비중 핫픽스 코드 반영까지 완료.
+  - 남은 단계는 OCI 배포 적용 후 24h/72h 운영 관측과 SELL 표본 누적 검증.
 - 후속 작업:
-  1) 장기 백필 실행(OCI):
-     - `docker compose --env-file /opt/coin-pilot/deploy/cloud/oci/.env -f /opt/coin-pilot/deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python scripts/backfill_for_regime.py --days 120'`
-  2) 심볼별 원천 데이터 기간 확인:
-     - `SELECT symbol, MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts, COUNT(*) AS rows FROM market_data GROUP BY symbol ORDER BY symbol;`
-  3) 추가 검증에서도 `transition_sensitive` 우세 시 YAML 핫픽스 후보(임계값 완화) 적용안 작성
-  4) 적용 시 24h/72h 운영 관측 가드레일(손실 확대/REJECT 급증) 조건으로 즉시 롤백 가능하게 운영
+  1) OCI 배포 적용:
+     - `cd /opt/coin-pilot && git pull --ff-only origin f29`
+     - `cd /opt/coin-pilot/deploy/cloud/oci && docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot`
+  2) 컨테이너 설정 반영 확인:
+     - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python -c "from src.config.strategy import get_config; print(get_config().SYMBOL_POSITION_MULTIPLIERS)"'`
+  3) 24h/72h 운영 관측:
+     - `scripts/ops/check_24h_monitoring.sh t1h`
+     - `scripts/ops/ai_decision_canary_report.sh 24`
+     - `scripts/ops/llm_usage_cost_report.sh 24`
+  4) 악화 시 롤백:
+     - `config/strategy_v3.yaml`의 `position_sizing.symbol_position_multipliers`를 전부 `1.0`으로 복원 후 bot 재기동
 
 ---
 
@@ -249,3 +302,18 @@
   - 의도/왜: 장기 백필 중 중복/반복/임시장애 대응
   - 불변조건: `interval='1m'`, unique constraint 기반 upsert
   - 실패 케이스: API 반복 응답/네트워크 오류/비정상 payload 대응
+
+## 9. 설계/아키텍처 결정 리뷰(Phase 5)
+- 최종 선택한 구조 요약:
+  - 심볼 비중 배율을 전략 공통 설정(`StrategyConfig`)으로 승격하고, 실거래/백테스트가 같은 설정을 참조하도록 통합.
+- 고려했던 대안:
+  1) 실거래 코드(`main.py`)에 심볼 하드코딩 분기 추가
+  2) 백테스트에서만 심볼 후처리 배율 적용
+  3) 공통 설정 + 공통 계산식으로 정렬 (채택)
+- 대안 대비 실제 이점:
+  1) 운영/백테스트 계산 괴리 최소화
+  2) YAML 기반 즉시 롤백 가능(재배포 후 반영)
+  3) 신규 심볼 추가 시 코드 수정 없이 설정만 확장 가능
+- 트레이드오프와 완화:
+  1) 설정 필드 증가로 복잡도 상승 -> 안전 폴백(`<=0`/비숫자 값은 `1.0`)으로 운영 리스크 완화
+  2) 시나리오 러너와 계산 중복 가능성 -> post-processing 곱 방식 제거, 설정 오버라이드 방식으로 정렬

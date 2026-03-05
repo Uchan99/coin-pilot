@@ -36,6 +36,13 @@ class StrategyConfig:
     SYMBOLS: List[str] = field(default_factory=lambda: [
         "KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE"
     ])
+    # 심볼별 주문 비중 배율(기본 1.0)
+    # why:
+    # - 동일 레짐이라도 심볼별 성과 편차가 큰 경우, 리스크 총량을 유지한 채 비중만 재배분하기 위해 사용한다.
+    # - 비정상 값(0 이하/숫자 아님)은 안전하게 1.0으로 폴백한다.
+    SYMBOL_POSITION_MULTIPLIERS: Dict[str, float] = field(default_factory=lambda: {
+        "KRW-BTC": 1.0, "KRW-ETH": 1.0, "KRW-XRP": 1.0, "KRW-SOL": 1.0, "KRW-DOGE": 1.0
+    })
     
     # 레짐 감지 설정
     MA_FAST_PERIOD: int = 50
@@ -153,6 +160,23 @@ class StrategyConfig:
     COOLDOWN_HOURS: int = 2
     MIN_TRADE_INTERVAL_MINUTES: int = 30
 
+    def get_symbol_position_multiplier(self, symbol: str) -> float:
+        """
+        심볼별 포지션 비중 배율을 안전하게 반환합니다.
+
+        실패/엣지 케이스:
+        - YAML 누락/오타/문자열 입력/0 이하 값 입력 시 운영 안정성을 위해 1.0으로 폴백
+        - 신규 심볼이 추가돼도 미정의 심볼은 1.0으로 동작
+        """
+        raw_value = self.SYMBOL_POSITION_MULTIPLIERS.get(symbol, 1.0)
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return 1.0
+        if value <= 0:
+            return 1.0
+        return value
+
 def load_strategy_config(path: str = "config/strategy_v3.yaml") -> StrategyConfig:
     """
     YAML 파일에서 전략 설정을 로드합니다. 파일이 없으면 기본값을 사용합니다.
@@ -188,6 +212,14 @@ def load_strategy_config(path: str = "config/strategy_v3.yaml") -> StrategyConfi
             d = data["data"]
             if "min_hourly_candles_for_regime" in d:
                 kwargs["MIN_HOURLY_CANDLES_FOR_REGIME"] = d["min_hourly_candles_for_regime"]
+
+        # position_sizing 섹션 매핑
+        # 심볼별 배율은 리스크 정책과 결합되는 핵심 값이므로 dict 타입만 허용합니다.
+        if "position_sizing" in data:
+            ps = data["position_sizing"]
+            multipliers = ps.get("symbol_position_multipliers")
+            if isinstance(multipliers, dict):
+                kwargs["SYMBOL_POSITION_MULTIPLIERS"] = multipliers
 
         # regimes 섹션 매핑
         if "regimes" in data:
