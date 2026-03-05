@@ -72,9 +72,16 @@
 - 변경 요약:
   - 컨테이너 3개 패널 쿼리를 `name` 기준에서 `id` 기준으로 전환
   - cAdvisor 권한/마운트 보강 및 `docker_only=false` 전환
+  - 후속 운영 관측에서 `container_label_*` 라벨 공백이 재확인되어 `docker_only=true` + `store_container_labels=true`로 재전환
+  - 라벨 공백이 지속되는 환경을 기준으로 `coinpilot-container-map` 사이드카를 추가해 `coinpilot_container_display_info` 매핑 메트릭을 node-exporter textfile collector로 주입
+  - `docker_only=true` 이후 `id` 포맷이 `/docker/<id>`로 바뀌는 환경을 반영해, Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 동시 지원으로 보강
+  - 최근 구간 `No data` 재발 시나리오에서 `container-map` 조인 경로를 유지하고 cAdvisor `docker_only=false`로 재조정
+  - 후속 회귀로 `coinpilot_container_memory_working_set_bytes`가 전부 `0`으로 노출되는 문제를 확인해, `generate_container_display_map.sh` 메모리 파서를 busybox awk 호환 방식으로 교체
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
+  - `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh`
   - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `scripts/ops/check_24h_monitoring.sh`
   - `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` (변경 이력 추가)
   - `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md` (Phase 2 기록)
   - `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md` (본 문서)
@@ -89,15 +96,49 @@
 - 실행 명령/절차:
   - `python3 -m json.tool deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json >/dev/null`
   - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps cadvisor prometheus grafana`
-  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=topk(10, container_memory_working_set_bytes{job="cadvisor"})'`
+  - `docker compose --env-file .env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate --no-deps node-exporter container-map cadvisor prometheus grafana`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_memory_working_set_bytes{job="node-exporter"})'`
+  - `curl -sS -G http://127.0.0.1:9090/api/v1/query --data-urlencode 'query=count(coinpilot_container_restart_count{job="node-exporter"})'`
+  - `scripts/ops/check_24h_monitoring.sh t1h`
   - Grafana 패널 시계열 확인
 - 결과:
   - JSON 문법 검증 통과
-  - 운영 반영 후 `topk(...container_memory_working_set_bytes...)`가 루트 cgroup 외 컨테이너 시계열을 반환해야 정상
+  - 운영 반영 후 `coinpilot_container_{display_info,cpu_percent,memory_working_set_bytes,restart_count}` count가 모두 `12`로 확인됨
+  - `scripts/ops/check_24h_monitoring.sh t1h` 결과 `FAIL: 0`, `WARN: 1` 확인
+  - 회귀 검증에서 `docker stats`는 정상 메모리값(예: `216.3MiB`)을 반환하지만 Prometheus 메모리 메트릭이 `0`이던 문제를 파서 핫픽스로 보정
 
 - 운영 확인 체크:
-  1) Grafana 컨테이너 패널 3개가 `No data`에서 시계열로 전환되는지 확인
-  2) `scripts/ops/check_24h_monitoring.sh t1h` PASS 유지 확인
+  1) Grafana 컨테이너 패널 3개가 Last 5m에서도 `No data` 없이 시계열로 표시되는지 확인
+  2) 컨테이너 범례가 `coinpilot-*` 서비스명으로 표시되는지 확인
+  3) `scripts/ops/check_24h_monitoring.sh t1h` PASS 유지 확인
+
+### 7.1 정량 근거(결과 문서 대조)
+출처: `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `No data` 컨테이너 패널 수 | 3 | 0 | -3 | -100.0 |
+| 서비스명 매핑 메트릭 count (`coinpilot_container_display_info`) | 0 | 12 | +12 | N/A |
+| 컨테이너 CPU 메트릭 count (`coinpilot_container_cpu_percent`) | 0 | 12 | +12 | N/A |
+| `check_24h_monitoring.sh t1h` FAIL 건수 | 1 이상(이슈 시) | 0 | 개선 | N/A |
+
+### 7.2 현재 상태(2026-03-05 기준)
+- 상태 판정:
+  - `Fixed` 유지
+  - `t24h` 관찰까지 통과해 운영 마감 조건 충족
+- 확인된 정상 지표:
+  - `count(coinpilot_container_display_info)=12`
+  - `count(coinpilot_container_cpu_percent)=12`
+  - `count(coinpilot_container_memory_working_set_bytes)=12`
+  - `count(coinpilot_container_restart_count)=12`
+- 남은 확인 항목:
+  1) Grafana Alerting의 Discord 라우팅 수동 테스트 기록 추가
+
+### 7.3 마감 검증(2026-03-05)
+- `scripts/ops/check_24h_monitoring.sh t24h` 결과 `FAIL:0 / WARN:0` 확인.
+- Postgres/Redis/n8n 백업 최신성(약 16h 전)과 cron active 상태를 함께 확인해 운영 마감 조건 충족.
 
 ---
 

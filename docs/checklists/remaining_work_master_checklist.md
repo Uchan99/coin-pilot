@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-03  
+최종 수정일: 2026-03-05  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -20,13 +20,17 @@
 | Priority | ID | 작업 | 상태 | 시작 조건 | 완료 조건 | 검증 명령/확인 | Plan | Result/TS |
 |---|---|---|---|---|---|---|---|---|
 | 1 | 27 | CI 파이프라인 의존성 충돌/테스트 환경변수 복구 | done | main merge 후 CI 실패 재현 로그 확보 | `security`/`test` 잡 모두 성공 + backend/agent 계열 known vulnerability 해소 완료 + 잔여 `CVE-2026-25990(pillow)`는 프론트 전환 스트림(22/23)으로 이관 | `DB_PASSWORD=... DATABASE_URL=... .venv/bin/python -m pytest tests/utils/test_metrics.py tests/analytics/ tests/agents/` 통과 + GitHub Actions `test`/`security` 성공 + `security/pip_audit_ignored_vulns.txt`에 `CVE-2026-25990` 단일 잔여 확인 | `docs/work-plans/27_ci_pipeline_dependency_and_test_env_fix_plan.md`, `docs/work-plans/27-01_bandit_findings_and_security_artifact_reliability_fix_plan.md`, `docs/work-plans/27-02_pip_audit_known_vulnerability_remediation_plan.md`, `docs/work-plans/27-03_backend_agent_vuln_remediation_plan.md`, `docs/work-plans/27-04_langchain_langgraph_major_migration_plan.md` | `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`, `docs/troubleshooting/27_ci_dependency_conflict_and_test_env_missing.md`, `docs/troubleshooting/27-01_bandit_xml_and_bind_all_interfaces_findings.md`, `docs/troubleshooting/27-02_pip_audit_known_vulnerabilities_gate_failure.md` |
-| 2 | 21-05 | OCI 인프라 리소스 모니터링 | in_progress | exporter/Prometheus/Grafana 반영 완료 | 컨테이너 패널 표기 가독성 개선(서비스명 매핑 or 운영 해석 가이드 고정) 및 24h 관찰 완료 | `scripts/ops/check_24h_monitoring.sh t0 && scripts/ops/check_24h_monitoring.sh t1h` | `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` | `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md`, `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md` |
+| 2 | 21-05 | OCI 인프라 리소스 모니터링 | done | exporter/Prometheus/Grafana 반영 완료 | 컨테이너 패널 표기 가독성 개선(서비스명 매핑) + 메모리 0 회귀 핫픽스 + `t24h` 관찰 완료 | `scripts/ops/check_24h_monitoring.sh t0 && scripts/ops/check_24h_monitoring.sh t1h && scripts/ops/check_24h_monitoring.sh t24h` | `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md` | `docs/work-result/21-05_oci_infra_resource_monitoring_grafana_result.md`, `docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md` |
 | 3 | 24 | 디스코드 모바일 조회 챗봇 | done | 21-05 기본 모니터링 안정화 | `/positions`, `/pnl`, `/status`, `/risk`, `/ask` 정상 응답 + role/channel 제한 정책 검증 완료 | `docker compose --profile discord-bot ... up -d --build bot discord-bot` + Discord slash command 수동 확인(허용/차단 케이스 포함) | `docs/work-plans/24_discord_mobile_chatbot_query_plan.md` | `docs/work-result/24_discord_mobile_chatbot_query_result.md`, `docs/troubleshooting/24_mobile_visibility_gap_discord_query_need.md`, `docs/troubleshooting/24-01_discord_role_nonetype_guard_fix.md`, `docs/troubleshooting/24-02_mobile_api_500_missing_psycopg2.md` |
-| 4 | 21-03 | AI Decision 카나리 실험 | todo | 24 최소 기능 반영 후 | 카나리 기간 동안 승인율/거절율/오류율/비용 비교 리포트 확보 | (예정) 카나리 기간 로그/DB 집계 쿼리 | `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md` | (생성 예정) |
-| 5 | 21-04 | LLM 토큰/비용 관측 대시보드 | todo | 21-03 실험 데이터 구조 확정 | 모델별 토큰/비용 추이가 Grafana 또는 리포트로 확인 가능 | (예정) 메트릭/집계 테이블 확인 | `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md` | (생성 예정) |
+| 4 | 21-03 | AI Decision 카나리 실험 | in_progress | 24 최소 기능 반영 후 | 카나리 기간 동안 승인율/거절율/오류율/비용 비교 리포트 확보 | `scripts/ops/ai_decision_canary_report.sh 24` + `agent_decisions.model_used` 모델 혼재 확인 | `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md` | `docs/work-result/21-03_ai_decision_model_canary_experiment_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
+| 5 | 21-04 | LLM 토큰/비용 관측 대시보드 | in_progress | 21-03 실험 데이터 구조 확정 | 모델별 토큰/비용 추이가 Grafana 또는 리포트로 확인 가능 | `scripts/ops/llm_usage_cost_report.sh 24` + `scripts/ops/llm_credit_snapshot_collect.sh` + `SELECT route, provider, model, count(*) FROM llm_usage_events GROUP BY 1,2,3;` + `SELECT provider, count(*) FROM llm_provider_cost_snapshots GROUP BY 1;` | `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md` | `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 6 | 22 | 기존 대시보드 가독성/실시간성 개선 | todo | 24/21-03 관측 요구사항 반영 | 탭별 stale 데이터 제거 + 핵심 카드/패널 가독성 개선 | (예정) UI 체크리스트 + 데이터 갱신 검증 | `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md` | (생성 예정) |
 | 7 | 23 | Next.js 점진 이관 | todo | 22에서 확정된 정보구조/운영요건 확보 | 최소 핵심 화면의 병행 운영(기존 대비 기능 동등) + Streamlit 대체 전략 확정(잔여 `pillow` CVE 제거 경로 포함) | (예정) 기능 동등성 체크리스트 | `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md` | (생성 예정) |
 | 8 | 26 | README 최신 운영 상태 반영 개편 | done | 문서 드리프트 확인 | README 기준 실행/운영 안내가 Charter/현재 배포 구조와 정합 | `rg -n \"PROJECT_CHARTER|check_24h_monitoring|discord-bot\" README.md` + README 링크 경로 존재 점검 | `docs/work-plans/26_readme_current_state_refresh_plan.md` | `docs/work-result/26_readme_current_state_refresh_result.md` |
+| 9 | 99-01 | Result/Troubleshooting 정량 증빙 의무화 정책 반영 | done | 사용자 승인 완료 | AGENTS/Charter/템플릿에 문제 정의 + before/after 수치 + 측정 근거 필수 규칙 반영 완료 + 결과 문서 작성 완료 | `rg -n \"before|after|정량|증빙|측정|문제\" AGENTS.md docs/PROJECT_CHARTER.md docs/templates/work-result.template.md docs/templates/troubleshooting.template.md` | `docs/work-plans/99-01_result_troubleshooting_quantified_evidence_policy_plan.md` | `docs/work-result/99-01_result_troubleshooting_quantified_evidence_policy_result.md` |
+| 10 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
+| 11 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
+| 12 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
 
 ---
 
@@ -60,6 +64,34 @@
 - 2026-03-02: 27-04 Phase M1/M2 2차 보정(`pydantic-settings==2.10.1` 상향)으로 `langchain-community==0.4.1`와 resolver 충돌 해소 시도, CI 재검증 대기.
 - 2026-03-02: 27-04 Phase M1/M2 3차 보정(`langchain-core==1.2.13` 상향)으로 `langchain-text-splitters==1.1.1`와 resolver 충돌 해소 시도, CI 재검증 대기.
 - 2026-03-03: 27 최종 마감(`done`) 처리. `test`/`security` 통과를 확인했고, 잔여 `CVE-2026-25990(pillow)` 1건은 Streamlit 전이 의존성 이슈로 `22`/`23` 스트림에서 제거하도록 이관.
+- 2026-03-04: 21-03 사용자 승인 후 구현 착수(`in_progress`). Analyst/Guardian 카나리 라우팅 및 모델별 집계 스크립트 반영 중.
+- 2026-03-04: 21-03 Phase 1 구현 완료(라우팅/로깅/env 예시/집계 스크립트/테스트) 및 결과 문서 작성. 현재 상태는 운영 관찰 대기(`in_progress`)로 유지.
+- 2026-03-04: 21-04 사용자 승인 후 구현 착수 및 Phase 1 반영(`in_progress`). usage ledger 스키마/공통 수집 유틸/route별 계측/운영 집계 스크립트/결과 문서를 추가.
+- 2026-03-04: 21-04 운영 검증 자동화 보강. `scripts/ops/llm_usage_smoke_and_compare.sh`를 추가해 권장 확인 절차(경로 강제 호출 + usage/canary 비교 리포트)를 1회 실행으로 자동화.
+- 2026-03-04: 21-04 운영 hotfix 반영. `llm_usage_smoke_and_compare.sh` 시작 단계의 `python -c` 따옴표 충돌(`SyntaxError`)을 수정해 smoke 절차가 정상 진행되도록 보정.
+- 2026-03-04: 21-03/21-04 운영 관측 이슈를 `21-06` 트러블슈팅으로 분리 기록. compose env projection 누락/스크립트 quoting 오류를 수정하고, 결과 문서에 정량 Before/After를 추가.
+- 2026-03-04: 21-03/21-04 문서 상태 동기화 완료. 21-03은 표본 부족으로 관찰 지속, 21-04는 Phase 1 구현 완료 + Phase 2(credit snapshot 자동수집) 대기로 `in_progress` 유지.
+- 2026-03-04: 99-01 신규 메타 계획 등록(결과/트러블슈팅 문서의 문제 정의/정량 증빙 의무화, 현재 `Approval Pending`).
+- 2026-03-04: 99-01 사용자 승인 후 정책 반영 착수(`in_progress`) 및 AGENTS/Charter/템플릿/README 동기화.
+- 2026-03-04: 99-01 구현 및 결과 문서 작성 완료(`done`).
+- 2026-03-04: 24/27/21-05 트러블슈팅 문서를 결과 문서와 대조해 정량 근거(명령 수/테스트 통과 수/취약점 건수/패널 복구 수치) 섹션을 보강.
+- 2026-03-04: 99-02 전수 백필 수행. 정량 섹션 누락 트러블슈팅 문서 24개에 `정량 증빙 상태`를 일괄 추가해 누락 0건으로 정리.
+- 2026-03-04: 99-02 정밀 보강 2차 반영. 백필 24개 문서 중 18개에 원문 수치 라인(%, 건수, passed/failed, 시간)을 자동 추출해 정량 증빙 밀도를 상향.
+- 2026-03-05: 99-03 완료. 트러블슈팅 32개 문서 전부를 5열 표준표 형식으로 통일했고, 기존 4열 표(7개)와 표준표 누락(24개)을 모두 해소.
+- 2026-03-05: 21-03에 임시 메모로 넣었던 RAG 방향 문구를 제거하고, 별도 main 계획 `28`(전략문서/과거사례 기반 RAG 보강)으로 분리 등록.
+- 2026-03-05: 21-04 Phase 2 코드 반영. credit snapshot 자동수집(job/env 기반), one-shot 수집 스크립트, usage 리포트 freshness 구간을 추가했고 상태는 OCI 운영 검증 대기로 `in_progress` 유지.
+- 2026-03-05: 21-04 Phase 2.1 코드 반영. balance endpoint 의존을 줄이기 위해 `LLM_COST_SNAPSHOT_*` + `llm_provider_cost_snapshots` 기반 provider 비용 스냅샷 수집으로 전환, 리포트 대조축을 `provider_cost_usd`로 보정.
+- 2026-03-05: 21-04 Phase 2.1 OCI 운영 검증 완료. `smoke + compare` PASS, 1h route coverage 6개, `LLM_COST_SNAPSHOT_ENABLED=false`(현상 유지) 상태에서 `llm_provider_cost_snapshots` 0건 정상 확인.
+- 2026-03-05: 다음 실행 포커스를 `21-05`(OCI 인프라 모니터링 가독성 마감 및 24h 관찰 증빙)으로 고정.
+- 2026-03-05: 21-05 가독성 보강 1차 반영. `coinpilot-infra.json` 컨테이너 3개 패널을 `서비스명 우선 + 12자리 ID fallback` 범례로 전환해 운영 식별성을 개선했고, 상태는 24h 운영 관찰 대기(`in_progress`)로 유지.
+- 2026-03-05: 21-05 가독성 보강 2차 반영. cAdvisor를 `--docker_only=true --store_container_labels=true`로 전환해 `container_label_com_docker_compose_service` 라벨 복구 경로를 적용.
+- 2026-03-05: 21-05 가독성 보강 3차 반영. cAdvisor 라벨 의존을 제거하기 위해 `coinpilot-container-map`(docker ps→node-exporter textfile metric) 사이드카를 추가하고, Grafana 패널 쿼리를 `coinpilot_container_display_info` 조인 + ID fallback 구조로 전환.
+- 2026-03-05: 21-05 가독성 보강 4차 핫픽스. `docker_only=true` 환경에서 cAdvisor `id`가 `/docker/<id>`로 바뀌는 케이스를 반영해 Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 겸용으로 수정.
+- 2026-03-05: 21-05 가독성 보강 5차 핫픽스. 최근 구간 `No data` 재발을 완화하기 위해 `container-map` 조인 유지 조건에서 cAdvisor를 `docker_only=false`로 재조정.
+- 2026-03-05: 21-05 가독성 보강 6차 핫픽스. cAdvisor `id="/"` 단일 시계열 고착 환경을 우회하기 위해 컨테이너 패널 데이터 소스를 `coinpilot-container-map`의 CPU/Memory/Restart 메트릭으로 전환.
+- 2026-03-05: 21-05 운영 검증 기록 업데이트. `coinpilot_container_*` 4개 핵심 메트릭 count `12`, `check_24h_monitoring.sh t1h` 결과 `FAIL:0/WARN:1` 확인. 남은 마감 조건은 `t24h` 연속성 확인.
+- 2026-03-05: 21-05 회귀 핫픽스. `coinpilot_container_memory_working_set_bytes` 전량 `0` 이슈를 확인해 `generate_container_display_map.sh` 메모리 변환 파서를 busybox awk 호환 형태로 보정.
+- 2026-03-05: 21-05 최종 마감(`done`). `check_24h_monitoring.sh t24h` 결과 `FAIL:0/WARN:0`, 백업 3종 최신 생성 확인(Postgres/Redis/n8n), README 운영 상태를 `21-05 완료`로 동기화.
 
 ---
 

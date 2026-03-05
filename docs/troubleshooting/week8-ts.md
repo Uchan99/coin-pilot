@@ -223,3 +223,23 @@ n8n Execute 시 `Invalid URL: PLACEHOLDER_USE_DEPLOY_SCRIPT` 에러 발생. Disc
 --from-literal=DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
 ```
 - n8n Pod 재시작: `kubectl rollout restart deployment/n8n -n coin-pilot-ns`
+
+---
+
+## 정량 증빙 상태 (2026-03-04 백필)
+- 해결한 문제:
+  - 본문의 "증상/원인/조치" 섹션에 정의된 이슈를 해결 대상으로 유지한다.
+- 현재 문서에서 확인 가능한 구체 수치(원문 기반):
+  - `requirements.txt`에 동일 패키지가 중복 선언됨 (fastapi, uvicorn, redis가 2회씩 존재).
+- 표준 Before/After 비교표:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 문서 내 확인 가능한 수치 라인 수(자동 추출 기준) | 0 | 1 | +1 | N/A |
+| 표준 비교표 포함 여부(0/1) | 0 | 1 | +1 | N/A |
+
+- 현재 기록 한계:
+  - 결과 문서 대비 표준 Before/After 표(변화량/변화율)가 문서별로 일부 누락되어 있다.
+- 추후 보강 기준:
+  1) 관련 Result 문서와 로그 명령을 연결해 Before/After 표를 추가한다.
+  2) 수치가 없는 경우 "측정 불가 사유"와 "추후 수집 계획"을 함께 기록한다.

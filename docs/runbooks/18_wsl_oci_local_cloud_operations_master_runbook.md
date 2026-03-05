@@ -86,6 +86,7 @@ ssh -i "C:\Users\syt07\.ssh\ssh-key-2026-02-24.key" \
 8. `coinpilot-grafana`
 9. `coinpilot-node-exporter` (호스트 리소스 메트릭)
 10. `coinpilot-cadvisor` (컨테이너 리소스 메트릭)
+11. `coinpilot-container-map` (컨테이너 ID↔서비스명 매핑 메트릭 생성)
 
 자동복구:
 - systemd unit: `coinpilot-compose.service`
@@ -261,8 +262,9 @@ docker inspect coinpilot-n8n --format '{{ range .Mounts }}{{ if eq .Destination 
 - 포함 패널:
   - Host CPU / Memory / Root Disk
   - Host Network RX/TX
-  - Container CPU / Memory / Restart changes(24h)
+  - Container CPU / Memory / Restart changes(24h) (`coinpilot-container-map` 메트릭 기반)
   - Scrape Target Status (`coinpilot-core`, `node-exporter`, `cadvisor`, `prometheus`)
+  - Container Legend Mapping(`coinpilot_container_display_info` via node-exporter textfile)
 
 2. Prometheus 타겟 확인
 ```bash
@@ -272,23 +274,26 @@ curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22cadvisor%22%7D"
 
 3. 자동 점검 스크립트 반영 항목
 - `scripts/ops/check_24h_monitoring.sh t1h`에서 `node-exporter`, `cadvisor`도 `UP(1)` 검증
+- `scripts/ops/check_24h_monitoring.sh t1h`에서 `coinpilot_container_display_info` 존재 여부 검증
 - `t0` 서비스 상태 점검에 exporter 2개 포함
+- `t0` 서비스 상태 점검에 `coinpilot-container-map` 포함
 
 ### 9.4 컨테이너 패널 값 해석법
-`Container CPU/Memory/Restart` 패널의 범례는 `cid`(Docker container id) 기준이다.
+`Container CPU/Memory/Restart` 패널의 범례는 기본적으로 서비스명(`coinpilot-*`) 기준이며, 매핑 메트릭이 비어 있으면 `cid`(12자리)로 fallback된다.
 
-1. 왜 이름이 아니라 ID가 보이나?
-- 현재 OCI 환경의 cAdvisor는 Docker factory API 버전 불일치로 Docker 라벨(`name`, `container_label_*`)을 안정적으로 제공하지 못할 수 있다.
-- 이 경우 systemd cgroup 경로에서 추출한 container id(`cid`)를 기준으로 관측한다.
+1. 왜 이름 대신 ID fallback이 보이나?
+- 현재 OCI 환경의 cAdvisor가 Docker 라벨(`name`, `container_label_*`)을 제공하지 않는 경우가 있다.
+- 이때 `coinpilot-container-map`이 주기적으로 생성하는 `coinpilot_container_display_info` 메트릭으로 서비스명 조인을 시도한다.
+- 매핑 메트릭이 비어 있으면 systemd cgroup 경로에서 추출한 `cid`(12자리)로 자동 fallback된다.
 
-2. `cid`를 실제 컨테이너 이름으로 매핑
+2. 서비스명 매핑 메트릭 상태 확인
 ```bash
-# 현재/과거 컨테이너 포함 매핑표
-docker ps -a --no-trunc --format '{{.ID}} {{.Names}}' | awk '{printf \"%s -> %s\\n\", $1, $2}'
+# 매핑 시계열 개수(1 이상이면 서비스명 표기 경로 정상)
+curl -sS -G http://127.0.0.1:9090/api/v1/query \
+  --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})'
 
-# 특정 cid 하나를 이름으로 조회
-CID=<패널에 보이는 cid 값>
-docker ps -a --no-trunc --filter "id=${CID}" --format '{{.Names}}'
+# 운영 수동 대조표
+docker ps -a --format '{{.ID}} {{.Names}}' | awk '{print substr($1,1,12), $2}' | sort
 ```
 
 3. 왜 예전에 보던 cid도 패널에 나오나?

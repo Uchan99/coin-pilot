@@ -1,13 +1,19 @@
 import os
 import re
+import time
 from typing import Any, Dict
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 
-from src.agents.factory import get_chat_llm
+from src.agents.factory import get_chat_llm, get_model_identity
 from src.common.db import get_sync_db_url
+from src.common.llm_usage import (
+    UsageCaptureCallback,
+    build_usage_request_id,
+    log_llm_usage_event,
+)
 
 # System Prompt for SQL Agent
 SQL_PREFIX = """당신은 PostgreSQL 데이터베이스와 상호작용하는 에이전트입니다.
@@ -142,9 +148,29 @@ async def run_sql_agent(query: str) -> str:
             return "안전 정책상 데이터 변경 쿼리(DML/DDL)는 허용되지 않습니다. 조회(SELECT) 질문으로 요청해주세요."
 
         agent_executor = get_or_create_agent_executor()
+        usage_capture = UsageCaptureCallback()
+        started_at = time.perf_counter()
+        provider, model = get_model_identity("chatbot")
 
         # ainvoke를 사용하여 비동기 실행 (내부적으로는 별도 스레드풀 등에서 DB 접근)
-        result = await agent_executor.ainvoke({"input": query})
+        try:
+            result = await agent_executor.ainvoke(
+                {"input": query},
+                config={"callbacks": [usage_capture]},
+            )
+        except TypeError:
+            result = await agent_executor.ainvoke({"input": query})
+        await log_llm_usage_event(
+            route="chat_sql_agent",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="success",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("chat_sql_agent", provider, model),
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={"query_len": len(query)},
+        )
 
         # Output Parsing Logic:
         # tool-calling 에이전트(Anthropic)가 경우에 따라 Text Block List를 반환할 수 있음.
@@ -161,4 +187,15 @@ async def run_sql_agent(query: str) -> str:
 
         return str(output)
     except Exception as exc:
+        provider, model = get_model_identity("chatbot")
+        await log_llm_usage_event(
+            route="chat_sql_agent",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="error",
+            request_id=build_usage_request_id("chat_sql_agent", provider, model),
+            error_type=type(exc).__name__,
+            meta={"query_len": len(query)},
+        )
         return f"SQL Agent 실행 중 오류가 발생했습니다: {str(exc)}"

@@ -11,6 +11,11 @@ from langchain_core.prompts import PromptTemplate
 from src.common.models import DailyRiskState, AccountState, TradingHistory
 from src.common.notification import notifier
 from src.analytics.performance import PerformanceAnalytics
+from src.common.llm_usage import (
+    UsageCaptureCallback,
+    build_usage_request_id,
+    log_llm_usage_event,
+)
 
 
 class DailyReporter:
@@ -301,8 +306,11 @@ class DailyReporter:
         )
 
         chain = prompt | self.llm
+        usage_capture = UsageCaptureCallback()
+        started_at = datetime.now(timezone.utc)
+        model_name = getattr(self.llm, "model_name", "gpt-4o-mini")
         try:
-            response = await chain.ainvoke({
+            invoke_payload = {
                 "date": data["date"],
                 "total_pnl": f"{data['total_pnl']:.2f}",
                 "trade_count": data["trade_count"],
@@ -315,9 +323,45 @@ class DailyReporter:
                 "mdd": f"{data['mdd']:.2f}",
                 "exit_breakdown_text": exit_breakdown_text,
                 "notes_text": notes_text,
-            })
+            }
+            try:
+                response = await chain.ainvoke(
+                    invoke_payload,
+                    config={"callbacks": [usage_capture]},
+                )
+            except TypeError:
+                response = await chain.ainvoke(invoke_payload)
+            latency_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+            await log_llm_usage_event(
+                route="daily_report_summary",
+                feature="daily_report",
+                provider="openai",
+                model=str(model_name),
+                status="success",
+                usage=usage_capture.usage,
+                request_id=build_usage_request_id("daily_report_summary", "openai", str(model_name)),
+                latency_ms=latency_ms,
+                meta={
+                    "date": data.get("date"),
+                    "trade_count": data.get("trade_count"),
+                },
+            )
             return response.content
         except Exception as e:
+            await log_llm_usage_event(
+                route="daily_report_summary",
+                feature="daily_report",
+                provider="openai",
+                model=str(model_name),
+                status="error",
+                usage=usage_capture.usage,
+                request_id=build_usage_request_id("daily_report_summary", "openai", str(model_name)),
+                error_type=type(e).__name__,
+                meta={
+                    "date": data.get("date"),
+                    "trade_count": data.get("trade_count"),
+                },
+            )
             # LLM 실패 시에도 일간 리포트 전송은 계속한다.
             return (
                 f"LLM 요약 생성 실패 ({e}). "

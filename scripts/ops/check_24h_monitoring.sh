@@ -16,7 +16,7 @@ WARN_COUNT=0
 MODE="all"
 OUTPUT_FILE=""
 
-SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor)
+SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map)
 OPTIONAL_SERVICES=(discord-bot)
 
 usage() {
@@ -233,6 +233,56 @@ check_prometheus_infra_targets_up() {
   done
 }
 
+check_prometheus_container_display_map() {
+  info "T+1h: Prometheus container display map 메트릭 점검"
+  if ! command -v curl >/dev/null 2>&1; then
+    fail "curl 명령을 찾을 수 없음"
+    return
+  fi
+
+  # cAdvisor가 라벨을 제공하지 않는 환경에서는 이 매핑 메트릭이
+  # Grafana 범례의 서비스명 표기를 담당한다.
+  local response
+  response="$(
+    curl -fsSG "${PROMETHEUS_URL}/api/v1/query" \
+      --data-urlencode 'query=count(coinpilot_container_display_info{job="node-exporter"})' 2>/dev/null || true
+  )"
+
+  if [[ -z "${response}" ]]; then
+    fail "container display map 메트릭 조회 응답 없음 (${PROMETHEUS_URL})"
+    return
+  fi
+  if ! grep -q '"status":"success"' <<<"${response}"; then
+    fail "container display map 메트릭 조회 실패 응답: ${response}"
+    return
+  fi
+  if grep -Eq '"value":[[][^]]*,"[1-9][0-9]*"' <<<"${response}"; then
+    pass "container display map 메트릭 존재 확인"
+  else
+    warn "container display map 메트릭이 비어 있음(범례 fallback ID 동작 예상): ${response}"
+  fi
+
+  # display map만 존재하고 stats가 비면 CPU/Memory 패널은 No data가 될 수 있다.
+  local stats_response
+  stats_response="$(
+    curl -fsSG "${PROMETHEUS_URL}/api/v1/query" \
+      --data-urlencode 'query=count(coinpilot_container_cpu_percent{job="node-exporter"})' 2>/dev/null || true
+  )"
+  if [[ -z "${stats_response}" ]]; then
+    warn "container cpu metric 조회 응답 없음 (${PROMETHEUS_URL})"
+    return
+  fi
+  if ! grep -q '"status":"success"' <<<"${stats_response}"; then
+    warn "container cpu metric 조회 실패 응답: ${stats_response}"
+    return
+  fi
+  if grep -Eq '"value":[[][^]]*,"[1-9][0-9]*"' <<<"${stats_response}"; then
+    pass "container cpu metric 존재 확인"
+  else
+    warn "container cpu metric이 비어 있음(CPU 패널 No data 가능): ${stats_response}"
+  fi
+}
+
 check_manual_alert_routing_notice() {
   info "T+1h: Grafana/Discord 라우팅 확인 안내"
   warn "Grafana Alert Rule/Notification Policy와 Discord 수신은 UI에서 수동 확인 필요"
@@ -357,6 +407,7 @@ run_t0() {
 run_t1h() {
   check_prometheus_up
   check_prometheus_infra_targets_up
+  check_prometheus_container_display_map
   check_manual_alert_routing_notice
 }
 

@@ -1,10 +1,19 @@
+import time
+
 from langchain_community.vectorstores import PGVector
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import OpenAIEmbeddings
 
 from src.agents.config import EMBEDDING_MODEL, VECTOR_TABLE_NAME
-from src.agents.factory import get_chat_llm
+from src.agents.factory import get_chat_llm, get_model_identity
 from src.common.db import get_sync_db_url
+from src.common.llm_usage import (
+    TokenUsage,
+    UsageCaptureCallback,
+    build_usage_request_id,
+    estimate_tokens_from_text,
+    log_llm_usage_event,
+)
 
 # RAG Prompt (한국어)
 RAG_SYSTEM_PROMPT = """당신은 'CoinPilot' 프로젝트에 대한 질문에 답변하는 어시스턴트입니다.
@@ -52,6 +61,7 @@ async def run_rag_agent(query: str) -> str:
     try:
         llm = get_chat_llm(temperature=0)
         retriever = get_retriever()
+        provider, model = get_model_identity("chatbot")
 
         prompt = ChatPromptTemplate.from_messages(
             [
@@ -75,6 +85,20 @@ async def run_rag_agent(query: str) -> str:
         else:
             docs = retriever.get_relevant_documents(query)
 
+        # 임베딩 경로는 벤더 usage 메타데이터를 직접 받지 못해
+        # 길이 기반 근사 토큰으로 별도 status=estimated 레코드를 남깁니다.
+        estimated_tokens = estimate_tokens_from_text(query)
+        await log_llm_usage_event(
+            route="embedding_query",
+            feature="embedding",
+            provider="openai",
+            model=EMBEDDING_MODEL,
+            status="estimated",
+            usage=TokenUsage(input_tokens=estimated_tokens, output_tokens=0, total_tokens=estimated_tokens),
+            request_id=build_usage_request_id("embedding_query", "openai", EMBEDDING_MODEL),
+            meta={"source": "rag_query_embedding", "estimation": "char_div_4"},
+        )
+
         context_chunks = []
         for doc in docs or []:
             page_content = getattr(doc, "page_content", None)
@@ -83,9 +107,37 @@ async def run_rag_agent(query: str) -> str:
         context = "\n\n".join(context_chunks)
 
         messages = prompt.format_messages(context=context, input=query)
-        llm_result = await llm.ainvoke(messages)
+        usage_capture = UsageCaptureCallback()
+        started_at = time.perf_counter()
+        try:
+            llm_result = await llm.ainvoke(messages, config={"callbacks": [usage_capture]})
+        except TypeError:
+            # 테스트 더블/일부 구현체는 ainvoke(config=...) 시그니처를 지원하지 않을 수 있다.
+            llm_result = await llm.ainvoke(messages)
+        await log_llm_usage_event(
+            route="chat_rag_generation",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="success",
+            usage=usage_capture.usage,
+            request_id=build_usage_request_id("chat_rag_generation", provider, model),
+            latency_ms=int((time.perf_counter() - started_at) * 1000),
+            meta={"query_len": len(query), "doc_count": len(docs or [])},
+        )
         answer = getattr(llm_result, "content", llm_result)
         return str(answer)
 
     except Exception as exc:
+        provider, model = get_model_identity("chatbot")
+        await log_llm_usage_event(
+            route="chat_rag_generation",
+            feature="chatbot",
+            provider=provider,
+            model=model,
+            status="error",
+            request_id=build_usage_request_id("chat_rag_generation", provider, model),
+            error_type=type(exc).__name__,
+            meta={"query_len": len(query)},
+        )
         return f"RAG Agent 실행 중 오류가 발생했습니다: {str(exc)}"

@@ -96,6 +96,15 @@
   1) GitHub Actions에서 Bandit B314/B104 미검출 확인 필요
   2) security artifact 경고 미발생 확인 필요
 
+### 7.1 정량 근거(결과 문서 대조)
+출처: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| Bandit 차단 이슈 수(`B314`, `B104`) | 2 | 0 | -2 | -100.0 |
+| 로컬 회귀 테스트 통과 수 | 0 | 24 | +24 | N/A |
+| security artifact 누락 경고(발생=1, 미발생=0) | 1 | 0 | -1 | -100.0 |
+
 ---
 
 ## 8. 재발 방지

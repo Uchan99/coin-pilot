@@ -92,6 +92,15 @@
   1) GitHub Actions `CoinPilot CI` 재실행 시 `security` 설치 단계 충돌 미발생
   2) `test` job collection 단계 정상 통과
 
+### 7.1 정량 근거(결과 문서 대조)
+출처: `docs/work-result/27_ci_pipeline_dependency_and_test_env_fix_result.md`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| agents 테스트 collection error 건수 | 6 | 0 | -6 | -100.0 |
+| 로컬 회귀 테스트 통과 수 | 0 | 64 | +64 | N/A |
+| security 의존성 충돌 상태(실패=1, 성공=0) | 1 | 0 | -1 | -100.0 |
+
 ---
 
 ## 8. 재발 방지

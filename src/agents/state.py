@@ -13,6 +13,8 @@ class AgentState(TypedDict):
     strategy_name: str
     market_context: List[Dict[str, Any]] # OHLCV Summary
     indicators: Dict[str, Any]    # RSI, BB, MA 등
+    # 카나리 실험 시 Analyst/Guardian가 동일 모델 경로를 사용하도록 공유하는 라우팅 메타데이터
+    llm_route: Optional[Dict[str, Any]]
     
     # 분석 결과
     analyst_decision: Optional[Dict[str, Any]]
