@@ -315,6 +315,10 @@
 - 현재 상태:
   - 컨테이너 패널 가독성/즉시성 이슈는 해소된 상태이며, 운영 기준 검증(`t1h`)은 통과했다.
   - `coinpilot_container_*` 메트릭 계열은 Prometheus에서 count `12`로 안정 노출 중이다.
+- 추가 핫픽스(2026-03-05):
+  - 증상: `coinpilot_container_memory_working_set_bytes`가 전 컨테이너 `0`으로 기록됨.
+  - 원인: `generate_container_display_map.sh`의 메모리 단위 파서가 실행 환경(busybox awk)에서 호환성 이슈를 일으켜 변환 실패.
+  - 조치: `to_bytes()`를 POSIX/busybox 호환 파서로 교체하고, stats/inspect 조회를 prefix-safe 매칭으로 보강.
 - 잔여 작업:
   1) `check_24h_monitoring.sh t24h`까지 수집 연속성 확인
   2) Grafana Alert Rule/Notification Policy의 Discord 라우팅 수동 점검 완료 기록 추가

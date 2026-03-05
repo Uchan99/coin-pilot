@@ -20,16 +20,26 @@ TMP_STATE_DIR="${TMP_STATE_DIR:-/tmp/coinpilot_container_map}"
 mkdir -p "${OUT_DIR}" "${TMP_STATE_DIR}"
 
 # 메모리 문자열(예: 56.2MiB)을 byte 정수로 변환.
-# docker stats 단위는 환경에 따라 KiB/MiB/GiB 또는 KB/MB/GB가 섞일 수 있어 둘 다 처리한다.
+# 주의:
+# - 운영 컨테이너(docker:cli)에서는 busybox awk를 쓰는 경우가 있어
+#   gawk 전용 문법(match(..., arr))을 피하고 POSIX 호환 방식으로 파싱한다.
+# - docker stats 단위는 KiB/MiB/GiB 또는 KB/MB/GB가 섞일 수 있어 둘 다 처리한다.
 to_bytes() {
   val="$1"
   printf '%s\n' "${val}" | awk '
     BEGIN { OFS="" }
     {
       gsub(/,/,"",$0)
-      if (match($0, /^([0-9.]+)([A-Za-z]+)$/, m) == 0) { print 0; next }
-      v = m[1] + 0
-      u = m[2]
+      gsub(/[[:space:]\r]/,"",$0)
+      if ($0 !~ /^[0-9]+([.][0-9]+)?[A-Za-z]+$/) { print 0; next }
+
+      v = $0
+      sub(/[A-Za-z]+$/, "", v)
+      v = v + 0
+
+      u = $0
+      sub(/^[0-9]+([.][0-9]+)?/, "", u)
+
       if (u == "B") mult = 1
       else if (u == "KB") mult = 1000
       else if (u == "MB") mult = 1000*1000
@@ -89,7 +99,7 @@ while true; do
       printf 'coinpilot_container_display_info{cid="%s",display="%s"} 1\n' "${cid}" "${esc_display}"
 
       # CPU/메모리 메트릭: stats 행이 없으면 0으로 기록해 시계열 끊김을 줄인다.
-      stats_line="$(grep -m1 "^${cid}" "${stats_file}" 2>/dev/null || true)"
+      stats_line="$(awk -F'|' -v id="${cid}" '$1==id || index($1,id)==1 { print; exit }' "${stats_file}" 2>/dev/null || true)"
       if [ -n "${stats_line}" ]; then
         cpu_raw="$(printf '%s' "${stats_line}" | cut -d'|' -f2 | tr -d '%' | tr -d ' ')"
         mem_raw_full="$(printf '%s' "${stats_line}" | cut -d'|' -f3)"
@@ -103,7 +113,7 @@ while true; do
       printf 'coinpilot_container_memory_working_set_bytes{cid="%s",display="%s"} %s\n' "${cid}" "${esc_display}" "${mem_bytes:-0}"
 
       # restart/running 메트릭
-      inspect_line="$(grep -m1 "^${full_id}" "${inspect_file}" 2>/dev/null || true)"
+      inspect_line="$(awk -F'|' -v id="${full_id}" '$1==id || index($1,id)==1 { print; exit }' "${inspect_file}" 2>/dev/null || true)"
       if [ -n "${inspect_line}" ]; then
         restart_count="$(printf '%s' "${inspect_line}" | cut -d'|' -f2)"
         running_raw="$(printf '%s' "${inspect_line}" | cut -d'|' -f3)"

@@ -76,6 +76,7 @@
   - 라벨 공백이 지속되는 환경을 기준으로 `coinpilot-container-map` 사이드카를 추가해 `coinpilot_container_display_info` 매핑 메트릭을 node-exporter textfile collector로 주입
   - `docker_only=true` 이후 `id` 포맷이 `/docker/<id>`로 바뀌는 환경을 반영해, Grafana 컨테이너 패널 정규식을 `docker-`/`docker/` 동시 지원으로 보강
   - 최근 구간 `No data` 재발 시나리오에서 `container-map` 조인 경로를 유지하고 cAdvisor `docker_only=false`로 재조정
+  - 후속 회귀로 `coinpilot_container_memory_working_set_bytes`가 전부 `0`으로 노출되는 문제를 확인해, `generate_container_display_map.sh` 메모리 파서를 busybox awk 호환 방식으로 교체
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
   - `deploy/cloud/oci/monitoring/scripts/generate_container_display_map.sh`
@@ -106,6 +107,7 @@
   - JSON 문법 검증 통과
   - 운영 반영 후 `coinpilot_container_{display_info,cpu_percent,memory_working_set_bytes,restart_count}` count가 모두 `12`로 확인됨
   - `scripts/ops/check_24h_monitoring.sh t1h` 결과 `FAIL: 0`, `WARN: 1` 확인
+  - 회귀 검증에서 `docker stats`는 정상 메모리값(예: `216.3MiB`)을 반환하지만 Prometheus 메모리 메트릭이 `0`이던 문제를 파서 핫픽스로 보정
 
 - 운영 확인 체크:
   1) Grafana 컨테이너 패널 3개가 Last 5m에서도 `No data` 없이 시계열로 표시되는지 확인
