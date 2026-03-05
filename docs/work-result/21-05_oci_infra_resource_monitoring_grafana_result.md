@@ -3,8 +3,8 @@
 작성일: 2026-02-28
 작성자: Codex
 관련 계획서: docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md
-상태: Implemented
-완료 범위: Phase 1 + Phase 2 + Phase 3 + Phase 4-3
+상태: Done
+완료 범위: Phase 1 + Phase 2 + Phase 3 + Phase 4-3 + 운영 재검증(2026-03-06)
 선반영/추가 구현: 있음(운영 핫픽스 포함)
 관련 트러블슈팅(있다면): docs/troubleshooting/21-05_cadvisor_container_panel_no_data.md
 
@@ -336,6 +336,28 @@
   - `rg -n "21-05|container-map|인프라 관측" README.md`
 - 판정:
   - Charter/Checklist/Result와 README 상태 정합성 확인 완료
+
+### 13.9 운영 재검증(2026-03-06, 카나리 관측 24h 경과 후)
+- 배경:
+  - 29번 배포 이후 `coinpilot-core up=0`이 일시 관측되어 21-05 완료 근거를 재검증했다.
+- 실행 명령:
+  1) `scripts/ops/check_24h_monitoring.sh t0`
+  2) `scripts/ops/check_24h_monitoring.sh t1h`
+  3) `scripts/ops/check_24h_monitoring.sh t24h`
+  4) Grafana Alerting 임시 룰(`Coinpilot test`) FIRING으로 Discord Contact point 수신 확인
+- 결과:
+  - `t0`: `FAIL: 0`, `WARN: 0`
+  - `t1h`: `FAIL: 0`, `WARN: 1` (수동 안내 항목만 잔존)
+  - `t24h`: `FAIL: 0`, `WARN: 0`
+  - Discord 수신 확인 완료(Grafana v10.0.0, 알림 메시지 도착)
+
+### 13.10 정량 증빙(재검증)
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `check_24h_monitoring.sh t1h` FAIL 건수 | 1 | 0 | -1 | -100.0 |
+| `check_24h_monitoring.sh t24h` FAIL 건수 | 0 | 0 | 0 | 0.0 |
+| Grafana Contact point Discord 수신 여부(0/1) | 0 | 1 | +1 | N/A |
+| `coinpilot-core up` 상태 | 0(일시) | 1(정상) | +1 | N/A |
 
 ---
 

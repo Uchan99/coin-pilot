@@ -132,3 +132,4 @@
 - 2026-03-05: OCI 운영 검증에서 `coinpilot_container_{display_info,cpu_percent,memory_working_set_bytes,restart_count}` count가 모두 `12`, `check_24h_monitoring.sh t1h`가 `FAIL:0/WARN:1`로 확인됨. 21-05는 `t24h` 연속성 확인 전까지 `in_progress` 유지.
 - 2026-03-05: `coinpilot_container_memory_working_set_bytes`가 전 컨테이너 `0`으로 노출되는 회귀를 확인. `generate_container_display_map.sh`의 메모리 단위 변환을 busybox awk 호환 파서로 교체하고 stats/inspect 조회 매칭을 prefix-safe 방식으로 보강하는 핫픽스를 범위에 추가.
 - 2026-03-05: `check_24h_monitoring.sh t24h` 결과 `FAIL:0/WARN:0` 확인. 21-05 main 작업을 완료(`done`)로 마감하고 README/체크리스트/결과 문서를 동기화.
+- 2026-03-06: 카나리 관측 24h 경과 후 운영 재검증(`t0/t1h/t24h`)과 Grafana Contact point→Discord 수신 테스트를 추가로 수행해 완료 근거를 재확인.

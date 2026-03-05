@@ -33,6 +33,7 @@
 | 12 | 99-02 | 트러블슈팅 문서 정량 증빙 백필(전수) | done | 사용자 일괄 정리 요청 승인 | `docs/troubleshooting/*.md` 전수에 정량 섹션/상태 문구 반영 완료 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"정량\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-02_troubleshooting_quantitative_backfill_all_docs_plan.md` | `docs/work-result/99-02_troubleshooting_quantitative_backfill_all_docs_result.md` |
 | 13 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
 | 14 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
+| 15 | 21-07 | OCI 로그 관측 체계 강화(Loki/Promtail) | todo | 21-05 완료 + 사용자 승인 | Loki/Promtail 수집 + Grafana 조회 + Discord 테스트 알림 기준 확정 | (예정) `docker compose ... up -d loki promtail` + Grafana Explore 로그 조회 + Discord 테스트 알림 확인 | `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md` | (생성 예정) |
 
 ---
 
@@ -106,6 +107,8 @@
 - 2026-03-06: 29 Phase 4 반영. DOGE/XRP 비중 축소 + BTC/ETH/SOL 비중 확대 요청을 반영해 `symbol_rebalanced`/`transition_sensitive_symbol_rebalanced` 시나리오를 추가.
 - 2026-03-06: 29 Phase 5 반영. 심볼 비중 배율을 전략 공통 설정으로 승격하고(`config/strategy_v3.yaml` + `StrategyConfig`), 실거래(`src/bot/main.py`)와 백테스트(`scripts/backtest_v3.py`) 계산식을 동일 규칙으로 정렬.
 - 2026-03-06: 독립 main 계획 `30` 추가(전략 피드백 자동화 Spec-First). 자동 분석/자동 제안/승인형 배포 원칙을 명시하고 체크리스트에 `todo`로 등록.
+- 2026-03-06: 21-05 재검증 반영. `t0/t1h/t24h` 재실행과 Grafana Contact point->Discord 수신 확인을 완료했고, `done` 상태 근거를 결과 문서에 보강.
+- 2026-03-06: 21-07 신규 계획 추가(OCI 로그 관측: Loki/Promtail/Grafana). 현재 상태 `todo`/`Approval Pending`.
 
 ---
 
