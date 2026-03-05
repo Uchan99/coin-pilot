@@ -127,15 +127,18 @@
 ### 7.2 현재 상태(2026-03-05 기준)
 - 상태 판정:
   - `Fixed` 유지
-  - 단, 본 이슈는 cgroup/런타임 환경 영향이 큰 유형이므로 `t24h` 관찰 전까지는 운영 관찰 상태를 병행한다.
+  - `t24h` 관찰까지 통과해 운영 마감 조건 충족
 - 확인된 정상 지표:
   - `count(coinpilot_container_display_info)=12`
   - `count(coinpilot_container_cpu_percent)=12`
   - `count(coinpilot_container_memory_working_set_bytes)=12`
   - `count(coinpilot_container_restart_count)=12`
 - 남은 확인 항목:
-  1) `scripts/ops/check_24h_monitoring.sh t24h` 실행 후 FAIL 0 유지
-  2) Grafana Alerting의 Discord 라우팅 수동 테스트 기록 추가
+  1) Grafana Alerting의 Discord 라우팅 수동 테스트 기록 추가
+
+### 7.3 마감 검증(2026-03-05)
+- `scripts/ops/check_24h_monitoring.sh t24h` 결과 `FAIL:0 / WARN:0` 확인.
+- Postgres/Redis/n8n 백업 최신성(약 16h 전)과 cron active 상태를 함께 확인해 운영 마감 조건 충족.
 
 ---
 

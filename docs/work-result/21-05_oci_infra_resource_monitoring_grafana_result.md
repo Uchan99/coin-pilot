@@ -319,9 +319,23 @@
   - 증상: `coinpilot_container_memory_working_set_bytes`가 전 컨테이너 `0`으로 기록됨.
   - 원인: `generate_container_display_map.sh`의 메모리 단위 파서가 실행 환경(busybox awk)에서 호환성 이슈를 일으켜 변환 실패.
   - 조치: `to_bytes()`를 POSIX/busybox 호환 파서로 교체하고, stats/inspect 조회를 prefix-safe 매칭으로 보강.
-- 잔여 작업:
-  1) `check_24h_monitoring.sh t24h`까지 수집 연속성 확인
-  2) Grafana Alert Rule/Notification Policy의 Discord 라우팅 수동 점검 완료 기록 추가
+
+### 13.7 최종 마감 검증(2026-03-05, t24h)
+- 실행 명령:
+  - `scripts/ops/check_24h_monitoring.sh t24h`
+- 결과:
+  - `FAIL: 0`, `WARN: 0`
+  - 백업 최신성 확인: Postgres/Redis/n8n 모두 24h 이내 생성 확인
+  - 따라서 21-05 완료 조건(가독성 개선 + 24h 운영 점검 통과)을 충족해 상태를 `done`으로 마감
+
+### 13.8 README 동기화 검증(필수)
+- 동기화 반영:
+  - `README.md`의 운영 상태 요약에서 인프라 관측 항목을 `container-map` 포함, `21-05 완료`로 갱신
+  - `README.md`의 우선순위 백로그 항목에서 `21-05` 상태를 `done`으로 갱신
+- 검증 명령:
+  - `rg -n "21-05|container-map|인프라 관측" README.md`
+- 판정:
+  - Charter/Checklist/Result와 README 상태 정합성 확인 완료
 
 ---
 
