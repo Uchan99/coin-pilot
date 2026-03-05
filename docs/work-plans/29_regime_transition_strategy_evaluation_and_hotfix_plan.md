@@ -99,6 +99,11 @@
 1. 적용 기준 통과 시 YAML 파라미터 hotfix 제안
 2. 미통과 시 관측 연장 + 다음 실험 설계
 
+### Phase D. 백테스트 데이터 윈도우 확장(장기 백필)
+1. `market_data` 유효 기간 점검(SQL: symbol별 first_ts/last_ts/rows)
+2. `scripts/backfill_for_regime.py`를 장기 백필 모드(`--days`, `--symbols`)로 실행해 표본 확대
+3. 백필 후 7/21/120+/240일 재실행으로 시나리오 순위의 안정성 확인
+
 ## 7. 정량 검증 기준
 - 공통 측정 기준:
   - 기간: 최근 90일(기본) + 최근 전환 구간(별도)
@@ -127,6 +132,9 @@
    - `SELECT created_at, route, status, error_type FROM llm_usage_events WHERE status='error' ORDER BY created_at DESC LIMIT 30;`
 4. Exit 표본 체크:
    - `SELECT count(*) FILTER (WHERE side='SELL') AS sell_count FROM trading_history WHERE executed_at >= now() - interval '30 days';`
+5. 장기 백필:
+   - `PYTHONPATH=. python scripts/backfill_for_regime.py --days 120`
+   - `PYTHONPATH=. python scripts/backfill_for_regime.py --days 240 --symbols KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE`
 
 ## 9. 롤백
 - 코드/설정 롤백:
@@ -149,3 +157,6 @@
 - 2026-03-06: 사용자 운영 관측(체결 27회, 누적 -13,000 KRW, max loss -7,000 / max win +5,000)을 반영해 “손익 규모(체결 효율)”를 핵심 검증 축으로 추가하고 핫픽스 승인 게이트를 보강.
 - 2026-03-06: 사용자 승인 후 `f29` 브랜치에서 구현 착수. 상태를 `In Progress`로 전환.
 - 2026-03-06: Phase 1 도구 준비 반영. `scripts/backtest_regime_transition_scenarios.py`를 추가해 baseline+3개 시나리오 자동 비교 실행 경로를 마련.
+- 2026-03-06: Phase 2 1차 실행 반영(OCI 120일). baseline 대비 `transition_sensitive`가 수익/승률/MDD 동시 개선을 보였으나 표본 부족으로 추가 검증 게이트(180/240일, 심볼별 확인)를 유지.
+- 2026-03-06: Phase 2 확장 실행(OCI 180/240일) 결과가 120일과 동일함을 확인. 유효 데이터 윈도우 점검(SQL)과 표본 확대를 선행 조건으로 추가.
+- 2026-03-06: Phase D 착수. `scripts/backfill_for_regime.py`를 장기 백필 대응(`--days`, `--symbols`, 진행률/재시도/중복통계)으로 확장하고, 기존 무인자 실행(12,000분) 호환을 유지.
