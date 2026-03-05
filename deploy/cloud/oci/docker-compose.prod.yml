@@ -92,6 +92,19 @@ services:
       AI_CANARY_PROVIDER: ${AI_CANARY_PROVIDER:-openai}
       AI_CANARY_MODEL: ${AI_CANARY_MODEL:-gpt-4o-mini}
       AI_CANARY_PERCENT: ${AI_CANARY_PERCENT:-10}
+      LLM_USAGE_ENABLED: ${LLM_USAGE_ENABLED:-true}
+      LLM_USAGE_PRICE_TABLE_JSON: ${LLM_USAGE_PRICE_TABLE_JSON:-}
+      LLM_COST_SNAPSHOT_ENABLED: ${LLM_COST_SNAPSHOT_ENABLED:-false}
+      LLM_COST_SNAPSHOT_INTERVAL_MIN: ${LLM_COST_SNAPSHOT_INTERVAL_MIN:-60}
+      LLM_COST_SNAPSHOT_LOOKBACK_HOURS: ${LLM_COST_SNAPSHOT_LOOKBACK_HOURS:-1}
+      LLM_COST_SNAPSHOT_PROVIDERS: ${LLM_COST_SNAPSHOT_PROVIDERS:-anthropic,openai}
+      LLM_COST_SNAPSHOT_ANTHROPIC_URL_TEMPLATE: ${LLM_COST_SNAPSHOT_ANTHROPIC_URL_TEMPLATE:-}
+      LLM_COST_SNAPSHOT_ANTHROPIC_VALUE_JSON_PATH: ${LLM_COST_SNAPSHOT_ANTHROPIC_VALUE_JSON_PATH:-}
+      LLM_COST_SNAPSHOT_ANTHROPIC_HEADERS_JSON: ${LLM_COST_SNAPSHOT_ANTHROPIC_HEADERS_JSON:-}
+      LLM_COST_SNAPSHOT_OPENAI_URL_TEMPLATE: ${LLM_COST_SNAPSHOT_OPENAI_URL_TEMPLATE:-}
+      LLM_COST_SNAPSHOT_OPENAI_VALUE_JSON_PATH: ${LLM_COST_SNAPSHOT_OPENAI_VALUE_JSON_PATH:-}
+      LLM_COST_SNAPSHOT_OPENAI_HEADERS_JSON: ${LLM_COST_SNAPSHOT_OPENAI_HEADERS_JSON:-}
+      CHAT_PREMIUM_REVIEW_TIMEOUT_SEC: ${CHAT_PREMIUM_REVIEW_TIMEOUT_SEC:-12}
 
   discord-bot:
     <<: *app_security
@@ -168,11 +181,27 @@ services:
       - --path.procfs=/host/proc
       - --path.rootfs=/host/root
       - --path.sysfs=/host/sys
+      # cAdvisor 라벨이 비어 있는 환경에서도 서비스명 매핑을 노출하기 위한 textfile collector 경로.
+      - --collector.textfile.directory=/host/root/var/lib/node_exporter/textfile_collector
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/host/root:ro
+
+  container-map:
+    <<: *app_security
+    image: docker:27.5.1-cli
+    container_name: coinpilot-container-map
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/opt/coinpilot/generate_container_display_map.sh"]
+    environment:
+      MAP_INTERVAL_SEC: ${CONTAINER_MAP_INTERVAL_SEC:-30}
+    volumes:
+      # Docker 데몬에서 container id/name 매핑을 읽어 Prometheus textfile 메트릭으로 변환한다.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/node_exporter/textfile_collector:/textfile
+      - ./monitoring/scripts/generate_container_display_map.sh:/opt/coinpilot/generate_container_display_map.sh:ro
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.2
@@ -180,7 +209,9 @@ services:
     restart: unless-stopped
     privileged: true
     command:
+      # container-map 메트릭으로 서비스명 조인을 수행하므로, cgroup 기반 시계열 안정성을 우선한다.
       - --docker_only=false
+      - --store_container_labels=true
       - --housekeeping_interval=30s
     volumes:
       - /:/rootfs:ro
@@ -209,6 +240,8 @@ services:
       bot:
         condition: service_started
       node-exporter:
+        condition: service_started
+      container-map:
         condition: service_started
       cadvisor:
         condition: service_started

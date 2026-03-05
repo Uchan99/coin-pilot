@@ -6,7 +6,7 @@
 상태: Partial
 완료 범위: Phase 1 (카나리 라우팅/기록/리포트 자동화)
 선반영/추가 구현: 있음(Phase 1 전부)
-관련 트러블슈팅(있다면): 없음
+관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
 
 ---
 
@@ -184,7 +184,8 @@ ORDER BY total DESC;
   - `scripts/ops/ai_decision_canary_report.sh 24`
   - `agent_decisions.model_used` 모델 혼재 여부 확인
 - 결과:
-  - 코드 단계 완료, 운영 실험 관찰 구간은 별도 진행 예정
+  - 운영 반영 후 컨테이너 env 투영 상태(`AI_CANARY_*`, `AI_DECISION_PRIMARY_*`) 정상 확인.
+  - 카나리 리포트는 생성되지만 post-restart 구간 신규 의사결정 0건으로 표본 부족 상태.
   - 권장 확인 순서:
     1) canary on 후 최소 6~24시간 데이터 확보
     2) model별 total 표본수 확인(너무 적으면 판정 유보)
@@ -250,7 +251,38 @@ ORDER BY total DESC;
 
 ---
 
-## 11. References
+## 11. Phase 2 운영 관측 업데이트 (2026-03-04)
+- 관측 요약:
+  - OCI `.env`에는 canary 변수 값이 존재했지만, 컨테이너 내부 env 투영이 누락되어 초기에 값이 모두 비어 있었음.
+  - `deploy/cloud/oci/docker-compose.prod.yml` env projection 보정 후, 컨테이너 내부에서 canary/primary/timeout 값이 정상 확인됨.
+  - 재기동 후 `agent_decisions` 신규 건수가 0건이라 canary 분포(특히 OpenAI 경로) 평가는 아직 유보 상태.
+- 정량 관측(운영 로그 기반):
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| bot 내부 canary 핵심 env 유효 개수(7개 기준) | 0 | 7 | +7 | +100.0 |
+| post-restart `agent_decisions` 신규 건수 | 0 | 0 | 0 | 0.0 |
+| 24h canary report 내 OpenAI 모델 집계 건수 | 0 | 0 | 0 | 0.0 |
+
+- 24h 모델별 집계(2026-03-04 관측 시점):
+
+| model_used | total | confirm_count | reject_count |
+|---|---:|---:|---:|
+| `claude-haiku-4-5-20251001` | 59 | 1 | 58 |
+| `anthropic:claude-haiku-4-5-20251001 (primary)` | 3 | 0 | 3 |
+
+- 해석:
+  - 현재 병목은 "카나리 라우팅 코드"가 아니라 "관측 구간 표본 부족"이다.
+  - 따라서 `21-03`은 `done` 전환 조건(모델별 충분 표본 + 분포/오류율 비교)을 아직 충족하지 못했다.
+- 후속 실행 기준:
+  1) 최소 24~48시간 추가 관찰.
+  2) 모델별 표본 N>=20 확보 후 `confirm_rate/timeout/parse_fail` 비교.
+  3) 기준 충족 시 `21-03` 상태 전환 검토.
+
+---
+
+## 12. References
 - `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`
 - `docs/checklists/remaining_work_master_checklist.md`
 - `docs/PROJECT_CHARTER.md`
+- `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`

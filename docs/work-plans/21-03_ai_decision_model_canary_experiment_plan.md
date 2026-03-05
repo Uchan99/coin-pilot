@@ -134,3 +134,5 @@
 ## 11. 계획 변경 이력
 - 2026-03-04: 사용자 승인 반영으로 상태를 `In Progress`로 전환하고 구현 착수.
 - 2026-03-04: Phase 1 구현 완료(카나리 라우팅/모델 기록/운영 집계 스크립트/기본 테스트 통과), 운영 관찰 단계로 전환.
+- 2026-03-04: OCI 운영 관측 중 env projection 누락 이슈를 확인해 `deploy/cloud/oci/docker-compose.prod.yml` 보정 후 재배포. 관련 트러블슈팅 문서 `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` 연결.
+- 2026-03-04: 카나리 표본 판정 기준을 "모델별 최소 표본 N>=20 확보 후 분포 비교"로 명시하고, 표본 부족 시 `in_progress` 유지 정책을 확정.

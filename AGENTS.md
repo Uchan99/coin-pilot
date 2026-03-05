@@ -21,6 +21,12 @@
    - Independent work: docs/work-result/<NN>_<topic>_result.md
    - Epic subtask: docs/work-result/<EPIC>-<subNN>_<topic>_result.md
    - If phased, append Phase 2+ at the bottom of the same result file.
+   - Result/Troubleshooting 문서에는 아래 항목을 필수로 남긴다:
+     - 해결한 문제의 구체적 정의(증상/영향/재현 조건)
+     - 기존 방식 대비 개선 수치(before/after)와 변화량(절대값/퍼센트)
+     - 측정 기준(기간, 표본 수, 성공/실패 기준)
+     - 증빙 근거(SQL/로그/대시보드/스크립트 명령)
+   - 정량 측정이 불가능한 경우, "측정 불가 사유 + 대체 지표 + 추후 측정 계획"을 명시한다.
 5) Keep the master remaining-work checklist in sync:
    - If a new **main** plan is created, add/update an item in `docs/checklists/remaining_work_master_checklist.md`.
    - If implementation starts/completes for a main plan, update checklist status (`todo/in_progress/blocked/done`) in the same change.
@@ -31,6 +37,7 @@
    - Independent work: docs/troubleshooting/<NN>_<topic>.md
    - Epic subtask: docs/troubleshooting/<EPIC>-<subNN>_<topic>.md
    - Link it from the related plan/result, and record any charter updates.
+   - 핫픽스 문서에도 반드시 before/after 정량 증빙을 포함하고, 재발 방지 지표를 수치로 남긴다.
 
 ## Numbering policy (required)
 - Keep independent streams on top-level numeric IDs (`18_`, `29_`, ...).

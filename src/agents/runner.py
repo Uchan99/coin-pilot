@@ -10,6 +10,7 @@ from src.common.db import get_db_session
 from src.common.models import AgentDecision
 from src.agents.factory import select_ai_decision_route
 from src.common.notification import notifier
+from src.common.llm_usage import build_usage_request_id, log_llm_usage_event
 
 def create_agent_graph():
     """AI 에이전트 워크플로우 그래프 생성"""
@@ -121,6 +122,20 @@ class AgentRunner:
             
         except asyncio.TimeoutError:
             print(f"[!] AI Agent Timeout (40s) for {symbol}. Falling back to REJECT.")
+            await log_llm_usage_event(
+                route="ai_decision_pipeline",
+                feature="ai_decision",
+                provider=str((llm_route or {}).get("provider") or "unknown"),
+                model=str((llm_route or {}).get("model") or "unknown"),
+                status="error",
+                request_id=build_usage_request_id(
+                    "ai_decision_pipeline",
+                    str((llm_route or {}).get("provider") or "unknown"),
+                    str((llm_route or {}).get("model") or "unknown"),
+                ),
+                error_type="TimeoutError",
+                meta={"symbol": symbol, "strategy_name": strategy_name},
+            )
             await self._log_decision(
                 symbol, strategy_name, "REJECT",
                 "AI Analysis Timed Out (Conservative Fallback)", None,
@@ -131,6 +146,20 @@ class AgentRunner:
             return False, "AI Analysis Timed Out (Conservative Fallback: REJECT)"
         except Exception as e:
             print(f"[!] AI Agent Error for {symbol}: {e}. Falling back to REJECT.")
+            await log_llm_usage_event(
+                route="ai_decision_pipeline",
+                feature="ai_decision",
+                provider=str((llm_route or {}).get("provider") or "unknown"),
+                model=str((llm_route or {}).get("model") or "unknown"),
+                status="error",
+                request_id=build_usage_request_id(
+                    "ai_decision_pipeline",
+                    str((llm_route or {}).get("provider") or "unknown"),
+                    str((llm_route or {}).get("model") or "unknown"),
+                ),
+                error_type=type(e).__name__,
+                meta={"symbol": symbol, "strategy_name": strategy_name},
+            )
             # 에러 상황도 DB에 기록 (대시보드 노출 위해)
             await self._log_decision(
                 symbol, strategy_name, "REJECT",
