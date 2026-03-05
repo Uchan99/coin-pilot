@@ -30,9 +30,13 @@ class ScenarioResult:
     name: str
     symbol: str
     trades: int
+    wins_count: int
+    losses_count: int
     win_rate_pct: float
     total_pnl_pct: float
     total_profit_krw: float
+    gross_profit_krw: float
+    gross_loss_abs_krw: float
     avg_profit_krw_per_trade: float
     avg_win_krw: float
     avg_loss_krw_abs: float
@@ -134,9 +138,13 @@ def _analyze_trades(name: str, symbol: str, trades: list[Trade]) -> ScenarioResu
         name=name,
         symbol=symbol,
         trades=total_trades,
+        wins_count=len(wins),
+        losses_count=len(losses),
         win_rate_pct=win_rate,
         total_pnl_pct=total_pnl_pct,
         total_profit_krw=total_profit,
+        gross_profit_krw=gross_profit,
+        gross_loss_abs_krw=gross_loss_abs,
         avg_profit_krw_per_trade=avg_trade,
         avg_win_krw=avg_win,
         avg_loss_krw_abs=avg_loss_abs,
@@ -210,16 +218,51 @@ async def main() -> None:
         df.groupby("name", as_index=False)
         .agg(
             trades=("trades", "sum"),
-            win_rate_pct=("win_rate_pct", "mean"),
+            wins_count=("wins_count", "sum"),
+            losses_count=("losses_count", "sum"),
             total_pnl_pct=("total_pnl_pct", "sum"),
             total_profit_krw=("total_profit_krw", "sum"),
-            avg_profit_krw_per_trade=("avg_profit_krw_per_trade", "mean"),
-            reward_risk_ratio=("reward_risk_ratio", "mean"),
-            profit_factor=("profit_factor", "mean"),
+            gross_profit_krw=("gross_profit_krw", "sum"),
+            gross_loss_abs_krw=("gross_loss_abs_krw", "sum"),
             max_drawdown_krw=("max_drawdown_krw", "sum"),
         )
-        .sort_values(by="total_profit_krw", ascending=False)
     )
+    # 심볼별 단순 평균이 아닌, 시나리오 전체 합계 기반 파생 지표를 계산한다.
+    agg["win_rate_pct"] = (
+        agg["wins_count"] / agg["trades"].where(agg["trades"] > 0, 1) * 100.0
+    )
+    agg["avg_profit_krw_per_trade"] = (
+        agg["total_profit_krw"] / agg["trades"].where(agg["trades"] > 0, 1)
+    )
+    agg["avg_win_krw"] = (
+        agg["gross_profit_krw"] / agg["wins_count"].where(agg["wins_count"] > 0, 1)
+    )
+    agg["avg_loss_krw_abs"] = (
+        agg["gross_loss_abs_krw"]
+        / agg["losses_count"].where(agg["losses_count"] > 0, 1)
+    )
+    agg["reward_risk_ratio"] = (
+        agg["avg_win_krw"] / agg["avg_loss_krw_abs"].where(agg["avg_loss_krw_abs"] > 0, 1)
+    )
+    agg["profit_factor"] = (
+        agg["gross_profit_krw"]
+        / agg["gross_loss_abs_krw"].where(agg["gross_loss_abs_krw"] > 0, 1)
+    )
+    agg = agg[
+        [
+            "name",
+            "trades",
+            "win_rate_pct",
+            "total_pnl_pct",
+            "total_profit_krw",
+            "avg_profit_krw_per_trade",
+            "avg_win_krw",
+            "avg_loss_krw_abs",
+            "reward_risk_ratio",
+            "profit_factor",
+            "max_drawdown_krw",
+        ]
+    ].sort_values(by="total_profit_krw", ascending=False)
 
     print("\n=== Scenario Summary ===")
     print(agg.to_string(index=False))
