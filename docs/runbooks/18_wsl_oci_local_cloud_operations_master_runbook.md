@@ -10,6 +10,7 @@
 - 인스턴스 생성/OCI CLI: `docs/runbooks/18_oci_a1_flex_a_to_z_guide.md`
 - A1 용량 자동 재시도: `docs/runbooks/18_oci_a1_flex_auto_retry_runbook.md`
 - 데이터 이관/운영 등록(systemd/cron): `docs/runbooks/18_data_migration_runbook.md`
+- 저장소/DB/로그 운영 구조: `docs/runbooks/18_storage_and_database_operations_runbook.md`
 - OCI 런타임 보안 점검: `docs/runbooks/20-01_oci_runtime_security_verification_checklist.md`
 
 ---
