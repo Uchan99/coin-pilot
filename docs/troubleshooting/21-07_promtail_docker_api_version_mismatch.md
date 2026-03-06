@@ -6,7 +6,7 @@
 관련 문서:
 - Plan: docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md
 - Result: docs/work-result/21-07_oci_log_observability_loki_promtail_result.md
-- Charter update 필요: NO
+- Charter update 필요: YES
 
 ---
 
@@ -16,6 +16,7 @@
   - 1차 핫픽스(`PROMTAIL_DOCKER_API_VERSION=1.44`) 반영 후에도 `t1h`가 `FAIL:1, WARN:2`로 재현됨.
   - `promtail` 로그 15분 조회에서 아래 오류가 반복됨:
     - `client version 1.42 is too old. Minimum supported API version is 1.44`
+  - 2차 핫픽스(파일 타깃 전환) 후 `t1h`는 `FAIL:0, WARN:2`로 개선됐지만, `Loki service 라벨 미검출` WARN 1건이 잔존함.
 - 긴급도/영향:
   - 로그 수집이 실제로 되지 않으면 21-07 핵심 목적(장애 RCA 속도 개선)이 무효화됨.
 
@@ -60,7 +61,8 @@
   - Promtail 로그에서 docker discovery 단계 오류 반복 확인
   - 오류 메시지에 최소/현재 API 버전이 직접 명시됨
 - Root cause(결론):
-  - Promtail docker_sd가 Docker daemon에 API 1.42로 요청해, 최소 지원 1.44 정책에 의해 대상 컨테이너 목록 조회 자체가 실패함.
+  - 1차 원인: Promtail docker_sd가 Docker daemon에 API 1.42로 요청해, 최소 지원 1.44 정책에 의해 대상 컨테이너 목록 조회 자체가 실패함.
+  - 2차 원인: 파일 타깃 전환 후 `service` 라벨 추출을 relabel `__path__`(glob 패턴)에서 수행해 라벨이 비어 경고가 지속됨.
 
 ---
 
@@ -72,6 +74,8 @@
   - `promtail`이 Docker API(`docker_sd`)를 직접 호출하지 않도록 설계 변경
   - `promtail-targets` 사이드카가 `coinpilot-*` 컨테이너 로그 경로 symlink를 생성
   - `promtail`은 `/targets/logs/*.log` 파일 타깃만 수집하도록 전환
+- 3차 보강(라벨 추출 안정화):
+  - relabel 단계의 `__path__`(glob) 기반 추출 대신, pipeline 단계의 `filename` 라벨 기반으로 `service/container`를 추출
 - 안전장치(feature flag, rate limit, timeout/cooldown, circuit breaker 등):
   - `check_24h_monitoring.sh t1h`에서 API mismatch 패턴을 WARN이 아닌 FAIL로 격상
 
@@ -81,6 +85,7 @@
 - 변경 요약:
   - (1차) promtail Docker API 버전 명시
   - (2차) `promtail-targets` 파일 타깃 생성 + promtail 파일 수집 구조 전환
+  - (3차) promtail `filename` 기반 라벨 추출로 `service` 라벨 유입 보강
   - 운영 점검 스크립트의 탐지 민감도 강화
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
@@ -111,7 +116,11 @@
   - 1차 핫픽스 검증 결과:
     - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:1`, `WARN:2`
     - `promtail` 15분 로그에서 mismatch 오류 3건 검출
-  - 2차 핫픽스 코드 반영 완료(OCI 재배포/재측정 대기)
+  - 2차 핫픽스 검증 결과:
+    - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:0`, `WARN:2`
+    - `promtail` 전송/`promtail-targets` 타깃 오류는 미검출
+    - `Loki service 라벨 미검출` WARN 잔존
+  - 3차 보강 코드 반영 완료(OCI 재배포/재측정 대기)
 
 - 운영 확인 체크:
   1) promtail 로그에서 `client version ... too old` 0건
@@ -138,15 +147,17 @@
 | promtail API mismatch 오류(15분) | 11 | 3 (1차 핫픽스 후) | -8 | -72.7 |
 | `check_24h_monitoring.sh t1h` FAIL | 0 | 1 (1차 핫픽스 후) | +1 | N/A |
 | `check_24h_monitoring.sh t1h` WARN | 3 | 2 (1차 핫픽스 후) | -1 | -33.3 |
-| promtail API mismatch 오류(15분, 2차 핫픽스 후) | 3 | 측정 예정 | 측정 예정 | 측정 예정 |
+| promtail API mismatch 오류(15분, 2차 핫픽스 후) | 3 | 0 | -3 | -100.0 |
+| `check_24h_monitoring.sh t1h` FAIL(2차 핫픽스 후) | 1 | 0 | -1 | -100.0 |
+| Loki `service` 라벨 coinpilot-* 검출(2차 핫픽스 후) | 0 | 0 | 0 | 0.0 |
 
 - 정량 측정 불가 시(예외):
   - 불가 사유:
-    - 2차 핫픽스(파일 타깃 전환) 코드는 반영됐지만 OCI 재배포/재측정이 아직 수행되지 않음
+    - 3차 보강(`filename` 라벨 추출 전환) 코드는 반영됐지만 OCI 재배포/재측정이 아직 수행되지 않음
   - 대체 지표:
     - Root cause 로그 메시지(버전 수치 포함)와 15초 주기 반복 패턴
   - 추후 측정 계획/기한:
-    - OCI 재배포 직후 동일 명령으로 15분 내 재측정해 2차 핫픽스 After 수치 확정
+    - OCI 재배포 직후 동일 명령으로 15분 내 재측정해 `service` 라벨 유입 여부를 확정
 
 ---
 

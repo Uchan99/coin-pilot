@@ -41,6 +41,7 @@
   - Promtail 로그 타깃 사이드카(`coinpilot-promtail-targets`)를 추가해 `coinpilot-*` 로그 파일 symlink를 생성
   - Promtail 수집 방식을 Docker API(`docker_sd`)에서 파일 타깃(`/targets/logs/*.log`) 기반으로 전환
   - 1차 핫픽스로 `PROMTAIL_DOCKER_API_VERSION` 환경변수(기본 `1.44`)를 추가했으나 OCI 환경에서는 효과가 없어 2차 구조 전환으로 보완
+  - 2차 적용 후 `service` 라벨 미검출이 남아, 3차로 promtail 라벨 추출을 relabel(`__path__`)에서 pipeline(`filename`) 기반으로 전환
   - Loki 보존기간 기본값 14일(336h) 설정
 - 효과/의미:
   - 운영 로그 조회 경로가 컨테이너 단일 명령에서 중앙 검색형으로 전환됨
@@ -145,11 +146,16 @@
   - 3차 실행(1차 핫픽스 pull+재배포 후): `FAIL:1`, `WARN:2`
     - `promtail` 수집 파이프라인 오류는 여전히 재현
     - `grep -Ei "client version|too old|unable to refresh target groups"` 기준 15분 로그에서 오류 3건 검출
+  - 4차 실행(2차 핫픽스 pull+재배포 후): `FAIL:0`, `WARN:2`
+    - `promtail` 전송 오류 미검출, `promtail-targets` 오류 미검출
+    - `Loki service 라벨 미검출` WARN 1건 잔존
   - 추가 로그에서 Root cause 확정:
     - `promtail`: `client version 1.42 is too old. Minimum supported API version is 1.44`
   - 2차 핫픽스 코드 반영:
     - `promtail-targets` 파일 타깃 생성 사이드카 추가 + promtail 파일 수집 모드 전환
-    - OCI 재배포 후 최종 수치 재측정 필요
+  - 3차 보강 코드 반영:
+    - `promtail` 라벨 추출을 relabel(`__path__`)에서 pipeline(`filename`) 기반으로 전환
+    - OCI 재배포 후 `service` 라벨 유입 최종 수치 재측정 필요
 
 ### 5.4 정량 개선 증빙(필수)
 - 측정 기간/표본:
@@ -173,11 +179,14 @@
 | `t1h` WARN 건수(배포 직후→워밍업 후) | 3 | 3 | 0 | 0.0 |
 | promtail API mismatch 오류(15분 로그) | 11 | 3(1차 핫픽스 후) | -8 | -72.7 |
 | `t1h` FAIL 건수(1차 핫픽스 후) | 0 | 1 | +1 | N/A |
+| promtail API mismatch 오류(15분, 2차 핫픽스 후) | 3 | 0 | -3 | -100.0 |
+| `t1h` FAIL 건수(2차 핫픽스 후) | 1 | 0 | -1 | -100.0 |
+| Loki `service` 라벨 coinpilot-* 검출(2차 핫픽스 후) | 0 | 0 | 0 | 0.0 |
 
 - 정량 측정 불가 시(예외):
-  - 불가 사유: 2차 핫픽스(파일 타깃 구조 전환) 적용 후 OCI 재배포 결과가 아직 없음
+  - 불가 사유: 3차 보강(`filename` 라벨 추출) 적용 후 OCI 재배포 결과가 아직 없음
   - 대체 지표: 오류 패턴과 발생 빈도(15초 주기 반복)로 원인-영향을 우선 증빙
-  - 추후 측정 계획/기한: `promtail-targets + promtail` 재배포 직후 15분 로그에서 mismatch 오류 0건 확인
+  - 추후 측정 계획/기한: `promtail` 재배포 직후 15분 내 `service` 라벨(`coinpilot-*`) 유입 확인
 
 ---
 
@@ -231,7 +240,7 @@
 - 현재 상태 요약:
   - 21-07은 코드/문서 기준으로 착수 및 Phase A/B 반영 완료(`in_progress`)
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) 2차 핫픽스(파일 타깃 전환) 배포 후 `t1h` FAIL/WARN 축소 수치 갱신
+  1) 3차 보강(`filename` 라벨 추출) 배포 후 `service` 라벨 유입 수치 갱신
   2) 로그 기반 Discord 알림 규칙 정의(Phase C)
 
 ---

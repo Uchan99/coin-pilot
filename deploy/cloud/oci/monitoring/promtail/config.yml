@@ -18,17 +18,15 @@ scrape_configs:
     # Docker json-file 로그를 구조화해 message/timestamp/stream 분리를 안정화한다.
     pipeline_stages:
       - docker: {}
-
-    relabel_configs:
-      # symlink 파일명(coinpilot-*.log)에서 서비스명을 추출한다.
-      - source_labels: [__path__]
-        regex: '.*/(coinpilot-[^/]+)\\.log'
-        target_label: service
-
-      - source_labels: [service]
-        target_label: container
-
-      # service 라벨이 비어 있으면 운영 의미가 없는 시계열이므로 드롭한다.
-      - source_labels: [service]
-        regex: ''
-        action: drop
+      # static __path__는 glob 패턴이라 relabel에서 서비스명 추출이 실패할 수 있다.
+      # 파일 타깃 수집 시 promtail이 자동 부여하는 filename 라벨에서 service/container를 추출한다.
+      - regex:
+          source: filename
+          expression: '.*/(?P<service>coinpilot-[^/]+)\\.log'
+      - labels:
+          service:
+      - template:
+          source: container
+          template: '{{ .service }}'
+      - labels:
+          container:
