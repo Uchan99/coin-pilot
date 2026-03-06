@@ -120,6 +120,7 @@
 - 2026-03-06: 21-08 사용자 승인 후 착수(`in_progress`). `coinpilot-infra.json`에 Loki 패널 5종을 추가하고 runbook 정상 기준을 `filename` 기반 ingest 쿼리로 업데이트.
 - 2026-03-07: 21-08 마감(`done`). OCI 검증에서 `check_24h_monitoring.sh t1h` 결과 `FAIL:0/WARN:1`, Loki ingest 쿼리 값 `187`을 확인했고 결과 문서/README를 동기화.
 - 2026-03-07: 21-08 후속 보정 반영. 사용자 요청에 따라 Promtail 오류/경고 3개 패널에 `or vector(0)`를 적용해 정상 구간 `No data` 대신 `0`으로 표기하도록 조정.
+- 2026-03-07: 21-08 후속 보정 2차 반영. 사용자 요청에 따라 `coinpilot-infra` 13개 패널 전체에 한국어 description(블록 의미/점검 포인트)을 추가해 대시보드 내부 해석 가이드를 제공.
 
 ---
 

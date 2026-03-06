@@ -5,6 +5,7 @@
 **상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`, `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`  
 **승인 정보**: 사용자 / 2026-03-06 / "구현 시작해줘."
+**추가 승인 정보(후속)**: 사용자 / 2026-03-07 / "진행해줘."
 
 ---
 
@@ -84,6 +85,22 @@
 1. OCI에서 패널 값 스크린샷/쿼리 결과 수집
 2. 결과 문서(`docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md`) 작성
 
+### Phase D. 시각화 보정(No data -> 0)
+1. 대상 패널:
+  - `Promtail Pipeline Errors (5m)`
+  - `Promtail Timestamp Too Old (15m)`
+  - `Promtail API Mismatch (5m)`
+2. 구현:
+  - 각 쿼리에 `or vector(0)`를 적용해 정상 구간 `No data` 대신 `0`이 표기되도록 보정
+
+### Phase E. 패널 설명(Description) 추가
+1. 대상:
+  - `coinpilot-infra` 대시보드 전체 패널(13개)
+2. 구현:
+  - 각 패널에 한국어 운영 설명(의미/정상 기준/점검 포인트)을 `description`으로 추가
+3. 의도:
+  - 운영자가 패널 의미를 UI 내부에서 즉시 확인할 수 있게 해 해석 오차를 줄임
+
 ## 6. 검증 기준
 - 재현 케이스에서 해결 확인:
   1) `coinpilot-infra`에서 Loki 패널 값이 0 이상으로 갱신되는지 확인
@@ -114,3 +131,4 @@
 - 2026-03-06: 21-07 완료 이후 후속 과제로 Grafana Loki 로그 패널화 계획 신규 생성(Approval Pending).
 - 2026-03-06: 사용자 승인으로 상태를 `Approved`로 전환하고, `coinpilot-infra` Loki 패널 추가 구현에 착수.
 - 2026-03-07: 사용자 요청("No data 대신 0 표기")에 따라 Phase D 후속 보정 범위를 추가. Promtail 오류/경고 3개 패널 쿼리에 `or vector(0)`를 적용해 빈 구간을 0으로 시각화하도록 조정.
+- 2026-03-07: 사용자 요청("진행해줘") 승인에 따라 Phase E(패널 설명 추가)를 범위에 포함. `coinpilot-infra` 13개 패널에 한국어 description을 추가해 운영 해석 가이드를 UI 내부로 통합.

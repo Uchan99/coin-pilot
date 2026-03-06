@@ -93,6 +93,7 @@
         }
       ],
       "title": "Host CPU Usage",
+      "description": "호스트 전체 CPU 사용률입니다. 80% 이상이 지속되면 병목 가능성이 큽니다.",
       "type": "timeseries"
     },
     {
@@ -160,6 +161,7 @@
         }
       ],
       "title": "Host Memory Usage",
+      "description": "호스트 메모리 사용률입니다. 고사용률이 지속되면 OOM 위험이 커집니다.",
       "type": "stat"
     },
     {
@@ -227,6 +229,7 @@
         }
       ],
       "title": "Root Disk Usage",
+      "description": "루트 디스크 사용률입니다. 로그/백업 누적으로 80% 이상이면 정리 필요합니다.",
       "type": "stat"
     },
     {
@@ -294,6 +297,7 @@
         }
       ],
       "title": "Host Network Throughput",
+      "description": "호스트 네트워크 송수신량(rx/tx)입니다. 급격한 변화는 외부 연동 이상 신호일 수 있습니다.",
       "type": "timeseries"
     },
     {
@@ -350,6 +354,7 @@
         }
       ],
       "title": "Container CPU Usage by Container",
+      "description": "컨테이너별 CPU 사용량입니다. bot(매매엔진), collector(수집), db(시계열DB), redis(캐시), dashboard(UI), n8n(워크플로), prometheus/grafana(관측), loki/promtail(로그)의 과부하를 식별합니다.",
       "type": "timeseries"
     },
     {
@@ -406,6 +411,7 @@
         }
       ],
       "title": "Container Memory Working Set",
+      "description": "컨테이너별 실사용 메모리(working set)입니다. 특정 서비스 메모리 누수/급증 추적용입니다.",
       "type": "timeseries"
     },
     {
@@ -455,6 +461,7 @@
         }
       ],
       "title": "Container Restart Changes (24h)",
+      "description": "최근 24시간 컨테이너 재시작 횟수 변화입니다. 값 증가 시 크래시/헬스체크 실패를 의심합니다.",
       "type": "timeseries"
     },
     {
@@ -529,6 +536,7 @@
         }
       ],
       "title": "Scrape Target Status",
+      "description": "Prometheus 타깃 수집 상태입니다. UP=정상, DOWN=관측 공백으로 해석합니다.",
       "type": "stat"
     },
     {
@@ -584,6 +592,7 @@
         }
       ],
       "title": "Loki Ingest Volume (5m)",
+      "description": "최근 5분 Loki 로그 유입량입니다. 0 근접이 지속되면 로그 수집 파이프라인을 점검하세요.",
       "type": "timeseries"
     },
     {
@@ -639,6 +648,7 @@
         }
       ],
       "title": "Top Log Files by Volume (5m)",
+      "description": "최근 5분 로그 발생 상위 파일(컨테이너)입니다. 과다 로그 원인 컨테이너를 빠르게 찾는 용도입니다.",
       "type": "timeseries"
     },
     {
@@ -694,6 +704,7 @@
         }
       ],
       "title": "Promtail Pipeline Errors (5m)",
+      "description": "최근 5분 promtail 수집/전송 오류 건수입니다. 정상 상태는 0입니다.",
       "type": "timeseries"
     },
     {
@@ -749,6 +760,7 @@
         }
       ],
       "title": "Promtail Timestamp Too Old (15m)",
+      "description": "최근 15분 오래된 타임스탬프 로그 드롭 건수입니다. 급증 시 시간 동기/로그 회전 이슈를 점검합니다.",
       "type": "timeseries"
     },
     {
@@ -804,6 +816,7 @@
         }
       ],
       "title": "Promtail API Mismatch (5m)",
+      "description": "최근 5분 Docker API 버전 불일치 오류 건수입니다. 정상 상태는 0입니다.",
       "type": "timeseries"
     }
   ],
@@ -823,6 +836,6 @@
   "timezone": "",
   "title": "CoinPilot Infra Overview",
   "uid": "coinpilot-infra-01",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }
