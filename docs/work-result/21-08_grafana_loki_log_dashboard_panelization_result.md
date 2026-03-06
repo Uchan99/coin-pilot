@@ -4,7 +4,7 @@
 작성자: Codex
 관련 계획서: docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md
 상태: Done
-완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E + Phase F + Phase G (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가/임계치 기준 반영/Alert Rule 프로비저닝 코드화)
+완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E + Phase F + Phase G + Phase H (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가/임계치 기준 반영/Alert Rule 프로비저닝 코드화/Alert Rule 노이즈 안정화)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -18,6 +18,7 @@
   - 대시보드 패널 13개에 한국어 description 추가(블록 의미/점검 포인트 내장)
   - 절대 기준이 유효한 패널 9개에 주의/위험 임계치(threshold) 반영
   - Grafana alert rule 7개를 provisioning YAML로 코드화하고 compose 마운트로 자동 로드 경로를 고정
+  - Loki 기반 alert rule 3개를 `or vector(0)` + `noDataState: OK`로 안정화하고 API mismatch 경보 민감도를 상향
 - 해결한 문제(한 줄):
   - 로그 관측이 Explore 수동 조회에 머물던 상태를 대시보드 패널 기반 상시 관측 구조로 확장했다.
 - 해결한 문제의 구체 정의(증상/영향/재현 조건):
@@ -103,6 +104,21 @@
 - 목적:
   - UI 수동 생성 없이 재배포 시 동일 alert rule을 자동 반영하고 변경 이력을 Git에서 추적
 
+### 2.8 후속 보정(Phase H: Alert Rule 노이즈 안정화)
+- 파일:
+  - `deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
+- 변경 내용:
+  - Loki alert rule 3개 query에 `or vector(0)` 추가:
+    - `cp-promtail-pipeline-err`
+    - `cp-promtail-ts-too-old`
+    - `cp-promtail-api-mismatch`
+  - 위 3개 rule의 `noDataState`를 `OK`로 조정
+  - `cp-promtail-api-mismatch` 조건/지속시간 완화:
+    - 조건 `$B > 0` -> `$B >= 3`
+    - 지속시간 `for: 2m` -> `for: 5m`
+- 목적:
+  - 정상 공백 구간의 `No data` 전파와 일시성 mismatch 로그로 인한 `Pending` 노이즈를 줄임
+
 ---
 
 ## 3. 변경 파일 목록
@@ -132,6 +148,8 @@
   - `rg -n 'Loki Ingest Volume|Top Log Files by Volume|Promtail Pipeline Errors|Promtail Timestamp Too Old|Promtail API Mismatch' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `python3 -c 'import yaml; yaml.safe_load(open("deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml")); print("YAML_OK")'`
   - `rg -n 'provisioning/alerting|coinpilot-infra-rules.yaml|uid:' deploy/cloud/oci/docker-compose.prod.yml deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
+  - `python3 -c 'import yaml; r=yaml.safe_load(open("deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml"))["groups"][0]["rules"]; print(sum(1 for x in r if x.get("noDataState")=="OK"), sum(1 for x in r for d in x.get("data",[]) if "model" in d and "expr" in d["model"] and "or vector(0)" in d["model"]["expr"]))'`
+  - `rg -n 'cp-promtail-api-mismatch|expression: \\$B >= 3|for: 5m' deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
 - 결과:
   - JSON 파싱 정상(`OK_JSON`)
   - 대시보드 버전: `9`
@@ -144,6 +162,9 @@
   - alerting YAML 파싱 정상(`YAML_OK`)
   - compose에 Grafana alerting provisioning 마운트 1개 존재 확인
   - provisioning alert rule UID 7개(`cp-*`) 존재 확인
+  - Loki alert rule의 `noDataState=OK` 3개 확인
+  - Loki alert query의 `or vector(0)` 적용 3개 확인
+  - API mismatch rule 완화 조건(`$B >= 3`, `for: 5m`) 확인
 
 ### 5.2 런타임/운영 검증
 - OCI 검증 명령(사용자 실행):
@@ -183,6 +204,9 @@
 | provisioning alert rule 파일 수 | 0 | 1 | +1 | N/A |
 | provisioning alert rule UID 수 | 0 | 7 | +7 | N/A |
 | Grafana alerting provisioning 마운트 수 | 0 | 1 | +1 | N/A |
+| Loki alert rule `noDataState=OK` 개수 | 0 | 3 | +3 | N/A |
+| Loki alert query `or vector(0)` 적용 개수 | 0 | 3 | +3 | N/A |
+| API mismatch alert 조건 | `$B > 0`, `for 2m` | `$B >= 3`, `for 5m` | 민감도 완화 | N/A |
 | `check_24h_monitoring.sh t1h` FAIL | 0 | 0 | 0 | 0.0 |
 | `check_24h_monitoring.sh t1h` WARN | 2 | 1 | -1 | -50.0 |
 | Loki ingest query(5m) | N/A | 187 | N/A | N/A |
@@ -210,9 +234,9 @@
 
 ## 7. 결론 및 다음 단계
 - 현재 상태:
-  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명/임계치 내장 + alert rule 프로비저닝 코드화를 충족해 `done`으로 마감한다.
+  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명/임계치 내장 + alert rule 프로비저닝 코드화 + alert noise 안정화를 충족해 `done`으로 마감한다.
 - 다음 단계:
-  1) Grafana 재기동 후 `Alerting > Alert rules`에서 provisioned 7개 규칙 로드 여부 확인
+  1) Grafana 재기동 후 `Alerting > Alert rules`에서 `No data`/`Pending` 잔존 상태(10분+)가 사라졌는지 확인
   2) 24h 운영 중 `Promtail Timestamp Too Old (15m)` 패널 추세와 `Promtail Timestamp Too Old High` 경보 상관관계를 주 1회 점검
 
 ---
@@ -232,5 +256,6 @@
   - Grafana 로그 패널화(21-08 완료) 문구와 백로그 상태(`21-08 done`)를 반영
   - 패널 description/threshold 후속 보정 내용(운영 기준 내장)을 추가
   - alert rule provisioning 코드화(7개 규칙 + compose 마운트) 내용을 추가
+  - alert rule 안정화(3개 rule `noDataState=OK` + `or vector(0)` + API mismatch 민감도 완화) 내용을 추가
 - 검증 명령:
   - `rg -n "2026-03-07|21-08|Grafana 로그 패널화" README.md`

@@ -375,6 +375,19 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
   - `Promtail Pipeline Errors Detected`
   - `Promtail Timestamp Too Old High`
   - `Promtail API Mismatch Detected`
+- 안정화 기준(21-08 Phase H):
+  - `Promtail Pipeline Errors Detected`
+    - query: `or vector(0)` 적용
+    - noDataState: `OK`
+    - 임계: `> 0`, `for: 5m`
+  - `Promtail Timestamp Too Old High`
+    - query: `or vector(0)` 적용
+    - noDataState: `OK`
+    - 임계: `>= 10`, `for: 10m`
+  - `Promtail API Mismatch Detected`
+    - query: `or vector(0)` 적용
+    - noDataState: `OK`
+    - 임계: `>= 3`, `for: 5m` (기존 `>0`, `2m` 대비 노이즈 완화)
 - 재적용(OCI):
 ```bash
 cd /opt/coin-pilot
@@ -386,6 +399,8 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=3m grafana
 - 확인 포인트:
   - Grafana UI `Alerting > Alert rules`에서 folder `coinpilot` 규칙 7개가 `Provisioned`로 노출되는지 확인
   - 로그에 provisioning parse error가 없어야 함
+  - `Promtail Pipeline Errors/Timestamp Too Old` health가 `nodata`가 아니라 `ok`로 수렴하는지 확인
+  - `Promtail API Mismatch Detected`가 재기동 후 단발 로그로 장시간(`>10분`) Pending에 머물지 않는지 확인
 
 ---
 
@@ -516,3 +531,4 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 2026-03-06: 21-08 반영, `CoinPilot Infra Overview`에 Loki 로그 패널 5종을 추가하고 runbook의 로그 정상 기준을 `filename` 기반 ingest 쿼리로 정렬
 - 2026-03-07: 21-08 후속 반영, `CoinPilot Infra Overview` 패널의 주의/위험 임계치(호스트/컨테이너/로그 오류)를 수치 기준으로 추가
 - 2026-03-07: 21-08 후속 반영(Phase G), Grafana alert rule provisioning(7개)과 grafana 재기동/적재 검증 절차를 추가
+- 2026-03-07: 21-08 후속 반영(Phase H), Loki alert rule 3개에 `or vector(0)` + `noDataState=OK`를 적용하고 API mismatch 경보를 `>=3, for 5m`로 완화

@@ -123,6 +123,7 @@
 - 2026-03-07: 21-08 후속 보정 2차 반영. 사용자 요청에 따라 `coinpilot-infra` 13개 패널 전체에 한국어 description(블록 의미/점검 포인트)을 추가해 대시보드 내부 해석 가이드를 제공.
 - 2026-03-07: 21-08 후속 보정 3차 반영. 사용자 요청에 따라 절대 기준이 유효한 9개 패널에 주의/위험 threshold를 반영하고 description에도 동일 기준값을 명시해 운영 판단 기준을 정량화.
 - 2026-03-07: 21-08 후속 보정 4차 반영. 사용자 요청에 따라 Grafana alert rule 7개를 provisioning YAML로 코드화하고 compose에 alerting 마운트를 추가해 재기동 자동 반영 경로를 확정.
+- 2026-03-07: 21-08 후속 보정 5차 반영. 사용자 요청에 따라 Loki alert rule 3개에 `or vector(0)` + `noDataState=OK`를 적용하고, API mismatch 임계치를 `>=3, for 5m`로 완화해 Pending/No data 노이즈를 줄임.
 
 ---
 
