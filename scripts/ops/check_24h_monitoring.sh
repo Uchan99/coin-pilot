@@ -10,13 +10,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 ENV_FILE="${COINPILOT_ENV_FILE:-${REPO_ROOT}/deploy/cloud/oci/.env}"
 COMPOSE_FILE="${COINPILOT_COMPOSE_FILE:-${REPO_ROOT}/deploy/cloud/oci/docker-compose.prod.yml}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
+LOKI_URL="${LOKI_URL:-http://127.0.0.1:3100}"
 
 FAIL_COUNT=0
 WARN_COUNT=0
 MODE="all"
 OUTPUT_FILE=""
 
-SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map)
+SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map loki promtail)
 OPTIONAL_SERVICES=(discord-bot)
 
 usage() {
@@ -33,6 +34,7 @@ Optional env overrides:
   COINPILOT_ENV_FILE=/opt/coin-pilot/deploy/cloud/oci/.env
   COINPILOT_COMPOSE_FILE=/opt/coin-pilot/deploy/cloud/oci/docker-compose.prod.yml
   PROMETHEUS_URL=http://127.0.0.1:9090
+  LOKI_URL=http://127.0.0.1:3100
 EOF
 }
 
@@ -283,6 +285,48 @@ check_prometheus_container_display_map() {
   fi
 }
 
+check_loki_log_pipeline() {
+  info "T+1h: Loki/Promtail 로그 수집 파이프라인 점검"
+  if ! command -v curl >/dev/null 2>&1; then
+    fail "curl 명령을 찾을 수 없음"
+    return
+  fi
+
+  local ready_response
+  ready_response="$(curl -fsS "${LOKI_URL}/ready" 2>/dev/null || true)"
+  if [[ "${ready_response}" == "ready" ]]; then
+    pass "Loki readiness 확인(ready)"
+  else
+    fail "Loki readiness 실패 (${LOKI_URL}/ready): ${ready_response:-empty response}"
+  fi
+
+  local labels_response
+  labels_response="$(
+    curl -fsSG "${LOKI_URL}/loki/api/v1/label/service/values" 2>/dev/null || true
+  )"
+  if [[ -z "${labels_response}" ]]; then
+    warn "Loki service 라벨 조회 응답 없음 (${LOKI_URL})"
+  elif ! grep -q '"status":"success"' <<<"${labels_response}"; then
+    warn "Loki service 라벨 조회 실패 응답: ${labels_response}"
+  elif grep -Eq 'coinpilot-' <<<"${labels_response}"; then
+    pass "Loki service 라벨에서 coinpilot-* 로그 스트림 확인"
+  else
+    warn "Loki service 라벨에 coinpilot-* 로그 스트림 미검출(초기 구간일 수 있음): ${labels_response}"
+  fi
+
+  local promtail_logs
+  if ! promtail_logs="$(run_compose logs --since=15m promtail 2>&1)"; then
+    fail "promtail logs 조회 실패: ${promtail_logs}"
+    return
+  fi
+
+  if grep -Eiq "level=error|error sending batch|server returned HTTP status 4|server returned HTTP status 5" <<<"${promtail_logs}"; then
+    warn "promtail 로그에 전송 오류 키워드 감지(수동 확인 권장)"
+  else
+    pass "promtail 전송 오류 키워드 미검출"
+  fi
+}
+
 check_manual_alert_routing_notice() {
   info "T+1h: Grafana/Discord 라우팅 확인 안내"
   warn "Grafana Alert Rule/Notification Policy와 Discord 수신은 UI에서 수동 확인 필요"
@@ -408,6 +452,7 @@ run_t1h() {
   check_prometheus_up
   check_prometheus_infra_targets_up
   check_prometheus_container_display_map
+  check_loki_log_pipeline
   check_manual_alert_routing_notice
 }
 

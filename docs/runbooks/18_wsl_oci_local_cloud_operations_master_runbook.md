@@ -87,6 +87,8 @@ ssh -i "C:\Users\syt07\.ssh\ssh-key-2026-02-24.key" \
 9. `coinpilot-node-exporter` (호스트 리소스 메트릭)
 10. `coinpilot-cadvisor` (컨테이너 리소스 메트릭)
 11. `coinpilot-container-map` (컨테이너 ID↔서비스명 매핑 메트릭 생성)
+12. `coinpilot-loki` (로그 저장/조회 백엔드)
+13. `coinpilot-promtail` (Docker 컨테이너 로그 수집 에이전트)
 
 자동복구:
 - systemd unit: `coinpilot-compose.service`
@@ -275,6 +277,7 @@ curl -sS "http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22cadvisor%22%7D"
 3. 자동 점검 스크립트 반영 항목
 - `scripts/ops/check_24h_monitoring.sh t1h`에서 `node-exporter`, `cadvisor`도 `UP(1)` 검증
 - `scripts/ops/check_24h_monitoring.sh t1h`에서 `coinpilot_container_display_info` 존재 여부 검증
+- `scripts/ops/check_24h_monitoring.sh t1h`에서 `Loki ready`/`service 라벨`/`promtail 에러 키워드` 검증
 - `t0` 서비스 상태 점검에 exporter 2개 포함
 - `t0` 서비스 상태 점검에 `coinpilot-container-map` 포함
 
@@ -299,6 +302,31 @@ docker ps -a --format '{{.ID}} {{.Names}}' | awk '{print substr($1,1,12), $2}' |
 3. 왜 예전에 보던 cid도 패널에 나오나?
 - Grafana 시간 범위(예: Last 12h) 안에 재시작/재생성된 컨테이너의 과거 시계열이 함께 보이기 때문이다.
 - 현재 실행 중 컨테이너만 보고 싶으면 시간 범위를 `Last 15m` 또는 `Last 1h`로 줄여서 확인한다.
+
+### 9.5 로그 관측(Loki/Promtail) 운영 기준 (21-07 Phase 1)
+1. 목적
+- `docker compose logs` 수동 조회에 의존하던 운영 절차를 Grafana Explore(`Loki`) 기반으로 표준화한다.
+
+2. 정상 기준
+- `coinpilot-loki`, `coinpilot-promtail` 컨테이너가 `Up`
+- `http://127.0.0.1:3100/ready` 응답이 `ready`
+- Loki `service` 라벨에 `coinpilot-*` 값이 최소 1개 이상 노출
+
+3. 점검 명령(OCI)
+```bash
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml ps loki promtail
+curl -sS http://127.0.0.1:3100/ready
+curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail | grep -Ei "error|status 4|status 5"
+```
+
+4. Grafana 조회 예시
+- Explore > Data source: `Loki`
+- 기본 쿼리 예시:
+  - `{service="coinpilot-bot"}`
+  - `{service="coinpilot-bot"} |= "Traceback"`
+  - `{service="coinpilot-n8n"} |= "error"`
 
 ---
 
@@ -349,6 +377,7 @@ scripts/ops/check_24h_monitoring.sh all
 | T+0m | 서비스 기동 상태 | `docker compose ... ps` | 핵심 10개 서비스 `Up` | `logs`로 실패 서비스 우선 확인 후 재기동 |
 | T+0m | bot 초기화 오류 | `logs --since=10m bot` | `critical/traceback/undefined` 없음 | 스키마/환경변수/Redis 연결 재검증 |
 | T+1h | 메트릭 수집 연속성 | Prometheus Targets, bot `/metrics` | `coinpilot-core` `UP` 유지 | scrape 설정/네트워크 확인 |
+| T+1h | 로그 수집 연속성 | Loki ready, service label, promtail 로그 | Loki `ready` + `coinpilot-*` 라벨 확인 | loki/promtail 상태 및 docker.sock 마운트 확인 |
 | T+1h | 알림 라우팅 정상 | Grafana Alert Rules + Discord | 테스트/실제 알림 수신 확인 | Notification policy/contact point 재확인 |
 | T+6h | 거래/의사결정 흐름 | bot 로그(Entry/AI/Risk) | 로그 공백 없이 주기 동작 | 스케줄러 중단/에러 여부 확인 |
 | T+12h | 배치 작업 정상 | `RSS ingest`, `daily report` 로그 | 실패(`failed`) 누적 없음 | n8n workflow active 및 webhook 점검 |
@@ -407,6 +436,14 @@ scripts/ops/check_24h_monitoring.sh t24h
 scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-24h.log
 ```
 
+### 13.5 Loki/Pipeline quick check
+```bash
+cd /opt/coin-pilot/deploy/cloud/oci
+curl -sS http://127.0.0.1:3100/ready
+curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail
+```
+
 ---
 
 ## 14. 변경 이력
@@ -414,3 +451,4 @@ scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-2
 - 2026-02-26: 18-13 반영, 재배포/설정 변경 직후 적용 가능한 24시간 집중 모니터링 점검표(T+0m/1h/6h/12h/24h) 추가
 - 2026-02-26: 18-14 반영, 24시간 점검 자동화 스크립트(`scripts/ops/check_24h_monitoring.sh`) 사용법 추가
 - 2026-02-28: 21-05 반영, 인프라 exporter(`coinpilot-node-exporter`, `coinpilot-cadvisor`) 및 Grafana 인프라 대시보드 운영 절차 추가
+- 2026-03-06: 21-07 Phase 1 반영, Loki/Promtail 로그 관측 체계 및 T+1h 로그 수집 점검 기준 추가

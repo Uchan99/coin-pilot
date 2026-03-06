@@ -1,0 +1,48 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: coinpilot-docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+
+    # Docker json-file 로그를 구조화해 message/timestamp/stream 분리를 안정화한다.
+    pipeline_stages:
+      - docker: {}
+
+    relabel_configs:
+      # coinpilot-* 컨테이너만 수집해 라벨 cardinality와 저장량을 통제한다.
+      - source_labels: [__meta_docker_container_name]
+        regex: '/coinpilot-(.+)'
+        target_label: service
+
+      - source_labels: [__meta_docker_container_name]
+        regex: '/(coinpilot-.+)'
+        target_label: container
+
+      - source_labels: [__meta_docker_container_id]
+        regex: '([0-9a-f]{12}).*'
+        replacement: '$1'
+        target_label: cid
+
+      - source_labels: [__meta_docker_container_label_com_docker_compose_project]
+        target_label: compose_project
+
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: compose_service
+
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+
+      # service 라벨이 비어 있으면 운영 의미가 없는 시계열이므로 드롭한다.
+      - source_labels: [service]
+        regex: ''
+        action: drop

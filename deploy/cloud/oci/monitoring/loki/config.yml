@@ -1,0 +1,51 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# 운영 로그는 14일 보관을 기본값으로 두고, 디스크 사용량을 주기적으로 점검한다.
+limits_config:
+  retention_period: 336h
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+chunk_store_config:
+  max_look_back_period: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+
+ruler:
+  alertmanager_url: http://localhost:9093
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true

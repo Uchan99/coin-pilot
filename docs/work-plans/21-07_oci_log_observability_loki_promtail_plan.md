@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-06  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`, `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`  
-**승인 정보**: 미승인 (구현/배포 승인 대기)
+**승인 정보**: 사용자 / 2026-03-06 / "진행하자."
 
 ---
 
@@ -104,9 +104,10 @@
   - 로그 관측을 운영 표준으로 확정하는 시점에 changelog 반영
 
 ## 9. 후속 조치
-1. 21-07 승인 후 구현 브랜치 분리 및 단계별 적용
+1. Phase C(로그 기반 알림 규칙) 구현 브랜치 분리 및 단계별 적용
 2. 21-05 인프라 대시보드와 로그 대시보드 링크 연결
 3. 21-03/21-04 운영 리포트에 로그 근거 필드 추가 검토
 
 ## 10. 계획 변경 이력
 - 2026-03-06: 21-05 완료 이후 후속 과제로 로그 관측 체계 강화를 분리 계획으로 생성(Approval Pending).
+- 2026-03-06: 사용자 승인으로 상태를 `Approved`로 전환하고, Phase A/B(Compose+Loki datasource+운영 점검 스크립트) 구현에 착수.

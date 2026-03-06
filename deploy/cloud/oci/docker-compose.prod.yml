@@ -224,6 +224,32 @@ services:
     devices:
       - /dev/kmsg:/dev/kmsg
 
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: coinpilot-loki
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/config.yml
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
+      - coinpilot_loki_data:/loki
+
+  promtail:
+    <<: *app_security
+    image: grafana/promtail:2.9.8
+    container_name: coinpilot-promtail
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      loki:
+        condition: service_started
+
   prometheus:
     image: prom/prometheus:v2.45.0
     container_name: coinpilot-prometheus
@@ -264,6 +290,8 @@ services:
     depends_on:
       prometheus:
         condition: service_started
+      loki:
+        condition: service_started
 
 volumes:
   coinpilot_db_data:
@@ -271,3 +299,4 @@ volumes:
   coinpilot_n8n_data:
   coinpilot_prometheus_data:
   coinpilot_grafana_data:
+  coinpilot_loki_data:
