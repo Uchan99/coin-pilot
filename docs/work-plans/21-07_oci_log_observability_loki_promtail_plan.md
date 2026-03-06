@@ -5,6 +5,7 @@
 **상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`, `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`  
 **승인 정보**: 사용자 / 2026-03-06 / "진행하자."
+**관련 트러블슈팅**: `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md`
 
 ---
 
@@ -111,3 +112,4 @@
 ## 10. 계획 변경 이력
 - 2026-03-06: 21-05 완료 이후 후속 과제로 로그 관측 체계 강화를 분리 계획으로 생성(Approval Pending).
 - 2026-03-06: 사용자 승인으로 상태를 `Approved`로 전환하고, Phase A/B(Compose+Loki datasource+운영 점검 스크립트) 구현에 착수.
+- 2026-03-06: OCI 적용 중 promtail Docker API mismatch(`client 1.42`, `server min 1.44`)를 확인해 `PROMTAIL_DOCKER_API_VERSION` 핫픽스와 t1h 점검 FAIL 기준 강화를 범위에 추가.

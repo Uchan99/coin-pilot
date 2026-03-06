@@ -6,7 +6,7 @@
 상태: Partial
 완료 범위: Phase A + Phase B (구성/문서/점검 스크립트)
 선반영/추가 구현: 있음(운영 점검 자동화 연동)
-관련 트러블슈팅(있다면): 없음
+관련 트러블슈팅(있다면): docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md
 
 ---
 
@@ -38,6 +38,7 @@
 - 변경 내용:
   - Loki 저장소(`coinpilot_loki_data`)와 Promtail 수집 에이전트를 Compose 서비스로 추가
   - Promtail을 Docker SD 기반(`docker.sock`)으로 구성해 `coinpilot-*` 컨테이너 로그를 라벨링(`service`, `container`, `cid`)해 수집
+  - Docker Engine API 최소 버전 불일치 대응을 위해 `PROMTAIL_DOCKER_API_VERSION` 환경변수(기본 `1.44`)를 추가
   - Loki 보존기간 기본값 14일(336h) 설정
 - 효과/의미:
   - 운영 로그 조회 경로가 컨테이너 단일 명령에서 중앙 검색형으로 전환됨
@@ -83,15 +84,18 @@
 1) `deploy/cloud/oci/docker-compose.prod.yml`
 2) `deploy/monitoring/grafana-provisioning/datasources.yaml`
 3) `scripts/ops/check_24h_monitoring.sh`
-4) `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
-5) `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`
-6) `docs/checklists/remaining_work_master_checklist.md`
-7) `docs/PROJECT_CHARTER.md`
+4) `.env.example`
+5) `deploy/cloud/oci/.env.example`
+6) `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
+7) `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`
+8) `docs/checklists/remaining_work_master_checklist.md`
+9) `docs/PROJECT_CHARTER.md`
 
 ### 3.2 신규
 1) `deploy/cloud/oci/monitoring/loki/config.yml`
 2) `deploy/cloud/oci/monitoring/promtail/config.yml`
 3) `docs/work-result/21-07_oci_log_observability_loki_promtail_result.md`
+4) `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md`
 
 ---
 
@@ -128,19 +132,26 @@
   - `curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values`
   - `cd /opt/coin-pilot && scripts/ops/check_24h_monitoring.sh t1h`
 - 결과:
-  - 현재 문서는 구현 반영 기준(Partial)이며, OCI 적용 후 위 명령으로 운영 검증 필요
+  - 1차 실행(배포 직후): `FAIL:2`, `WARN:3`
+    - `coinpilot-core up=0`(재기동 직후)
+    - `Loki /ready` 미응답(워밍업 구간)
+  - 2차 실행(45초 워밍업 후): `FAIL:0`, `WARN:3`
+    - `coinpilot-core up=1`, `Loki ready` 회복
+    - WARN 잔존: `Loki service 라벨 미검출` + `promtail 오류 키워드`
+  - 추가 로그에서 Root cause 확정:
+    - `promtail`: `client version 1.42 is too old. Minimum supported API version is 1.44`
 
 ### 5.4 정량 개선 증빙(필수)
 - 측정 기간/표본:
-  - 코드 반영 시점 1회(2026-03-06)
+  - 2026-03-06 배포 직후~워밍업 재검증 2회 + promtail/loki/bot 로그 15분
 - 측정 기준(성공/실패 정의):
-  - 성공: 로그 수집 경로(서비스/데이터소스/점검 자동화)가 모두 코드에 반영됨
-  - 실패: 3축 중 1개 이상 누락
+  - 성공: `t1h FAIL=0` + Loki ready + promtail 수집 오류 없음
+  - 실패: `t1h FAIL>0` 또는 promtail API 불일치 오류 감지
 - 데이터 출처(SQL/로그/대시보드/스크립트):
-  - Git diff + 설정 파일 + 운영 점검 스크립트
+  - `scripts/ops/check_24h_monitoring.sh t1h` 출력 + `docker compose logs --since=15m promtail`
 - 재현 명령:
-  - `git diff -- deploy/cloud/oci/docker-compose.prod.yml deploy/monitoring/grafana-provisioning/datasources.yaml scripts/ops/check_24h_monitoring.sh`
-  - `rg -n "loki|promtail|LOKI_URL|check_loki_log_pipeline" deploy/cloud/oci/docker-compose.prod.yml scripts/ops/check_24h_monitoring.sh`
+  - `scripts/ops/check_24h_monitoring.sh t1h`
+  - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail`
 - Before/After 비교표:
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
@@ -148,11 +159,14 @@
 | Compose 로그 관측 서비스 수(`loki`,`promtail`) | 0 | 2 | +2 | N/A |
 | Grafana 로그 datasource 수(`Loki`) | 0 | 1 | +1 | N/A |
 | `t1h` 로그 파이프라인 자동 검증 항목 수 | 0 | 3 | +3 | N/A |
+| `t1h` FAIL 건수(배포 직후→워밍업 후) | 2 | 0 | -2 | -100.0 |
+| `t1h` WARN 건수(배포 직후→워밍업 후) | 3 | 3 | 0 | 0.0 |
+| promtail API mismatch 오류(15분 로그) | 11 | N/A(핫픽스 배포 전) | N/A | N/A |
 
 - 정량 측정 불가 시(예외):
-  - 불가 사유: OCI 런타임 반영 전이라 ingestion 지연/수집률 같은 운영 지표 측정 불가
-  - 대체 지표: 구성 요소 반영 개수(서비스/검증 항목)로 선행 증빙
-  - 추후 측정 계획/기한: OCI 반영 직후 `t1h` 실행 및 24시간 내 로그 유입 확인 수치 추가
+  - 불가 사유: promtail API 버전 핫픽스 코드 반영 후 OCI 재배포 전이라 오류 감소치 확정 불가
+  - 대체 지표: 오류 패턴과 발생 빈도(15초 주기 반복)로 원인-영향을 우선 증빙
+  - 추후 측정 계획/기한: `PROMTAIL_DOCKER_API_VERSION=1.44` 재배포 직후 15분 로그에서 mismatch 오류 0건 확인
 
 ---
 
@@ -206,7 +220,7 @@
 - 현재 상태 요약:
   - 21-07은 코드/문서 기준으로 착수 및 Phase A/B 반영 완료(`in_progress`)
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) OCI 반영 검증 결과를 본 문서에 업데이트(ready/label/t1h 결과)
+  1) Promtail API mismatch 핫픽스 배포 후 `t1h` WARN 축소 수치 갱신
   2) 로그 기반 Discord 알림 규칙 정의(Phase C)
 
 ---
@@ -220,3 +234,4 @@
 - Plan: `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`
 - Runbook: `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
 - Checklist: `docs/checklists/remaining_work_master_checklist.md`
+- Troubleshooting: `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md`

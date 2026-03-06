@@ -320,8 +320,8 @@ check_loki_log_pipeline() {
     return
   fi
 
-  if grep -Eiq "level=error|error sending batch|server returned HTTP status 4|server returned HTTP status 5" <<<"${promtail_logs}"; then
-    warn "promtail 로그에 전송 오류 키워드 감지(수동 확인 권장)"
+  if grep -Eiq "client version .* too old|unable to refresh target groups|error sending batch|server returned HTTP status 4|server returned HTTP status 5" <<<"${promtail_logs}"; then
+    fail "promtail 로그에 수집 파이프라인 오류 키워드 감지"
   else
     pass "promtail 전송 오류 키워드 미검출"
   fi

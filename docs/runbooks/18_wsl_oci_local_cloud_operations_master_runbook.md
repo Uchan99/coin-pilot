@@ -311,6 +311,7 @@ docker ps -a --format '{{.ID}} {{.Names}}' | awk '{print substr($1,1,12), $2}' |
 - `coinpilot-loki`, `coinpilot-promtail` 컨테이너가 `Up`
 - `http://127.0.0.1:3100/ready` 응답이 `ready`
 - Loki `service` 라벨에 `coinpilot-*` 값이 최소 1개 이상 노출
+- promtail 로그에 `client version ... too old` 메시지가 없음
 
 3. 점검 명령(OCI)
 ```bash
@@ -320,6 +321,13 @@ curl -sS http://127.0.0.1:3100/ready
 curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values
 docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail | grep -Ei "error|status 4|status 5"
 ```
+
+4. Docker API mismatch 대응
+- 증상: `client version 1.42 is too old. Minimum supported API version is 1.44`
+- 원인: promtail docker_sd 기본 API가 daemon 최소 지원보다 낮음
+- 조치:
+  - `.env`에 `PROMTAIL_DOCKER_API_VERSION=1.44` 설정(또는 더 높은 호환 버전)
+  - `docker compose ... up -d --no-deps promtail` 재기동
 
 4. Grafana 조회 예시
 - Explore > Data source: `Loki`
@@ -452,3 +460,4 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 2026-02-26: 18-14 반영, 24시간 점검 자동화 스크립트(`scripts/ops/check_24h_monitoring.sh`) 사용법 추가
 - 2026-02-28: 21-05 반영, 인프라 exporter(`coinpilot-node-exporter`, `coinpilot-cadvisor`) 및 Grafana 인프라 대시보드 운영 절차 추가
 - 2026-03-06: 21-07 Phase 1 반영, Loki/Promtail 로그 관측 체계 및 T+1h 로그 수집 점검 기준 추가
+- 2026-03-06: 21-07 핫픽스 반영, promtail Docker API mismatch 대응(`PROMTAIL_DOCKER_API_VERSION=1.44`) 절차 추가
