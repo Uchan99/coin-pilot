@@ -267,6 +267,8 @@ services:
       - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
       - /var/lib/docker:/var/lib/docker:ro
       - coinpilot_promtail_targets:/targets:ro
+      # promtail positions를 영속화해 재기동 시 과거 로그(too old) 재전송을 줄인다.
+      - coinpilot_promtail_positions:/run/promtail
     depends_on:
       loki:
         condition: service_started
@@ -324,3 +326,4 @@ volumes:
   coinpilot_grafana_data:
   coinpilot_loki_data:
   coinpilot_promtail_targets:
+  coinpilot_promtail_positions:

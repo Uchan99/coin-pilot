@@ -113,6 +113,7 @@
 - 2026-03-06: 21-07 운영 이슈 반영. promtail docker API mismatch(`1.42 < min 1.44`) 원인을 확인했고, `PROMTAIL_DOCKER_API_VERSION` 핫픽스와 점검 스크립트 FAIL 기준 강화 + 트러블슈팅 문서를 추가.
 - 2026-03-06: 21-07 2차 핫픽스 반영. 1차 API 버전 핫픽스로 mismatch가 재현되어 `promtail-targets` 파일 타깃 생성 사이드카 + promtail 파일 수집 구조로 전환하고, 최종 OCI 재검증을 대기 상태로 유지.
 - 2026-03-06: 21-07 2차 검증 결과 반영. `t1h`가 `FAIL:0/WARN:2`로 개선됐고 mismatch는 해소됐으나 `service` 라벨 미검출 WARN이 남아 3차 보강(`filename` 기반 라벨 추출) 적용 후 재검증 대기.
+- 2026-03-06: 21-07 3차 검증 결과 반영. `timestamp too old`로 `FAIL:1`이 재발했고 symlink churn 로그를 확인해 4차 보강(타깃 증분 갱신 + positions 영속화 + too old 경고 분리) 적용 후 재검증 대기.
 
 ---
 

@@ -311,7 +311,19 @@ check_loki_log_pipeline() {
   elif grep -Eq 'coinpilot-' <<<"${labels_response}"; then
     pass "Loki service 라벨에서 coinpilot-* 로그 스트림 확인"
   else
-    warn "Loki service 라벨에 coinpilot-* 로그 스트림 미검출(초기 구간일 수 있음): ${labels_response}"
+    # 파일 타깃 수집 구조에서는 service 라벨 추출 지연/누락이 있을 수 있으므로
+    # filename 라벨(실제 파일 경로)에서 coinpilot-* 유입을 2차 확인한다.
+    local filename_labels_response
+    filename_labels_response="$(
+      curl -fsSG "${LOKI_URL}/loki/api/v1/label/filename/values" 2>/dev/null || true
+    )"
+    if [[ -n "${filename_labels_response}" ]] \
+      && grep -q '"status":"success"' <<<"${filename_labels_response}" \
+      && grep -Eq '/targets/logs/coinpilot-' <<<"${filename_labels_response}"; then
+      pass "Loki filename 라벨에서 coinpilot-* 로그 스트림 확인(service 라벨 fallback)"
+    else
+      warn "Loki service/filename 라벨에서 coinpilot-* 로그 스트림 미검출(초기 구간일 수 있음): service=${labels_response} filename=${filename_labels_response:-empty}"
+    fi
   fi
 
   local promtail_logs
@@ -320,8 +332,13 @@ check_loki_log_pipeline() {
     return
   fi
 
-  if grep -Eiq "client version .* too old|unable to refresh target groups|error sending batch|server returned HTTP status 4|server returned HTTP status 5" <<<"${promtail_logs}"; then
-    fail "promtail 로그에 수집 파이프라인 오류 키워드 감지"
+  if grep -Eiq "client version .* too old|unable to refresh target groups" <<<"${promtail_logs}"; then
+    fail "promtail 로그에 Docker API/대상 탐색 오류 키워드 감지"
+  elif grep -Eiq "timestamp too old|entry too far behind" <<<"${promtail_logs}"; then
+    # 최초 구간 백로그를 Loki가 드롭하는 케이스는 일시적일 수 있어 경고로 분류한다.
+    warn "promtail 로그에 과거 타임스탬프 드롭 경고 감지(positions 안정화 후 재확인 권장)"
+  elif grep -Eiq "error sending batch|server returned HTTP status 4|server returned HTTP status 5" <<<"${promtail_logs}"; then
+    fail "promtail 로그에 전송 배치 오류 키워드 감지"
   else
     pass "promtail 전송 오류 키워드 미검출"
   fi

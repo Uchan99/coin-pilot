@@ -155,7 +155,13 @@
     - `promtail-targets` 파일 타깃 생성 사이드카 추가 + promtail 파일 수집 모드 전환
   - 3차 보강 코드 반영:
     - `promtail` 라벨 추출을 relabel(`__path__`)에서 pipeline(`filename`) 기반으로 전환
-    - OCI 재배포 후 `service` 라벨 유입 최종 수치 재측정 필요
+  - 5차 실행(3차 보강 pull+재배포 후): `FAIL:1`, `WARN:2`
+    - API mismatch는 해소됐지만 `status=400 timestamp too old`가 15분 윈도우에 포착되어 FAIL 1건 재발
+    - `promtail-targets`가 30초 주기로 symlink를 전체 재생성해 tailer reopen 로그가 반복됨
+  - 4차 보강 코드 반영:
+    - `promtail-targets` 증분 갱신(변경 타깃만 갱신)으로 symlink churn 완화
+    - promtail positions 경로를 `/run/promtail/positions.yaml`로 변경하고 볼륨 영속화
+    - `check_24h_monitoring.sh t1h`에서 `timestamp too old/entry too far behind`를 경고로 분리
 
 ### 5.4 정량 개선 증빙(필수)
 - 측정 기간/표본:
@@ -182,16 +188,17 @@
 | promtail API mismatch 오류(15분, 2차 핫픽스 후) | 3 | 0 | -3 | -100.0 |
 | `t1h` FAIL 건수(2차 핫픽스 후) | 1 | 0 | -1 | -100.0 |
 | Loki `service` 라벨 coinpilot-* 검출(2차 핫픽스 후) | 0 | 0 | 0 | 0.0 |
+| `timestamp too old` 오류(15분, 3차 보강 후) | 0 | 2 | +2 | N/A |
 
 - 정량 측정 불가 시(예외):
-  - 불가 사유: 3차 보강(`filename` 라벨 추출) 적용 후 OCI 재배포 결과가 아직 없음
+  - 불가 사유: 4차 보강(증분 symlink + positions 영속화 + too old 분류 보강) 적용 후 OCI 재배포 결과가 아직 없음
   - 대체 지표: 오류 패턴과 발생 빈도(15초 주기 반복)로 원인-영향을 우선 증빙
-  - 추후 측정 계획/기한: `promtail` 재배포 직후 15분 내 `service` 라벨(`coinpilot-*`) 유입 확인
+  - 추후 측정 계획/기한: `promtail-targets/promtail` 재배포 후 15분 내 `FAIL=0` + `timestamp too old` WARN 축소 확인
 
 ---
 
 ## 6. 배포/운영 확인 체크리스트(필수)
-1) `coinpilot-loki`, `coinpilot-promtail` 컨테이너 `Up` 확인
+1) `coinpilot-loki`, `coinpilot-promtail-targets`, `coinpilot-promtail` 컨테이너 `Up` 확인
 2) `curl http://127.0.0.1:3100/ready` 결과 `ready` 확인
 3) `loki/api/v1/label/service/values`에 `coinpilot-*` 라벨 유입 확인
 4) `scripts/ops/check_24h_monitoring.sh t1h`에서 Loki/Promtail 관련 FAIL=0 확인
@@ -240,7 +247,7 @@
 - 현재 상태 요약:
   - 21-07은 코드/문서 기준으로 착수 및 Phase A/B 반영 완료(`in_progress`)
 - 후속 작업(다음 plan 번호로 넘길 것):
-  1) 3차 보강(`filename` 라벨 추출) 배포 후 `service` 라벨 유입 수치 갱신
+  1) 4차 보강(증분 symlink + positions 영속화 + too old 분류) 배포 후 `t1h` 수치 갱신
   2) 로그 기반 Discord 알림 규칙 정의(Phase C)
 
 ---

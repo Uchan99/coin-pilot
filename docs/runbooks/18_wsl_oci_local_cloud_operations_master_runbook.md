@@ -330,6 +330,9 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 조치:
   - `docker_sd` 직접 호출 대신 `promtail-targets`가 생성한 파일 타깃(`/targets/logs/*.log`) 수집 구조로 전환
   - 재배포: `docker compose ... up -d --no-deps --force-recreate promtail-targets promtail`
+  - 추가 안정화:
+    - `promtail-targets`는 변경된 symlink만 갱신(전량 재생성 금지)
+    - `promtail` positions를 영속 볼륨으로 유지해 재기동 시 과거 로그 재전송을 완화
 
 5. Grafana 조회 예시
 - Explore > Data source: `Loki`

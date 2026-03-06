@@ -115,3 +115,4 @@
 - 2026-03-06: OCI 적용 중 promtail Docker API mismatch(`client 1.42`, `server min 1.44`)를 확인해 `PROMTAIL_DOCKER_API_VERSION` 핫픽스와 t1h 점검 FAIL 기준 강화를 범위에 추가.
 - 2026-03-06: 1차 핫픽스(`PROMTAIL_DOCKER_API_VERSION`) 적용 후에도 OCI에서 mismatch가 재현되어, 2차로 `promtail-targets` 파일 타깃 생성 + promtail 파일 수집 구조 전환을 범위에 추가.
 - 2026-03-06: 2차 핫픽스 후 mismatch는 해소됐지만 `service` 라벨 미검출 WARN이 잔존해, 3차로 promtail 라벨 추출을 relabel(`__path__`)에서 pipeline(`filename`) 기반으로 전환.
+- 2026-03-06: 3차 적용 후 `timestamp too old`와 symlink 재생성 churn이 확인되어, 4차로 `promtail-targets` 증분 갱신(변경 타깃만 갱신) + promtail positions 영속화 + `t1h` 오류 분류(too old는 WARN) 보강을 범위에 추가.
