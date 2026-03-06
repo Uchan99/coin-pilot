@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-06  
+최종 수정일: 2026-03-07  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -34,7 +34,7 @@
 | 13 | 99-03 | 트러블슈팅 표준 Before/After 비교표 전수 통일 | done | 사용자 표준표 전수 적용 요청 승인 | 트러블슈팅 32개 문서 모두 5열 표준표(`지표/Before/After/변화량/변화율`) 적용 | `for f in docs/troubleshooting/*.md; do if ! rg -q \"\\| 지표 \\| Before \\| After \\| 변화량\\(절대\\) \\| 변화율\\(%\\) \\|\" \"$f\"; then echo \"$f\"; fi; done` 출력 없음 확인 | `docs/work-plans/99-03_troubleshooting_standard_before_after_table_backfill_plan.md` | `docs/work-result/99-03_troubleshooting_standard_before_after_table_backfill_result.md` |
 | 14 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
 | 15 | 21-07 | OCI 로그 관측 체계 강화(Loki/Promtail) | done | 21-05 완료 + 사용자 승인 | Loki/Promtail 수집 + Grafana 조회 + Discord 테스트 알림 기준 확정 + `t1h FAIL=0` + Loki ingest 양수 확인 | `docker compose --env-file .env -f docker-compose.prod.yml up -d --build loki promtail-targets promtail grafana` + `curl -sS http://127.0.0.1:3100/ready` + `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana Alerting 테스트 규칙 1회 발화 후 Discord 수신 확인 | `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md` | `docs/work-result/21-07_oci_log_observability_loki_promtail_result.md`, `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md` |
-| 16 | 21-08 | Grafana Loki 로그 패널화 | in_progress | 21-07 완료 + 사용자 승인 | `coinpilot-infra`에 Loki 핵심 패널(ingest/error/warn/top talker) 반영 + runbook 해석 기준 문서화 + OCI 검증 결과 문서화 | `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana 패널 수동 확인 | `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md` | `docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md` |
+| 16 | 21-08 | Grafana Loki 로그 패널화 | done | 21-07 완료 + 사용자 승인 | `coinpilot-infra`에 Loki 핵심 패널(ingest/error/warn/top talker) 반영 + runbook 해석 기준 문서화 + OCI 검증 결과 문서화 | `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana 패널 수동 확인 | `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md` | `docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md` |
 
 ---
 
@@ -118,6 +118,8 @@
 - 2026-03-06: 21-07 최종 마감(`done`). 4차 보강 재검증에서 `check_24h_monitoring.sh t1h` 결과 `FAIL:0/WARN:2`, Loki 쿼리 `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))=1362` 확인, Grafana 테스트 알림 Discord 수신 및 README 동기화 완료.
 - 2026-03-06: 21-08 신규 계획 추가(Approval Pending). 21-07 후속으로 Grafana `coinpilot-infra`에 Loki 로그 KPI 패널(ingest/error/warn/top talker)을 표준화하는 작업을 분리 등록.
 - 2026-03-06: 21-08 사용자 승인 후 착수(`in_progress`). `coinpilot-infra.json`에 Loki 패널 5종을 추가하고 runbook 정상 기준을 `filename` 기반 ingest 쿼리로 업데이트.
+- 2026-03-07: 21-08 마감(`done`). OCI 검증에서 `check_24h_monitoring.sh t1h` 결과 `FAIL:0/WARN:1`, Loki ingest 쿼리 값 `187`을 확인했고 결과 문서/README를 동기화.
+- 2026-03-07: 21-08 후속 보정 반영. 사용자 요청에 따라 Promtail 오류/경고 3개 패널에 `or vector(0)`를 적용해 정상 구간 `No data` 대신 `0`으로 표기하도록 조정.
 
 ---
 

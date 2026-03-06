@@ -3,8 +3,8 @@
 작성일: 2026-03-06
 작성자: Codex
 관련 계획서: docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md
-상태: Partial
-완료 범위: Phase A + Phase B (패널 JSON 반영/Runbook 정합화), Phase C(OCI 런타임 검증) 대기
+상태: Done
+완료 범위: Phase A + Phase B + Phase C + Phase D (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -14,6 +14,7 @@
   - `coinpilot-infra` 대시보드에 Loki 로그 패널 5종 추가
   - runbook의 로그 정상 기준을 `service` 라벨 중심에서 `filename` ingest 쿼리 기준으로 정렬
   - 체크리스트에 21-08 착수 상태 반영
+  - Promtail 오류/경고 패널 3종에 `or vector(0)` 보정 적용(빈 구간 `No data` 대신 `0`)
 - 해결한 문제(한 줄):
   - 로그 관측이 Explore 수동 조회에 머물던 상태를 대시보드 패널 기반 상시 관측 구조로 확장했다.
 - 해결한 문제의 구체 정의(증상/영향/재현 조건):
@@ -34,7 +35,7 @@
   4) `Promtail Timestamp Too Old (15m)`
   5) `Promtail API Mismatch (5m)`
 - 기타:
-  - 대시보드 버전 `5 -> 6` 증가
+  - 대시보드 버전 `5 -> 7` 증가(Phase D 후속 보정에서 `6 -> 7`)
 
 ### 2.2 Runbook 정합화
 - 파일:
@@ -49,8 +50,18 @@
   - `docs/checklists/remaining_work_master_checklist.md`
   - `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md`
 - 변경 내용:
-  - 21-08 상태를 `in_progress`로 전환
   - 계획서 승인 정보 반영(`Approved`)
+  - OCI 검증 완료 후 체크리스트 상태를 `done`으로 전환
+
+### 2.4 후속 보정(Phase D: No data -> 0)
+- 파일:
+  - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+- 변경 내용:
+  - `Promtail Pipeline Errors (5m)` 쿼리 끝에 `or vector(0)` 추가
+  - `Promtail Timestamp Too Old (15m)` 쿼리 끝에 `or vector(0)` 추가
+  - `Promtail API Mismatch (5m)` 쿼리 끝에 `or vector(0)` 추가
+- 목적:
+  - 정상 구간에서 오류/경고 패널이 `No data`로 보이는 해석 혼선을 줄이고, 명시적으로 `0`을 노출
 
 ---
 
@@ -73,46 +84,55 @@
 - 실행 명령:
   - `jq empty deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `jq '.version, (.panels | length), ([.panels[] | select(.datasource.uid=="loki")] | length)' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `jq -r '.panels[] | select(.id==11 or .id==12 or .id==13) | .targets[0].expr' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `rg -n 'Loki Ingest Volume|Top Log Files by Volume|Promtail Pipeline Errors|Promtail Timestamp Too Old|Promtail API Mismatch' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
 - 결과:
   - JSON 파싱 정상(`OK_JSON`)
-  - 대시보드 버전: `6`
+  - 대시보드 버전: `7`
   - 전체 패널 수: `13`
   - Loki 패널 수: `5`
   - 패널 타이틀 5종 모두 존재 확인
+  - 오류/경고 패널 3종 쿼리 모두 `or vector(0)` 포함 확인
 
 ### 5.2 런타임/운영 검증
-- 상태:
-  - 로컬 환경에서 Grafana/OCI 런타임 검증은 미수행
 - OCI 검증 명령(사용자 실행):
   - `cd /opt/coin-pilot/deploy/cloud/oci`
   - `docker compose --env-file .env -f docker-compose.prod.yml up -d grafana loki promtail-targets promtail`
   - `scripts/ops/check_24h_monitoring.sh t1h`
   - `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))'`
   - Grafana `CoinPilot Infra Overview`에서 5개 패널 값/갱신 여부 확인
+- 결과(2026-03-07, 사용자 실행 로그):
+  - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:0`, `WARN:1`
+  - Loki ingest query => `187` (`sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))`)
+  - 로그 수집 파이프라인 항목:
+    - Loki readiness: PASS
+    - filename 라벨 로그 스트림 확인: PASS
+    - promtail 전송 오류 키워드: PASS
+    - promtail-targets 타깃 생성 오류 키워드: PASS
 
 ### 5.3 정량 증빙
 - 측정 기간/표본:
-  - 코드 반영 시점 1회(정적 구조 검증)
+  - 정적 구조 검증 1회 + OCI 운영 검증 1회(2026-03-07)
 - 성공/실패 기준:
-  - 성공: Loki 패널 5종이 JSON에 존재 + JSON 유효성 통과
+  - 성공: Loki 패널 5종이 JSON에 존재 + JSON 유효성 통과 + `t1h FAIL=0` + ingest 쿼리 양수
   - 실패: JSON 파싱 오류 또는 패널 누락
 - 출처:
-  - `jq`, `rg` 명령 출력
+  - `jq`, `rg` 명령 출력 + 사용자 운영 로그(`check_24h_monitoring.sh t1h`, Loki query)
 - Before/After:
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | `coinpilot-infra` 총 패널 수 | 8 | 13 | +5 | +62.5 |
 | Loki datasource 패널 수 | 0 | 5 | +5 | N/A |
-| 대시보드 버전 | 5 | 6 | +1 | +20.0 |
+| 대시보드 버전 | 5 | 7 | +2 | +40.0 |
 | Runbook 로그 정상 기준(`service` 중심 -> `filename` ingest 기준) | 미정렬 | 정렬 완료 | +1 정책 반영 | N/A |
+| 오류/경고 패널 zero-fill(`or vector(0)`) 미적용 쿼리 수 | 3 | 0 | -3 | -100.0 |
+| `check_24h_monitoring.sh t1h` FAIL | 0 | 0 | 0 | 0.0 |
+| `check_24h_monitoring.sh t1h` WARN | 2 | 1 | -1 | -50.0 |
+| Loki ingest query(5m) | N/A | 187 | N/A | N/A |
 
 - 정량 측정 불가 항목:
-  - 항목: 패널 런타임 값 갱신/알림 반응성
-  - 사유: OCI/Grafana 실환경 실행이 이 턴에서 불가
-  - 대체 지표: 정적 패널 구성 수치(패널 수/쿼리 존재/JSON 유효성)
-  - 추후 측정 계획: OCI에서 `t1h` + ingest 쿼리 + Grafana 패널 캡처로 Phase C 마감
+  - 해당 없음(OCI 런타임 검증 완료)
 
 ---
 
@@ -134,10 +154,10 @@
 
 ## 7. 결론 및 다음 단계
 - 현재 상태:
-  - 패널/문서 반영은 완료됐고, 21-08은 OCI 런타임 검증 전 단계(`in_progress`)다.
+  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수)을 충족해 `done`으로 마감한다.
 - 다음 단계:
-  1) OCI에서 패널 값 갱신 및 쿼리 결과 검증
-  2) 결과 문서에 런타임 정량치(패널 스냅샷/쿼리 값/경고 빈도) 추가 후 `done` 전환
+  1) 24h 운영 중 `Promtail Timestamp Too Old (15m)` 패널 추세를 주 1회 확인
+  2) 필요 시 로그 패널 기반 알림 규칙을 별도 plan으로 분리
 
 ---
 
@@ -145,3 +165,12 @@
 - Plan: `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md`
 - Dashboard: `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
 - Runbook: `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
+
+## 9. README 동기화 검증
+- 수행 이유:
+  - 21-08 메인 계획 완료(`done`)로 README 동기화가 필요함
+- 반영 내용:
+  - 운영 상태 날짜를 2026-03-07로 갱신
+  - Grafana 로그 패널화(21-08 완료) 문구와 백로그 상태(`21-08 done`)를 반영
+- 검증 명령:
+  - `rg -n "2026-03-07|21-08|Grafana 로그 패널화" README.md`

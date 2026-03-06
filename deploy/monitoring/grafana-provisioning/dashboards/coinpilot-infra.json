@@ -688,7 +688,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"Unable to refresh target groups\" [5m])) + sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"final error sending batch\" [5m]))",
+          "expr": "(sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"Unable to refresh target groups\" [5m])) + sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"final error sending batch\" [5m]))) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -743,7 +743,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"timestamp too old\" [15m]))",
+          "expr": "sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"timestamp too old\" [15m])) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -798,7 +798,7 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"client version\" |= \"too old\" [5m]))",
+          "expr": "sum(count_over_time({filename=\"/targets/logs/coinpilot-promtail.log\"} |= \"client version\" |= \"too old\" [5m])) or vector(0)",
           "queryType": "range",
           "refId": "A"
         }
@@ -823,6 +823,6 @@
   "timezone": "",
   "title": "CoinPilot Infra Overview",
   "uid": "coinpilot-infra-01",
-  "version": 6,
+  "version": 7,
   "weekStart": ""
 }
