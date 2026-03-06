@@ -35,6 +35,7 @@
 | 14 | 28 | AI Decision 전략문서/과거사례 기반 RAG 보강 | todo | 21-03/21-04 관측 데이터와 승인 확보 | 전략 문서 + 과거 사례 우선 RAG 실험 설계 승인 및 canary 검증 계획 확정 | (예정) `scripts/ops/ai_decision_canary_report.sh 24` + RAG on/off 비교 리포트 | `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md` | (생성 예정) |
 | 15 | 21-07 | OCI 로그 관측 체계 강화(Loki/Promtail) | done | 21-05 완료 + 사용자 승인 | Loki/Promtail 수집 + Grafana 조회 + Discord 테스트 알림 기준 확정 + `t1h FAIL=0` + Loki ingest 양수 확인 | `docker compose --env-file .env -f docker-compose.prod.yml up -d --build loki promtail-targets promtail grafana` + `curl -sS http://127.0.0.1:3100/ready` + `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana Alerting 테스트 규칙 1회 발화 후 Discord 수신 확인 | `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md` | `docs/work-result/21-07_oci_log_observability_loki_promtail_result.md`, `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md` |
 | 16 | 21-08 | Grafana Loki 로그 패널화 | done | 21-07 완료 + 사용자 승인 | `coinpilot-infra`에 Loki 핵심 패널(ingest/error/warn/top talker) 반영 + runbook 해석 기준 문서화 + OCI 검증 결과 문서화 | `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana 패널 수동 확인 | `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md` | `docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md` |
+| 17 | 31 | OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 | todo | 21-08 완료 + 사용자 승인 | 모니터링 스크립트 주기 실행(cron) 표준화 + 실행가드(flock/timeout) + 로그 보관 + LLM/AI 관측 갭 점검 자동화 | `bash -n scripts/ops/check_24h_monitoring.sh` + `bash -n scripts/ops/run_scheduled_monitoring.sh` + `crontab/cron.d 등록 확인` + `24h 누적 로그 점검` | `docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md` | (생성 예정) |
 
 ---
 
@@ -124,6 +125,7 @@
 - 2026-03-07: 21-08 후속 보정 3차 반영. 사용자 요청에 따라 절대 기준이 유효한 9개 패널에 주의/위험 threshold를 반영하고 description에도 동일 기준값을 명시해 운영 판단 기준을 정량화.
 - 2026-03-07: 21-08 후속 보정 4차 반영. 사용자 요청에 따라 Grafana alert rule 7개를 provisioning YAML로 코드화하고 compose에 alerting 마운트를 추가해 재기동 자동 반영 경로를 확정.
 - 2026-03-07: 21-08 후속 보정 5차 반영. 사용자 요청에 따라 Loki alert rule 3개에 `or vector(0)` + `noDataState=OK`를 적용하고, API mismatch 임계치를 `>=3, for 5m`로 완화해 Pending/No data 노이즈를 줄임.
+- 2026-03-07: 31 신규 계획 추가(Approval Pending). `scripts/ops` 운영 스크립트의 cron 주기 자동화, 실행가드, 로그 보관, 추가 관측 갭(LLM snapshot freshness/AI inactivity) 보강 범위를 등록.
 
 ---
 
