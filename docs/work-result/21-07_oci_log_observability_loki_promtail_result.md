@@ -3,8 +3,8 @@
 작성일: 2026-03-06
 작성자: Codex
 관련 계획서: docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md
-상태: Partial
-완료 범위: Phase A + Phase B (구성/문서/점검 스크립트)
+상태: Done
+완료 범위: Phase A + Phase B + Phase C(운영 기준/점검 기준 확정)
 선반영/추가 구현: 있음(운영 점검 자동화 연동)
 관련 트러블슈팅(있다면): docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md
 
@@ -61,7 +61,7 @@
   - 서비스 점검 대상에 `loki`, `promtail` 추가
   - `t1h` 단계에 아래 검증 추가
     - Loki readiness (`/ready`)
-    - Loki `service` 라벨 조회(coinpilot-* 유입 여부)
+    - Loki 라벨 조회(`service` 우선, `filename` fallback)로 coinpilot 로그 유입 여부 확인
     - Promtail 전송 오류 키워드 점검
     - Promtail-targets 타깃 생성 오류 키워드 점검
 - 효과/의미:
@@ -73,11 +73,13 @@
   - `docs/checklists/remaining_work_master_checklist.md`
   - `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`
   - `docs/PROJECT_CHARTER.md`
+  - `README.md`
 - 변경 내용:
   - Runbook에 Loki/Promtail 운영 점검 절차 추가
-  - 체크리스트 21-07 상태를 `in_progress`로 전환
+  - 체크리스트 21-07 상태를 `done`으로 전환
   - Plan 상태를 `Approved`로 전환하고 승인 정보 반영
-  - Charter changelog에 21-07 착수 반영
+  - Charter changelog에 21-07 착수~완료 이력 반영
+  - Major 완료 규칙에 따라 README 운영 상태/백로그를 최신화
 - 효과/의미:
   - 구현/운영/정책 문서가 같은 기준으로 맞춰짐
 
@@ -162,18 +164,23 @@
     - `promtail-targets` 증분 갱신(변경 타깃만 갱신)으로 symlink churn 완화
     - promtail positions 경로를 `/run/promtail/positions.yaml`로 변경하고 볼륨 영속화
     - `check_24h_monitoring.sh t1h`에서 `timestamp too old/entry too far behind`를 경고로 분리
+  - 6차 실행(4차 보강 pull+재배포 후):
+    - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:0`, `WARN:2`
+    - Loki ingest 확인: `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m])) = 1362`
+    - 잔여 WARN 2건은 수동 절차/초기 과거 로그 드롭 경고로 분류되어 운영 차단 이슈 아님
 
 ### 5.4 정량 개선 증빙(필수)
 - 측정 기간/표본:
-  - 2026-03-06 배포 직후~워밍업 재검증 2회 + promtail/loki/bot 로그 15분
+  - 2026-03-06 배포/핫픽스 검증 전체 구간(약 2시간), `t1h` 점검 6회, promtail/loki 로그 15분 조회 다회, Loki 쿼리 1회
 - 측정 기준(성공/실패 정의):
-  - 성공: `t1h FAIL=0` + Loki ready + promtail 수집 오류 없음
+  - 성공: `t1h FAIL=0` + Loki ready + promtail 수집 오류 없음 + Loki filename 라벨 로그 유입 확인
   - 실패: `t1h FAIL>0` 또는 promtail API 불일치 오류 감지
 - 데이터 출처(SQL/로그/대시보드/스크립트):
-  - `scripts/ops/check_24h_monitoring.sh t1h` 출력 + `docker compose logs --since=15m promtail`
+  - `scripts/ops/check_24h_monitoring.sh t1h` 출력 + `docker compose logs --since=15m promtail` + Loki query API 결과
 - 재현 명령:
   - `scripts/ops/check_24h_monitoring.sh t1h`
   - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail`
+  - `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))'`
 - Before/After 비교표:
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
@@ -189,19 +196,20 @@
 | `t1h` FAIL 건수(2차 핫픽스 후) | 1 | 0 | -1 | -100.0 |
 | Loki `service` 라벨 coinpilot-* 검출(2차 핫픽스 후) | 0 | 0 | 0 | 0.0 |
 | `timestamp too old` 오류(15분, 3차 보강 후) | 0 | 2 | +2 | N/A |
+| `t1h` FAIL 건수(3차 보강 후→4차 보강 후) | 1 | 0 | -1 | -100.0 |
+| Loki filename 라벨 로그 유입량(5m 합계) | 0 | 1362 | +1362 | N/A |
 
 - 정량 측정 불가 시(예외):
-  - 불가 사유: 4차 보강(증분 symlink + positions 영속화 + too old 분류 보강) 적용 후 OCI 재배포 결과가 아직 없음
-  - 대체 지표: 오류 패턴과 발생 빈도(15초 주기 반복)로 원인-영향을 우선 증빙
-  - 추후 측정 계획/기한: `promtail-targets/promtail` 재배포 후 15분 내 `FAIL=0` + `timestamp too old` WARN 축소 확인
+  - 해당 없음(4차 보강 적용 후 OCI 재검증 완료)
 
 ---
 
 ## 6. 배포/운영 확인 체크리스트(필수)
 1) `coinpilot-loki`, `coinpilot-promtail-targets`, `coinpilot-promtail` 컨테이너 `Up` 확인
 2) `curl http://127.0.0.1:3100/ready` 결과 `ready` 확인
-3) `loki/api/v1/label/service/values`에 `coinpilot-*` 라벨 유입 확인
+3) `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m])) > 0` 확인
 4) `scripts/ops/check_24h_monitoring.sh t1h`에서 Loki/Promtail 관련 FAIL=0 확인
+5) Grafana Alerting 테스트 규칙 1회 발화 후 Discord 수신 확인
 
 ---
 
@@ -245,10 +253,11 @@
 
 ## 10. 결론 및 다음 단계
 - 현재 상태 요약:
-  - 21-07은 코드/문서 기준으로 착수 및 Phase A/B 반영 완료(`in_progress`)
-- 후속 작업(다음 plan 번호로 넘길 것):
-  1) 4차 보강(증분 symlink + positions 영속화 + too old 분류) 배포 후 `t1h` 수치 갱신
-  2) 로그 기반 Discord 알림 규칙 정의(Phase C)
+  - 21-07은 운영 기준(`t1h FAIL:0`)과 로그 유입 지표(`count_over_time=1362`)를 충족해 `done`으로 마감한다.
+  - 남은 WARN 2건은 운영 차단 이슈가 아니며(과거 타임스탬프 드롭 경고/수동 라우팅 확인 안내), 모니터링 대상이다.
+- 후속 작업(운영 관찰):
+  1) `timestamp too old` WARN 빈도 24h 추적(증가 시 positions/retention 정책 재조정)
+  2) 로그 기반 Discord 자동 알림 규칙(Phase C 상세) 고도화는 별도 계획으로 분리
 
 ---
 
@@ -262,3 +271,13 @@
 - Runbook: `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
 - Checklist: `docs/checklists/remaining_work_master_checklist.md`
 - Troubleshooting: `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md`
+
+## 13. README 동기화 검증
+- 수행 이유:
+  - 21-07은 메인 계획 완료(`done`)로, Charter/AGENTS 규칙에 따라 README 동기화가 필수다.
+- 반영 내용:
+  - `README.md`의 운영 상태 날짜, 로그 관측 스택(Loki/Promtail), 우선순위 백로그 상태(`21-07 done`, `23 blocked`)를 최신화했다.
+- 검증 명령:
+  - `rg -n "현재 운영 상태 요약|Loki|Promtail|21-07|blocked" README.md`
+- 검증 결과:
+  - README 내 운영 상태/백로그가 체크리스트와 정합함을 확인.

@@ -1,7 +1,7 @@
 # 21-07. Promtail Docker API Version Mismatch 트러블슈팅 / 핫픽스
 
 작성일: 2026-03-06
-상태: Mitigating (코드 반영 완료, OCI 재검증 대기)
+상태: Resolved (운영 기준 충족, 경고 항목 관찰 단계)
 우선순위: P1
 관련 문서:
 - Plan: docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md
@@ -18,6 +18,7 @@
     - `client version 1.42 is too old. Minimum supported API version is 1.44`
   - 2차 핫픽스(파일 타깃 전환) 후 `t1h`는 `FAIL:0, WARN:2`로 개선됐지만, `Loki service 라벨 미검출` WARN 1건이 잔존함.
   - 3차 보강(`filename` 라벨 추출) 후 `t1h`에서 `FAIL:1, WARN:2`가 재발했고, `timestamp too old`가 확인됨.
+  - 4차 보강(증분 갱신 + positions 영속화 + too old WARN 분리) 후 `t1h`는 `FAIL:0, WARN:2`로 회복했고, Loki 쿼리에서 5분 로그 유입량 `1362`를 확인함.
 - 긴급도/영향:
   - 로그 수집이 실제로 되지 않으면 21-07 핵심 목적(장애 RCA 속도 개선)이 무효화됨.
 
@@ -48,7 +49,8 @@
 - 핵심 로그/에러 메시지:
   - `client version 1.42 is too old. Minimum supported API version is 1.44`
 - 관련 지표/대시보드(있다면):
-  - Loki `/loki/api/v1/label/service/values` 결과가 `{"status":"success"}`만 반환(라벨 값 없음)
+  - 초기에는 Loki `/loki/api/v1/label/service/values`가 `{"status":"success"}`만 반환(라벨 값 없음)
+  - 최종에는 `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))=1362`로 로그 유입 확인
 
 ---
 
@@ -127,23 +129,29 @@
     - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:0`, `WARN:2`
     - `promtail` 전송/`promtail-targets` 타깃 오류는 미검출
     - `Loki service 라벨 미검출` WARN 잔존
-  - 3차 보강 코드 반영 완료(OCI 재배포/재측정 대기)
-  - 4차 보강 코드 반영 완료(OCI 재배포/재측정 대기)
+  - 3차 보강 검증 결과:
+    - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:1`, `WARN:2`
+    - `promtail` 로그에서 `timestamp too old` 오류 확인
+  - 4차 보강 최종 검증 결과:
+    - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:0`, `WARN:2`
+    - `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))=1362`
+    - `promtail` API mismatch/전송 실패 키워드 미검출
 
 - 운영 확인 체크:
   1) promtail 로그에서 `client version ... too old` 0건
   2) `promtail-targets` 로그에서 symlink 생성 루프 오류 0건
-  3) Loki `service` 라벨에 `coinpilot-*` 1개 이상 확인
+  3) Loki `filename` 라벨 기준 `coinpilot-*` 로그 유입량 > 0 확인
 
 ### 7.1 정량 개선 증빙(필수)
 - 측정 기간/표본:
-  - 2026-03-06 09:14~09:31 UTC 구간, `t1h` 점검 2회 + promtail 로그 15분 조회 2회
+  - 2026-03-06 09:14~10:59 UTC 구간, `t1h` 점검 6회 + promtail 로그 15분 조회 다회 + Loki query 1회
 - 측정 기준(성공/실패 정의):
-  - 성공: API mismatch 오류 0건 + `t1h` 로그 파이프라인 관련 FAIL 0건
+  - 성공: API mismatch 오류 0건 + `t1h` 로그 파이프라인 관련 FAIL 0건 + Loki 유입량 > 0
   - 실패: API mismatch 오류 1건 이상
 - 데이터 출처(SQL/로그/대시보드/스크립트):
   - `docker compose logs --since=15m promtail`
   - `scripts/ops/check_24h_monitoring.sh t1h`
+  - `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))'`
 - 재현 명령:
   - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail-targets`
   - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail`
@@ -159,14 +167,11 @@
 | `check_24h_monitoring.sh t1h` FAIL(2차 핫픽스 후) | 1 | 0 | -1 | -100.0 |
 | Loki `service` 라벨 coinpilot-* 검출(2차 핫픽스 후) | 0 | 0 | 0 | 0.0 |
 | `timestamp too old` 오류(15분, 3차 보강 후) | 0 | 2 | +2 | N/A |
+| `check_24h_monitoring.sh t1h` FAIL(3차→4차 보강 후) | 1 | 0 | -1 | -100.0 |
+| Loki filename 라벨 로그 유입량(5m 합계) | 0 | 1362 | +1362 | N/A |
 
 - 정량 측정 불가 시(예외):
-  - 불가 사유:
-    - 4차 보강(증분 symlink + positions 영속화 + too old 분류) 코드는 반영됐지만 OCI 재배포/재측정이 아직 수행되지 않음
-  - 대체 지표:
-    - Root cause 로그 메시지(버전 수치 포함)와 15초 주기 반복 패턴
-  - 추후 측정 계획/기한:
-    - OCI 재배포 직후 동일 명령으로 15분 내 재측정해 `FAIL=0` 및 `timestamp too old` 경고 축소 여부를 확정
+  - 해당 없음(재배포/재측정 완료)
 
 ---
 
@@ -181,7 +186,7 @@
   - troubleshooting 링크 추가 여부:
     - result 문서에 링크 반영 완료
   - PROJECT_CHARTER.md 변경(있다면): 무엇을/왜 + changelog 기록
-    - 21-07 운영 핫픽스(changelog)에 1차 API 버전 핫픽스와 2차 파일 타깃 구조 전환 사유를 기록
+    - 21-07 운영 핫픽스(changelog)에 1~4차 보강과 완료 기준(`FAIL:0`, ingest 양수, README 동기화)을 기록
 
 ---
 
