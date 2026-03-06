@@ -110,6 +110,15 @@
 3. 의도:
   - 운영자가 "대충 높다"가 아니라 즉시 대응 가능한 수치 기준으로 판단하도록 정규화
 
+### Phase G. Alert Rule 프로비저닝 코드화
+1. 대상:
+  - Grafana alerting provisioning 파일(`deploy/cloud/oci/monitoring/grafana/provisioning/alerting/*.yaml`)
+2. 구현:
+  - 코어 장애/자원 임계치/로그 파이프라인 이상에 대한 핵심 alert rule을 YAML로 관리
+  - `docker-compose.prod.yml`에 alerting provisioning 마운트를 추가해 재기동 시 자동 반영
+3. 의도:
+  - UI 수동 생성 의존도를 줄이고, alert rule 변경 이력을 Git으로 추적 가능하게 만듦
+
 ## 6. 검증 기준
 - 재현 케이스에서 해결 확인:
   1) `coinpilot-infra`에서 Loki 패널 값이 0 이상으로 갱신되는지 확인
@@ -142,3 +151,4 @@
 - 2026-03-07: 사용자 요청("No data 대신 0 표기")에 따라 Phase D 후속 보정 범위를 추가. Promtail 오류/경고 3개 패널 쿼리에 `or vector(0)`를 적용해 빈 구간을 0으로 시각화하도록 조정.
 - 2026-03-07: 사용자 요청("진행해줘") 승인에 따라 Phase E(패널 설명 추가)를 범위에 포함. `coinpilot-infra` 13개 패널에 한국어 description을 추가해 운영 해석 가이드를 UI 내부로 통합.
 - 2026-03-07: 사용자 요청("대충 얼마 이상이면 안좋아 이런 기준도 잡아줄수 있나? ... 넣어 주면 좋을 것 같고") 승인에 따라 Phase F(임계치 기준 반영)를 범위에 추가.
+- 2026-03-07: 사용자 요청("그렇게 제공해줘") 승인에 따라 Phase G(Alert Rule 프로비저닝 코드화)를 범위에 추가.

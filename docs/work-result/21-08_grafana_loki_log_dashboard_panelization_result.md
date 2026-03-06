@@ -4,7 +4,7 @@
 작성자: Codex
 관련 계획서: docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md
 상태: Done
-완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E + Phase F (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가/임계치 기준 반영)
+완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E + Phase F + Phase G (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가/임계치 기준 반영/Alert Rule 프로비저닝 코드화)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -17,6 +17,7 @@
   - Promtail 오류/경고 패널 3종에 `or vector(0)` 보정 적용(빈 구간 `No data` 대신 `0`)
   - 대시보드 패널 13개에 한국어 description 추가(블록 의미/점검 포인트 내장)
   - 절대 기준이 유효한 패널 9개에 주의/위험 임계치(threshold) 반영
+  - Grafana alert rule 7개를 provisioning YAML로 코드화하고 compose 마운트로 자동 로드 경로를 고정
 - 해결한 문제(한 줄):
   - 로그 관측이 Explore 수동 조회에 머물던 상태를 대시보드 패널 기반 상시 관측 구조로 확장했다.
 - 해결한 문제의 구체 정의(증상/영향/재현 조건):
@@ -84,6 +85,24 @@
 - 목적:
   - 대시보드 해석을 정성 판단에서 정량 기준 기반 운영으로 전환
 
+### 2.7 후속 보정(Phase G: Alert Rule 프로비저닝 코드화)
+- 파일:
+  - `deploy/cloud/oci/docker-compose.prod.yml`
+  - `deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
+- 변경 내용:
+  - Grafana provisioning 경로에 alerting 마운트를 추가:
+    - `./monitoring/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro`
+  - 인프라/로그 핵심 경보 7개를 코드로 고정:
+    - `Coinpilot Core Down`
+    - `Host CPU High`
+    - `Host Memory High`
+    - `Root Disk High`
+    - `Promtail Pipeline Errors Detected`
+    - `Promtail Timestamp Too Old High`
+    - `Promtail API Mismatch Detected`
+- 목적:
+  - UI 수동 생성 없이 재배포 시 동일 alert rule을 자동 반영하고 변경 이력을 Git에서 추적
+
 ---
 
 ## 3. 변경 파일 목록
@@ -92,6 +111,8 @@
 3) `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md`
 4) `docs/checklists/remaining_work_master_checklist.md`
 5) `docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md`
+6) `deploy/cloud/oci/docker-compose.prod.yml`
+7) `deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
 
 ---
 
@@ -109,6 +130,8 @@
   - `jq '[.panels[] | select((.description // "") != "")] | length' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `jq '[.panels[] | select(((.fieldConfig.defaults.thresholds.steps // []) | length) >= 2)] | length' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `rg -n 'Loki Ingest Volume|Top Log Files by Volume|Promtail Pipeline Errors|Promtail Timestamp Too Old|Promtail API Mismatch' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `python3 -c 'import yaml; yaml.safe_load(open("deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml")); print("YAML_OK")'`
+  - `rg -n 'provisioning/alerting|coinpilot-infra-rules.yaml|uid:' deploy/cloud/oci/docker-compose.prod.yml deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
 - 결과:
   - JSON 파싱 정상(`OK_JSON`)
   - 대시보드 버전: `9`
@@ -118,6 +141,9 @@
   - 오류/경고 패널 3종 쿼리 모두 `or vector(0)` 포함 확인
   - description 적용 패널 수: `13/13`
   - threshold 적용 패널 수: `9/13`
+  - alerting YAML 파싱 정상(`YAML_OK`)
+  - compose에 Grafana alerting provisioning 마운트 1개 존재 확인
+  - provisioning alert rule UID 7개(`cp-*`) 존재 확인
 
 ### 5.2 런타임/운영 검증
 - OCI 검증 명령(사용자 실행):
@@ -139,10 +165,10 @@
 - 측정 기간/표본:
   - 정적 구조 검증 1회 + OCI 운영 검증 1회(2026-03-07)
 - 성공/실패 기준:
-  - 성공: Loki 패널 5종이 JSON에 존재 + JSON 유효성 통과 + `t1h FAIL=0` + ingest 쿼리 양수
+  - 성공: Loki 패널 5종이 JSON에 존재 + JSON 유효성 통과 + alerting YAML 유효성 통과 + `t1h FAIL=0` + ingest 쿼리 양수
   - 실패: JSON 파싱 오류 또는 패널 누락
 - 출처:
-  - `jq`, `rg` 명령 출력 + 사용자 운영 로그(`check_24h_monitoring.sh t1h`, Loki query)
+  - `jq`, `rg`, `python3(yaml)` 명령 출력 + 사용자 운영 로그(`check_24h_monitoring.sh t1h`, Loki query)
 - Before/After:
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
@@ -154,6 +180,9 @@
 | 오류/경고 패널 zero-fill(`or vector(0)`) 미적용 쿼리 수 | 3 | 0 | -3 | -100.0 |
 | 패널 description 적용 수 | 0 | 13 | +13 | N/A |
 | threshold 적용 패널 수 | 4 | 9 | +5 | +125.0 |
+| provisioning alert rule 파일 수 | 0 | 1 | +1 | N/A |
+| provisioning alert rule UID 수 | 0 | 7 | +7 | N/A |
+| Grafana alerting provisioning 마운트 수 | 0 | 1 | +1 | N/A |
 | `check_24h_monitoring.sh t1h` FAIL | 0 | 0 | 0 | 0.0 |
 | `check_24h_monitoring.sh t1h` WARN | 2 | 1 | -1 | -50.0 |
 | Loki ingest query(5m) | N/A | 187 | N/A | N/A |
@@ -181,10 +210,10 @@
 
 ## 7. 결론 및 다음 단계
 - 현재 상태:
-  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명/임계치 내장을 충족해 `done`으로 마감한다.
+  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명/임계치 내장 + alert rule 프로비저닝 코드화를 충족해 `done`으로 마감한다.
 - 다음 단계:
-  1) 24h 운영 중 `Promtail Timestamp Too Old (15m)` 패널 추세를 주 1회 확인
-  2) 필요 시 로그 패널 기반 알림 규칙을 별도 plan으로 분리
+  1) Grafana 재기동 후 `Alerting > Alert rules`에서 provisioned 7개 규칙 로드 여부 확인
+  2) 24h 운영 중 `Promtail Timestamp Too Old (15m)` 패널 추세와 `Promtail Timestamp Too Old High` 경보 상관관계를 주 1회 점검
 
 ---
 
@@ -192,6 +221,8 @@
 - Plan: `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md`
 - Dashboard: `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
 - Runbook: `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
+- Compose: `deploy/cloud/oci/docker-compose.prod.yml`
+- Alerting Provisioning: `deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
 
 ## 9. README 동기화 검증
 - 수행 이유:
@@ -200,5 +231,6 @@
   - 운영 상태 날짜를 2026-03-07로 갱신
   - Grafana 로그 패널화(21-08 완료) 문구와 백로그 상태(`21-08 done`)를 반영
   - 패널 description/threshold 후속 보정 내용(운영 기준 내장)을 추가
+  - alert rule provisioning 코드화(7개 규칙 + compose 마운트) 내용을 추가
 - 검증 명령:
   - `rg -n "2026-03-07|21-08|Grafana 로그 패널화" README.md`

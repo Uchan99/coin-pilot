@@ -310,6 +310,7 @@ services:
     volumes:
       - ../../monitoring/grafana-provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - ./monitoring/grafana/provisioning/dashboards/provider.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro
+      - ./monitoring/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro
       - ../../monitoring/grafana-provisioning/dashboards:/var/lib/grafana/dashboards:ro
       - coinpilot_grafana_data:/var/lib/grafana
     depends_on:

@@ -364,6 +364,29 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
   - Promtail Timestamp Too Old(15m): 주의 `>=1`, 위험 `>=10`
   - Promtail API Mismatch(5m): 주의 `>=1`, 위험 `>=3`
 
+7. Grafana Alert Rule 프로비저닝(21-08 Phase G)
+- 적용 파일:
+  - `deploy/cloud/oci/monitoring/grafana/provisioning/alerting/coinpilot-infra-rules.yaml`
+- 규칙 목록(7개):
+  - `Coinpilot Core Down`
+  - `Host CPU High`
+  - `Host Memory High`
+  - `Root Disk High`
+  - `Promtail Pipeline Errors Detected`
+  - `Promtail Timestamp Too Old High`
+  - `Promtail API Mismatch Detected`
+- 재적용(OCI):
+```bash
+cd /opt/coin-pilot
+ENV_FILE=/opt/coin-pilot/deploy/cloud/oci/.env
+COMPOSE_FILE=/opt/coin-pilot/deploy/cloud/oci/docker-compose.prod.yml
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate grafana
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=3m grafana | grep -Ei "alert|provision|error"
+```
+- 확인 포인트:
+  - Grafana UI `Alerting > Alert rules`에서 folder `coinpilot` 규칙 7개가 `Provisioned`로 노출되는지 확인
+  - 로그에 provisioning parse error가 없어야 함
+
 ---
 
 ## 10. 자주 헷갈린 질문 정리 (FAQ)
@@ -492,3 +515,4 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 2026-03-06: 21-07 핫픽스 반영, promtail Docker API mismatch 대응을 위해 `promtail-targets`(파일 타깃 생성) + promtail 파일 수집 구조로 전환
 - 2026-03-06: 21-08 반영, `CoinPilot Infra Overview`에 Loki 로그 패널 5종을 추가하고 runbook의 로그 정상 기준을 `filename` 기반 ingest 쿼리로 정렬
 - 2026-03-07: 21-08 후속 반영, `CoinPilot Infra Overview` 패널의 주의/위험 임계치(호스트/컨테이너/로그 오류)를 수치 기준으로 추가
+- 2026-03-07: 21-08 후속 반영(Phase G), Grafana alert rule provisioning(7개)과 grafana 재기동/적재 검증 절차를 추가
