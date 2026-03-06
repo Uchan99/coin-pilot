@@ -66,8 +66,8 @@
 
 ## 5. 구현/수정 내용 (예정)
 ### Phase A. 로그 수집 경로 설계
-1. Compose에 `loki`, `promtail` 서비스 추가 설계
-2. promtail scrape 대상(coinpilot-* 컨테이너) 라벨 규칙 정의
+1. Compose에 `loki`, `promtail`, `promtail-targets` 서비스 추가 설계
+2. promtail scrape 대상을 Docker API(`docker_sd`)와 파일 타깃(`promtail-targets` 생성 symlink) 중 환경 호환성이 높은 경로로 확정
 3. 보존기간/용량 제한 정책 정의
 
 ### Phase B. Grafana 연동
@@ -113,3 +113,4 @@
 - 2026-03-06: 21-05 완료 이후 후속 과제로 로그 관측 체계 강화를 분리 계획으로 생성(Approval Pending).
 - 2026-03-06: 사용자 승인으로 상태를 `Approved`로 전환하고, Phase A/B(Compose+Loki datasource+운영 점검 스크립트) 구현에 착수.
 - 2026-03-06: OCI 적용 중 promtail Docker API mismatch(`client 1.42`, `server min 1.44`)를 확인해 `PROMTAIL_DOCKER_API_VERSION` 핫픽스와 t1h 점검 FAIL 기준 강화를 범위에 추가.
+- 2026-03-06: 1차 핫픽스(`PROMTAIL_DOCKER_API_VERSION`) 적용 후에도 OCI에서 mismatch가 재현되어, 2차로 `promtail-targets` 파일 타깃 생성 + promtail 파일 수집 구조 전환을 범위에 추가.

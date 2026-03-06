@@ -1,7 +1,7 @@
 # 21-07. Promtail Docker API Version Mismatch 트러블슈팅 / 핫픽스
 
 작성일: 2026-03-06
-상태: Fixed
+상태: Mitigating (코드 반영 완료, OCI 재검증 대기)
 우선순위: P1
 관련 문서:
 - Plan: docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md
@@ -13,7 +13,9 @@
 ## 1. 트리거(왜 시작했나)
 - 모니터링/로그/사용자 리포트로 관측된 내용:
   - 21-07 배포 후 `scripts/ops/check_24h_monitoring.sh t1h`에서 `FAIL:0, WARN:3`가 지속됨.
-  - WARN 항목은 `Loki service 라벨 미검출` + `promtail 오류 키워드 감지`로 고정됨.
+  - 1차 핫픽스(`PROMTAIL_DOCKER_API_VERSION=1.44`) 반영 후에도 `t1h`가 `FAIL:1, WARN:2`로 재현됨.
+  - `promtail` 로그 15분 조회에서 아래 오류가 반복됨:
+    - `client version 1.42 is too old. Minimum supported API version is 1.44`
 - 긴급도/영향:
   - 로그 수집이 실제로 되지 않으면 21-07 핵심 목적(장애 RCA 속도 개선)이 무효화됨.
 
@@ -63,10 +65,13 @@
 ---
 
 ## 5. 해결 전략
-- 단기 핫픽스:
+- 1차 핫픽스(부분 완화):
   - `promtail` 서비스에 `DOCKER_API_VERSION=1.44` 강제 주입
-- 근본 해결:
-  - 환경변수 템플릿(`.env.example`, `deploy/cloud/oci/.env.example`)에 `PROMTAIL_DOCKER_API_VERSION`를 표준 항목으로 추가
+  - 결과: OCI에서 mismatch 재현(`FAIL:1`)으로 근본 해소 실패
+- 2차 근본 해결(구조 전환):
+  - `promtail`이 Docker API(`docker_sd`)를 직접 호출하지 않도록 설계 변경
+  - `promtail-targets` 사이드카가 `coinpilot-*` 컨테이너 로그 경로 symlink를 생성
+  - `promtail`은 `/targets/logs/*.log` 파일 타깃만 수집하도록 전환
 - 안전장치(feature flag, rate limit, timeout/cooldown, circuit breaker 등):
   - `check_24h_monitoring.sh t1h`에서 API mismatch 패턴을 WARN이 아닌 FAIL로 격상
 
@@ -74,69 +79,81 @@
 
 ## 6. 수정 내용
 - 변경 요약:
-  - promtail Docker API 버전 명시
+  - (1차) promtail Docker API 버전 명시
+  - (2차) `promtail-targets` 파일 타깃 생성 + promtail 파일 수집 구조 전환
   - 운영 점검 스크립트의 탐지 민감도 강화
 - 변경 파일:
   - `deploy/cloud/oci/docker-compose.prod.yml`
+  - `deploy/cloud/oci/monitoring/promtail/config.yml`
+  - `deploy/cloud/oci/monitoring/scripts/generate_promtail_log_targets.sh`
   - `.env.example`
   - `deploy/cloud/oci/.env.example`
   - `scripts/ops/check_24h_monitoring.sh`
 - DB/스키마 변경(있다면):
   - 없음
 - 롤백 방법(필수):
-  1) `deploy/cloud/oci/docker-compose.prod.yml`의 `promtail` 환경변수 제거
-  2) `scripts/ops/check_24h_monitoring.sh`의 promtail FAIL 패턴 원복
-  3) `docker compose ... up -d --no-deps promtail`
+  1) `deploy/cloud/oci/docker-compose.prod.yml`에서 `promtail-targets` 제거 및 `promtail`에 docker socket 수집 방식 복원
+  2) `deploy/cloud/oci/monitoring/promtail/config.yml`을 docker_sd 버전으로 원복
+  3) `scripts/ops/check_24h_monitoring.sh`의 promtail FAIL 패턴 기준을 이전 단계로 원복
+  4) `docker compose ... up -d --no-deps --force-recreate promtail-targets promtail`
 
 ---
 
 ## 7. 검증
 - 실행 명령/절차:
-  - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps promtail`
+  - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps --force-recreate promtail-targets promtail`
   - `sleep 45`
+  - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail-targets`
   - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail`
   - `curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values`
   - `scripts/ops/check_24h_monitoring.sh t1h`
 - 결과:
-  - 코드 반영 완료, OCI 재배포 후 수치 확정 예정
+  - 1차 핫픽스 검증 결과:
+    - `scripts/ops/check_24h_monitoring.sh t1h` => `FAIL:1`, `WARN:2`
+    - `promtail` 15분 로그에서 mismatch 오류 3건 검출
+  - 2차 핫픽스 코드 반영 완료(OCI 재배포/재측정 대기)
 
 - 운영 확인 체크:
   1) promtail 로그에서 `client version ... too old` 0건
-  2) Loki `service` 라벨에 `coinpilot-*` 1개 이상 확인
+  2) `promtail-targets` 로그에서 symlink 생성 루프 오류 0건
+  3) Loki `service` 라벨에 `coinpilot-*` 1개 이상 확인
 
 ### 7.1 정량 개선 증빙(필수)
 - 측정 기간/표본:
-  - 2026-03-06 09:14~09:16 UTC 구간, promtail 로그 15분 조회 1회
+  - 2026-03-06 09:14~09:31 UTC 구간, `t1h` 점검 2회 + promtail 로그 15분 조회 2회
 - 측정 기준(성공/실패 정의):
-  - 성공: API mismatch 오류 0건 + `t1h` 로그 파이프라인 관련 FAIL/WARN 해소
+  - 성공: API mismatch 오류 0건 + `t1h` 로그 파이프라인 관련 FAIL 0건
   - 실패: API mismatch 오류 1건 이상
 - 데이터 출처(SQL/로그/대시보드/스크립트):
   - `docker compose logs --since=15m promtail`
   - `scripts/ops/check_24h_monitoring.sh t1h`
 - 재현 명령:
+  - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail-targets`
   - `docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --since=15m promtail`
   - `scripts/ops/check_24h_monitoring.sh t1h`
 - Before/After 비교표:
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
-| promtail API mismatch 오류(15분) | 11 | 측정 예정 | 측정 예정 | 측정 예정 |
-| `check_24h_monitoring.sh t1h` FAIL | 0 | 측정 예정 | 측정 예정 | 측정 예정 |
-| `check_24h_monitoring.sh t1h` WARN | 3 | 측정 예정 | 측정 예정 | 측정 예정 |
+| promtail API mismatch 오류(15분) | 11 | 3 (1차 핫픽스 후) | -8 | -72.7 |
+| `check_24h_monitoring.sh t1h` FAIL | 0 | 1 (1차 핫픽스 후) | +1 | N/A |
+| `check_24h_monitoring.sh t1h` WARN | 3 | 2 (1차 핫픽스 후) | -1 | -33.3 |
+| promtail API mismatch 오류(15분, 2차 핫픽스 후) | 3 | 측정 예정 | 측정 예정 | 측정 예정 |
 
 - 정량 측정 불가 시(예외):
   - 불가 사유:
-    - 본 문서 시점은 코드 핫픽스 반영 직후이며, OCI에 최신 코드 재배포/재측정이 아직 수행되지 않음
+    - 2차 핫픽스(파일 타깃 전환) 코드는 반영됐지만 OCI 재배포/재측정이 아직 수행되지 않음
   - 대체 지표:
-    - Root cause 로그 메시지(버전 수치 포함)와 오류 반복 주기(약 15초)
+    - Root cause 로그 메시지(버전 수치 포함)와 15초 주기 반복 패턴
   - 추후 측정 계획/기한:
-    - OCI 재배포 직후 동일 명령으로 15분 내 재측정해 After 수치 확정
+    - OCI 재배포 직후 동일 명령으로 15분 내 재측정해 2차 핫픽스 After 수치 확정
 
 ---
 
 ## 8. 재발 방지
 - 가드레일(테스트/알림/검증 스크립트/권한/필터/타임아웃 등):
-  - `PROMTAIL_DOCKER_API_VERSION` 표준 env로 고정
+  - Docker API 직접 의존을 제거한 파일 타깃 수집 구조로 표준화
+  - `PROMTAIL_TARGET_INTERVAL_SEC`를 env로 노출해 동기화 주기 조정 가능
   - 점검 스크립트에서 API mismatch 키워드를 FAIL로 즉시 차단
 - 문서 반영:
   - plan/result 업데이트 여부:
@@ -144,7 +161,7 @@
   - troubleshooting 링크 추가 여부:
     - result 문서에 링크 반영 완료
   - PROJECT_CHARTER.md 변경(있다면): 무엇을/왜 + changelog 기록
-    - 21-07 운영 핫픽스(changelog)로 `PROMTAIL_DOCKER_API_VERSION` 표준화와 점검 FAIL 기준 강화 사유를 기록
+    - 21-07 운영 핫픽스(changelog)에 1차 API 버전 핫픽스와 2차 파일 타깃 구조 전환 사유를 기록
 
 ---
 

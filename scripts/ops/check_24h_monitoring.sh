@@ -17,7 +17,7 @@ WARN_COUNT=0
 MODE="all"
 OUTPUT_FILE=""
 
-SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map loki promtail)
+SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map loki promtail-targets promtail)
 OPTIONAL_SERVICES=(discord-bot)
 
 usage() {
@@ -324,6 +324,19 @@ check_loki_log_pipeline() {
     fail "promtail 로그에 수집 파이프라인 오류 키워드 감지"
   else
     pass "promtail 전송 오류 키워드 미검출"
+  fi
+
+  # 파일 타깃 생성 사이드카가 실패하면 promtail 자체는 정상이어도 로그 유입이 0이 될 수 있다.
+  local promtail_targets_logs
+  if ! promtail_targets_logs="$(run_compose logs --since=15m promtail-targets 2>&1)"; then
+    fail "promtail-targets logs 조회 실패: ${promtail_targets_logs}"
+    return
+  fi
+
+  if grep -Eiq "client version .* too old|cannot connect to the docker daemon|permission denied|error response from daemon|no such file or directory|read-only file system" <<<"${promtail_targets_logs}"; then
+    fail "promtail-targets 로그에 타깃 생성 오류 키워드 감지"
+  else
+    pass "promtail-targets 타깃 생성 오류 키워드 미검출"
   fi
 }
 

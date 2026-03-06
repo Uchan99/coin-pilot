@@ -236,6 +236,22 @@ services:
       - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
       - coinpilot_loki_data:/loki
 
+  promtail-targets:
+    <<: *app_security
+    image: docker:27.5.1-cli
+    container_name: coinpilot-promtail-targets
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/opt/coinpilot/generate_promtail_log_targets.sh"]
+    environment:
+      PROMTAIL_TARGET_INTERVAL_SEC: ${PROMTAIL_TARGET_INTERVAL_SEC:-30}
+      PROMTAIL_TARGET_DIR: /targets/logs
+    volumes:
+      # docker ps/inspect로 coinpilot-* 로그 파일 경로를 찾아 promtail용 symlink 타깃을 생성한다.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - coinpilot_promtail_targets:/targets
+      - ./monitoring/scripts/generate_promtail_log_targets.sh:/opt/coinpilot/generate_promtail_log_targets.sh:ro
+
   promtail:
     <<: *app_security
     image: grafana/promtail:2.9.8
@@ -249,9 +265,12 @@ services:
       - -config.file=/etc/promtail/config.yml
     volumes:
       - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - coinpilot_promtail_targets:/targets:ro
     depends_on:
       loki:
+        condition: service_started
+      promtail-targets:
         condition: service_started
 
   prometheus:
@@ -304,3 +323,4 @@ volumes:
   coinpilot_prometheus_data:
   coinpilot_grafana_data:
   coinpilot_loki_data:
+  coinpilot_promtail_targets:
