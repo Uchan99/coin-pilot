@@ -4,7 +4,7 @@
 작성자: Codex
 관련 계획서: docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md
 상태: Done
-완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가)
+완료 범위: Phase A + Phase B + Phase C + Phase D + Phase E + Phase F (패널 반영/Runbook 정합화/OCI 런타임 검증/No data -> 0 보정/패널 설명 추가/임계치 기준 반영)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -16,6 +16,7 @@
   - 체크리스트에 21-08 완료 상태 반영
   - Promtail 오류/경고 패널 3종에 `or vector(0)` 보정 적용(빈 구간 `No data` 대신 `0`)
   - 대시보드 패널 13개에 한국어 description 추가(블록 의미/점검 포인트 내장)
+  - 절대 기준이 유효한 패널 9개에 주의/위험 임계치(threshold) 반영
 - 해결한 문제(한 줄):
   - 로그 관측이 Explore 수동 조회에 머물던 상태를 대시보드 패널 기반 상시 관측 구조로 확장했다.
 - 해결한 문제의 구체 정의(증상/영향/재현 조건):
@@ -36,7 +37,7 @@
   4) `Promtail Timestamp Too Old (15m)`
   5) `Promtail API Mismatch (5m)`
 - 기타:
-  - 대시보드 버전 `5 -> 8` 증가(Phase D `6 -> 7`, Phase E `7 -> 8`)
+  - 대시보드 버전 `5 -> 9` 증가(Phase D `6 -> 7`, Phase E `7 -> 8`, Phase F `8 -> 9`)
 
 ### 2.2 Runbook 정합화
 - 파일:
@@ -44,6 +45,7 @@
 - 변경 내용:
   - 로그 정상 기준을 `Loki service 라벨` 중심에서 `filename` ingest 쿼리 기준으로 변경
   - 패널 5종의 목적/해석 기준 추가
+  - 주의/위험 임계치(호스트/컨테이너/로그 오류) 수치 기준 추가
   - `Loki/Pipeline quick check` 명령을 ingest 쿼리 기준으로 갱신
 
 ### 2.3 작업 추적 동기화
@@ -73,6 +75,15 @@
 - 목적:
   - 운영자가 대시보드 내부에서 블록 의미를 즉시 이해하고, 오해 없이 대응 기준을 확인할 수 있게 함
 
+### 2.6 후속 보정(Phase F: 임계치 기준 반영)
+- 파일:
+  - `deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+- 변경 내용:
+  - 호스트/컨테이너/로그 오류 패널 등 절대 기준이 유효한 9개 패널에 threshold 추가 또는 보정
+  - description에 주의/위험 기준(예: CPU 70/85, 메모리 75/90, 오류 1/5 등)을 명시
+- 목적:
+  - 대시보드 해석을 정성 판단에서 정량 기준 기반 운영으로 전환
+
 ---
 
 ## 3. 변경 파일 목록
@@ -96,15 +107,17 @@
   - `jq '.version, (.panels | length), ([.panels[] | select(.datasource.uid=="loki")] | length)' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `jq -r '.panels[] | select(.id==11 or .id==12 or .id==13) | .targets[0].expr' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `jq '[.panels[] | select((.description // "") != "")] | length' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
+  - `jq '[.panels[] | select(((.fieldConfig.defaults.thresholds.steps // []) | length) >= 2)] | length' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
   - `rg -n 'Loki Ingest Volume|Top Log Files by Volume|Promtail Pipeline Errors|Promtail Timestamp Too Old|Promtail API Mismatch' deploy/monitoring/grafana-provisioning/dashboards/coinpilot-infra.json`
 - 결과:
   - JSON 파싱 정상(`OK_JSON`)
-  - 대시보드 버전: `8`
+  - 대시보드 버전: `9`
   - 전체 패널 수: `13`
   - Loki 패널 수: `5`
   - 패널 타이틀 5종 모두 존재 확인
   - 오류/경고 패널 3종 쿼리 모두 `or vector(0)` 포함 확인
   - description 적용 패널 수: `13/13`
+  - threshold 적용 패널 수: `9/13`
 
 ### 5.2 런타임/운영 검증
 - OCI 검증 명령(사용자 실행):
@@ -136,10 +149,11 @@
 |---|---:|---:|---:|---:|
 | `coinpilot-infra` 총 패널 수 | 8 | 13 | +5 | +62.5 |
 | Loki datasource 패널 수 | 0 | 5 | +5 | N/A |
-| 대시보드 버전 | 5 | 8 | +3 | +60.0 |
+| 대시보드 버전 | 5 | 9 | +4 | +80.0 |
 | Runbook 로그 정상 기준(`service` 중심 -> `filename` ingest 기준) | 미정렬 | 정렬 완료 | +1 정책 반영 | N/A |
 | 오류/경고 패널 zero-fill(`or vector(0)`) 미적용 쿼리 수 | 3 | 0 | -3 | -100.0 |
 | 패널 description 적용 수 | 0 | 13 | +13 | N/A |
+| threshold 적용 패널 수 | 4 | 9 | +5 | +125.0 |
 | `check_24h_monitoring.sh t1h` FAIL | 0 | 0 | 0 | 0.0 |
 | `check_24h_monitoring.sh t1h` WARN | 2 | 1 | -1 | -50.0 |
 | Loki ingest query(5m) | N/A | 187 | N/A | N/A |
@@ -167,7 +181,7 @@
 
 ## 7. 결론 및 다음 단계
 - 현재 상태:
-  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명 내장을 충족해 `done`으로 마감한다.
+  - 21-08은 패널 반영 + runbook 정렬 + OCI 런타임 검증(`FAIL:0`, ingest 양수) + 패널 설명/임계치 내장을 충족해 `done`으로 마감한다.
 - 다음 단계:
   1) 24h 운영 중 `Promtail Timestamp Too Old (15m)` 패널 추세를 주 1회 확인
   2) 필요 시 로그 패널 기반 알림 규칙을 별도 plan으로 분리
@@ -185,5 +199,6 @@
 - 반영 내용:
   - 운영 상태 날짜를 2026-03-07로 갱신
   - Grafana 로그 패널화(21-08 완료) 문구와 백로그 상태(`21-08 done`)를 반영
+  - 패널 description/threshold 후속 보정 내용(운영 기준 내장)을 추가
 - 검증 명령:
   - `rg -n "2026-03-07|21-08|Grafana 로그 패널화" README.md`

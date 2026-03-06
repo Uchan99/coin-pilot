@@ -354,6 +354,15 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
   - Ingest 패널이 0이면 로그 유입 경로 단절 의심
   - Pipeline Errors/API Mismatch 패널이 0 초과로 지속되면 장애 후보
   - Timestamp Too Old 패널은 재기동 직후 일시 스파이크는 허용하되 장시간 지속 시 확인
+- 주의/위험 임계치(21-08 후속 반영):
+  - Host CPU: 주의 `>=70% (10분)`, 위험 `>=85% (5분)`
+  - Host Memory: 주의 `>=75% (10분)`, 위험 `>=90% (5분)`
+  - Root Disk: 주의 `>=75%`, 위험 `>=85%` (`>=90%` 즉시 조치)
+  - Container CPU(개별): 주의 `>=70% (10분)`, 위험 `>=85% (5분)`
+  - Restart Changes(24h): 주의 `>=1`, 위험 `>=3`
+  - Promtail Pipeline Errors(5m): 주의 `>=1`, 위험 `>=5`
+  - Promtail Timestamp Too Old(15m): 주의 `>=1`, 위험 `>=10`
+  - Promtail API Mismatch(5m): 주의 `>=1`, 위험 `>=3`
 
 ---
 
@@ -482,3 +491,4 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 2026-03-06: 21-07 Phase 1 반영, Loki/Promtail 로그 관측 체계 및 T+1h 로그 수집 점검 기준 추가
 - 2026-03-06: 21-07 핫픽스 반영, promtail Docker API mismatch 대응을 위해 `promtail-targets`(파일 타깃 생성) + promtail 파일 수집 구조로 전환
 - 2026-03-06: 21-08 반영, `CoinPilot Infra Overview`에 Loki 로그 패널 5종을 추가하고 runbook의 로그 정상 기준을 `filename` 기반 ingest 쿼리로 정렬
+- 2026-03-07: 21-08 후속 반영, `CoinPilot Infra Overview` 패널의 주의/위험 임계치(호스트/컨테이너/로그 오류)를 수치 기준으로 추가
