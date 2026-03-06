@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-06  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md`, `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`  
-**승인 정보**: 승인 대기 / - / -
+**승인 정보**: 사용자 / 2026-03-06 / "구현 시작해줘."
 
 ---
 
@@ -112,3 +112,4 @@
 
 ## 10. 계획 변경 이력
 - 2026-03-06: 21-07 완료 이후 후속 과제로 Grafana Loki 로그 패널화 계획 신규 생성(Approval Pending).
+- 2026-03-06: 사용자 승인으로 상태를 `Approved`로 전환하고, `coinpilot-infra` Loki 패널 추가 구현에 착수.

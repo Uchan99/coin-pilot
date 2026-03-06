@@ -311,7 +311,7 @@ docker ps -a --format '{{.ID}} {{.Names}}' | awk '{print substr($1,1,12), $2}' |
 2. 정상 기준
 - `coinpilot-loki`, `coinpilot-promtail-targets`, `coinpilot-promtail` 컨테이너가 `Up`
 - `http://127.0.0.1:3100/ready` 응답이 `ready`
-- Loki `service` 라벨에 `coinpilot-*` 값이 최소 1개 이상 노출
+- Loki 쿼리 `sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))` 값이 0보다 큼
 - promtail 로그에 `client version ... too old` 메시지가 없음
 
 3. 점검 명령(OCI)
@@ -319,7 +319,8 @@ docker ps -a --format '{{.ID}} {{.Names}}' | awk '{print substr($1,1,12), $2}' |
 cd /opt/coin-pilot/deploy/cloud/oci
 docker compose --env-file .env -f docker-compose.prod.yml ps loki promtail-targets promtail
 curl -sS http://127.0.0.1:3100/ready
-curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values
+curl -sS -G http://127.0.0.1:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))'
 docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail-targets
 docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail | grep -Ei "client version|too old|unable to refresh target groups|error sending batch|status 4|status 5"
 ```
@@ -337,9 +338,22 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 5. Grafana 조회 예시
 - Explore > Data source: `Loki`
 - 기본 쿼리 예시:
-  - `{service="coinpilot-bot"}`
-  - `{service="coinpilot-bot"} |= "Traceback"`
-  - `{service="coinpilot-n8n"} |= "error"`
+  - `{filename="/targets/logs/coinpilot-bot.log"}`
+  - `{filename="/targets/logs/coinpilot-bot.log"} |= "Traceback"`
+  - `{filename="/targets/logs/coinpilot-n8n.log"} |= "error"`
+
+6. Grafana 패널(21-08 반영)
+- 대시보드: `CoinPilot Infra Overview` (`uid=coinpilot-infra-01`)
+- Loki 패널:
+  - `Loki Ingest Volume (5m)`
+  - `Top Log Files by Volume (5m)`
+  - `Promtail Pipeline Errors (5m)`
+  - `Promtail Timestamp Too Old (15m)`
+  - `Promtail API Mismatch (5m)`
+- 해석 기준:
+  - Ingest 패널이 0이면 로그 유입 경로 단절 의심
+  - Pipeline Errors/API Mismatch 패널이 0 초과로 지속되면 장애 후보
+  - Timestamp Too Old 패널은 재기동 직후 일시 스파이크는 허용하되 장시간 지속 시 확인
 
 ---
 
@@ -390,7 +404,7 @@ scripts/ops/check_24h_monitoring.sh all
 | T+0m | 서비스 기동 상태 | `docker compose ... ps` | 핵심 10개 서비스 `Up` | `logs`로 실패 서비스 우선 확인 후 재기동 |
 | T+0m | bot 초기화 오류 | `logs --since=10m bot` | `critical/traceback/undefined` 없음 | 스키마/환경변수/Redis 연결 재검증 |
 | T+1h | 메트릭 수집 연속성 | Prometheus Targets, bot `/metrics` | `coinpilot-core` `UP` 유지 | scrape 설정/네트워크 확인 |
-| T+1h | 로그 수집 연속성 | Loki ready, service label, promtail/promtail-targets 로그 | Loki `ready` + `coinpilot-*` 라벨 확인 | loki/promtail/promtail-targets 상태 및 docker.sock/targets 마운트 확인 |
+| T+1h | 로그 수집 연속성 | Loki ready, filename query, promtail/promtail-targets 로그 | Loki `ready` + ingest query 양수 확인 | loki/promtail/promtail-targets 상태 및 docker.sock/targets 마운트 확인 |
 | T+1h | 알림 라우팅 정상 | Grafana Alert Rules + Discord | 테스트/실제 알림 수신 확인 | Notification policy/contact point 재확인 |
 | T+6h | 거래/의사결정 흐름 | bot 로그(Entry/AI/Risk) | 로그 공백 없이 주기 동작 | 스케줄러 중단/에러 여부 확인 |
 | T+12h | 배치 작업 정상 | `RSS ingest`, `daily report` 로그 | 실패(`failed`) 누적 없음 | n8n workflow active 및 webhook 점검 |
@@ -453,7 +467,8 @@ scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-2
 ```bash
 cd /opt/coin-pilot/deploy/cloud/oci
 curl -sS http://127.0.0.1:3100/ready
-curl -sS -G http://127.0.0.1:3100/loki/api/v1/label/service/values
+curl -sS -G http://127.0.0.1:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum(count_over_time({filename=~"/targets/logs/coinpilot-.*\\.log"}[5m]))'
 docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promtail
 ```
 
@@ -466,3 +481,4 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=15m promt
 - 2026-02-28: 21-05 반영, 인프라 exporter(`coinpilot-node-exporter`, `coinpilot-cadvisor`) 및 Grafana 인프라 대시보드 운영 절차 추가
 - 2026-03-06: 21-07 Phase 1 반영, Loki/Promtail 로그 관측 체계 및 T+1h 로그 수집 점검 기준 추가
 - 2026-03-06: 21-07 핫픽스 반영, promtail Docker API mismatch 대응을 위해 `promtail-targets`(파일 타깃 생성) + promtail 파일 수집 구조로 전환
+- 2026-03-06: 21-08 반영, `CoinPilot Infra Overview`에 Loki 로그 패널 5종을 추가하고 runbook의 로그 정상 기준을 `filename` 기반 ingest 쿼리로 정렬
