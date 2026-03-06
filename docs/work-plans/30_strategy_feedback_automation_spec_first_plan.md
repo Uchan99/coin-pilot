@@ -11,6 +11,7 @@
 ## 0. 트리거(Why started)
 - 운영/모니터링에서 무엇이 관측됐는지:
   - 전략 수정 판단이 현재는 수동 해석 중심(Exit analysis, AI Decisions, risk, history)으로 분산되어 있음.
+  - 기존 주간 Exit 리포트는 있으나, Rule Funnel/백테스트 기반 "전략 수정 제안"은 포함되어 있지 않음.
   - Daily Report에 신호는 있으나, Rule Engine 파라미터(진입/익절/손절/레짐)를 체계적으로 피드백하는 자동 루프가 없음.
   - 29번 검증에서 데이터 윈도우/표본 부족 문제가 확인되어, 관측→개선 제안→검증의 자동 체계 필요성이 증가.
 - 왜 지금 필요한지:
@@ -33,8 +34,9 @@
 ### 2.1 목표
 1. 전략 피드백 루프를 자동화: `관측 -> 원인분해 -> 파라미터 제안 -> 백테스트 검증 -> 승인 배포`
 2. Rule Engine 핵심 항목(레짐 임계값, 진입 필터, TP/SL/트레일링)별 영향도를 정량화
-3. “자동 수정”이 아니라 “자동 제안 + 사람 승인” 운영 표준 확정
+3. 자동 제안 체계를 기본으로 하되, 파라미터 변경에 한해 제한적 자동 적용 가능 여부를 운영정책으로 명확화
 4. 추후 28번 RAG와 결합 가능한 근거 데이터 계약(spec) 확정
+5. 기존 Discord 주간 Exit 리포트에 전략 제안 섹션을 증분 통합(주 1회 7일 고정)
 
 ### 2.2 비목표
 1. 본 계획에서 무인 자동 배포/무인 자동 파라미터 변경은 수행하지 않음
@@ -61,6 +63,13 @@
     - 장점: 속도/안전성/감사 가능성 균형
     - 단점: 승인 프로세스 설계/운영 비용 필요
 
+## 3.1 자동 수정 범위 정책(초안)
+1. Tier-A (허용): `config/strategy_v3.yaml` 내 허용 파라미터(임계값/TP/SL 등) 자동 변경
+2. Tier-B (제한): 파이썬 코드 로직 변경은 자동 "제안 PR 생성"까지만 허용, 자동 배포 금지
+3. 기본 운영 모드:
+   - 초기 2주: Shadow(제안만 생성, 적용 금지)
+   - 이후: Tier-A만 제한적 자동 적용 검토
+
 ## 4. 대응 전략
 - 단기:
   - 전략 피드백 표준 스키마/리포트/검증 게이트를 먼저 문서화(Spec-First)
@@ -86,6 +95,9 @@
    - 승률, PF, MDD, 체결당 평균손익, REJECT율, Timeout율
 3. 보고서 산출:
    - 일간 요약 + 주간 비교(전주 대비 변화량)
+4. 주간 리포트 통합 방식:
+   - 기존 `Weekly Exit Report` payload에 `Strategy Feedback` 블록 추가
+   - Discord에는 요약(판정/핵심 수치) + 상세(파라미터 후보/근거) 2단 메시지로 전송
 
 ### Phase C. 파라미터 후보 생성(룰 기반)
 1. 후보 생성 범위 제한:
@@ -111,6 +123,21 @@
 3. 변경 이력:
    - 변경 전/후 지표 자동 기록
 
+### Phase F. 운영 가드레일(요청 반영)
+1. 주간 변경 예산(cap):
+   - 주당 파라미터 변경 최대 2개
+   - 변경폭 제한: RSI ±2, TP/SL ±0.5%p
+2. 2주 Shadow 모드:
+   - 최초 2회(2주)는 제안만 생성, 자동 적용 금지
+3. 자동 보류 기준:
+   - `SELL < 20` 또는 `AI decisions < 80`이면 자동 보류
+4. 롤백 트리거:
+   - 적용 후 7일 내 `PF -10%` 또는 `MDD +2%p` 악화 시 즉시 원복
+5. 재현성 고정:
+   - 제안서에 백테스트 기간/심볼/설정 해시(config hash) 필수 기록
+6. Discord 승인 워크플로우 표준:
+   - `추천/보류/폐기 + 근거 4줄 + diff 경로` 고정 포맷
+
 ## 6. 검증 기준(정량)
 - 측정 기간/표본:
   - 기본 30일 + 최근 레짐 전환 구간 별도
@@ -123,6 +150,8 @@
   5) LLM 비용/호출량 증가율 관리(변경 전 대비 +20% 이내)
 - 성공/실패 정의:
   - 위 KPI 중 수익+리스크 필수 항목 동시 만족 시 “승인 가능”
+- 자동 적용 허용 조건(추가):
+  - Shadow 모드 종료 + 주간 변경 cap 충족 + 자동 보류 기준 미충족 + 롤백 트리거 미발생
 
 ## 7. 예상 변경 파일
 1. `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md` (본 문서)
@@ -131,6 +160,8 @@
 4. (예정) `scripts/ops/strategy_feedback_report.sh`
 5. (예정) `scripts/ops/strategy_feedback_gate.sh`
 6. (예정) `src/analytics/strategy_feedback.py`
+7. (예정) `scripts/ops/strategy_feedback_apply.sh` (Tier-A 한정 자동 적용기)
+8. (예정) `scripts/ops/strategy_feedback_open_pr.sh` (Tier-B 코드 변경 제안 PR 생성기)
 
 ## 8. 검증 명령(초안)
 1. 데이터 범위 점검:
@@ -143,6 +174,10 @@
    - `scripts/ops/llm_usage_cost_report.sh 24`
 5. 전략 시나리오 점검:
    - `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120`
+6. 주간 리포트 통합 점검:
+   - `python -c "import asyncio; from src.bot.main import weekly_exit_report_job; asyncio.run(weekly_exit_report_job())"`
+7. 재현성 해시 검증:
+   - `sha256sum config/strategy_v3.yaml`
 
 ## 9. 롤백
 - 코드 롤백:
@@ -169,3 +204,5 @@
 
 ## 12. 계획 변경 이력
 - 2026-03-06: 사용자 요청(전략 피드백 자동화 아이디어)을 반영해 신규 main 계획 30 생성. 구현 전 Spec-First + 승인형 배포 원칙으로 범위를 확정.
+- 2026-03-07: 사용자 요청에 따라 주기 정책을 "주 1회(7일 고정)"로 명확화하고, 기존 Weekly Exit Report 경로에 전략 제안 섹션을 증분 통합하는 방식을 추가.
+- 2026-03-07: 사용자 요청에 따라 운영 가드레일 6종(주간 cap, 2주 shadow, 자동 보류 기준, 롤백 트리거, 재현성 해시, Discord 표준 승인 포맷)과 자동 수정 범위(Tier-A/Tier-B)를 추가.

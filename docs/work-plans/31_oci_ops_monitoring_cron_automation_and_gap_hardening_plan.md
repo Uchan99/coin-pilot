@@ -12,6 +12,7 @@
 - 운영/모니터링에서 무엇이 관측됐는지:
   - 현재 `scripts/ops/check_24h_monitoring.sh`, `scripts/ops/llm_usage_cost_report.sh`, `scripts/ops/ai_decision_canary_report.sh`는 수동 실행 중심이다.
   - 점검 결과를 파일로 남기는 기능(`--output`)은 있으나, 주기 실행/중복 실행 방지/보관 정책이 표준화되지 않았다.
+  - 주간 Exit 리포트는 존재하지만, 전략 수정 제안(퍼널 분해 + 백테스트 + 파라미터 후보)까지 포함된 자동 주간 산출은 부재하다.
   - `check_24h_monitoring.sh t1h`는 수동 확인 안내(`Grafana/Discord`)를 WARN으로 출력하므로 cron 상시 실행 시 경고 노이즈가 고정 발생할 수 있다.
 - 왜 즉시 대응이 필요한지:
   - 현재 운영 안정화 단계에서 점검 누락/근거 누락/수동 반복 실행 부담이 누적되면 장애 대응 속도와 추적성이 저하된다.
@@ -85,6 +86,8 @@
   4) `check_24h_monitoring.sh t24h`: `04:10` (백업 완료 이후)
   5) `ai_decision_canary_report.sh 24`: `04:20`
   6) `llm_usage_cost_report.sh 24`: `04:30`
+  7) `strategy_feedback_report.sh 7`: 매주 일요일 `22:10 KST` (기존 주간 Exit 리포트 직후)
+  8) `strategy_feedback_apply.sh` 자동 적용은 Shadow 2주 종료 후에만 활성화(초기 비활성 기본)
 
 ### Phase B. 자동 실행 가드 도입
 - 변경 파일(예정):
@@ -150,3 +153,5 @@
 
 ## 11. 계획 변경 이력
 - 2026-03-07: 사용자 요청에 따라 신규 계획 생성(Approval Pending). `scripts/ops` 운영 스크립트의 cron 자동화와 관측 갭 보강 범위를 정의.
+- 2026-03-07: 사용자 요청에 따라 전략 자동화 주기를 주 1회(7일)로 명확화하고, 기존 Weekly Exit 리포트 직후 전략 제안 리포트 실행 슬롯(`일요일 22:10 KST`)을 주기표에 추가.
+- 2026-03-07: 사용자 요청에 따라 전략 자동 적용 스케줄은 Shadow 2주 종료 전까지 비활성(default off) 정책을 추가.
