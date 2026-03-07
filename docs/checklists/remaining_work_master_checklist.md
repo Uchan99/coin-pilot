@@ -135,6 +135,7 @@
 - 2026-03-08: 99-04 메타 계획 추가(`todo`, Approval Pending). 29 마감 이후 현재 남은 작업 기준으로 체크리스트 `Priority` 열과 README backlog를 재정렬하는 작업을 별도 추적 항목으로 등록.
 - 2026-03-08: 99-04 완료(`done`). 체크리스트 상단 우선순위를 `21-03 -> 21-04 -> 29-01 -> 30 -> 31 -> 28 -> 22 -> 23`으로 재배열하고, README backlog에서 완료 항목 4개를 제거해 남은 작업만 표시하도록 동기화.
 - 2026-03-08: 21-03 24h 운영 관측 업데이트. `agent_decisions` 최근 24h 집계에서 primary 13건, canary 5건으로 모델 혼재는 확인됐지만, 계획 기준인 모델별 최소 표본 `N>=20`에 미달해 상태는 `in_progress` 유지. 실행 경로는 `cd /opt/coin-pilot && scripts/ops/ai_decision_canary_report.sh 24` 또는 절대경로 사용이 필요함을 결과 문서에 명시.
+- 2026-03-08: 21-04 24h 운영 관측 업데이트. `scripts/ops/llm_usage_cost_report.sh 24`에서 route/provider/model 비용 리포트 5행과 provider 2개 비용 분리는 확인됐지만, `llm_provider_cost_snapshots`는 여전히 `0 rows`라 reconciliation/freshness가 비어 있음. 따라서 상태는 `in_progress` 유지하고, `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24` 실행 경로를 결과 문서에 명시.
 
 ---
 

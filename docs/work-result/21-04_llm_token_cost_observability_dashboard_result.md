@@ -368,3 +368,70 @@
 - 해석:
   - 현재 모드는 "현상 유지(비활성)"로 정상 운영 중이며, 내부 원장(`llm_usage_events`) 기반 비용 관측은 안정적으로 동작한다.
   - provider 외부 비용 대조는 향후 `LLM_COST_SNAPSHOT_ENABLED=true` 전환 시점에 활성화한다.
+
+---
+
+## 17. Phase 3 운영 관측 업데이트 (2026-03-08)
+- 관측 요약:
+  - `/opt/coin-pilot` 기준에서 `scripts/ops/llm_usage_cost_report.sh 24` 실행은 정상 동작했고, 최근 24시간 모델/route별 토큰/비용 리포트가 출력됐다.
+  - 내부 원장 기준으로는 `anthropic`과 `openai` 모두 비용 분리가 가능하다.
+  - 하지만 `llm_provider_cost_snapshots`는 여전히 `0 rows`이며 freshness 섹션도 비어 있어 외부 비용 대조(reconciliation)는 아직 불가하다.
+  - 따라서 `21-04`는 "운영 리포트 동작 확인 완료"까지는 도달했지만, 현재 문서 기준으로는 `in_progress` 유지가 맞다.
+- 경로 주의:
+  - 실행 위치가 `/opt/coin-pilot/deploy/cloud/oci`면 `scripts/ops/...` 상대경로가 맞지 않는다.
+  - 권장 실행:
+    - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
+    - 또는 `/opt/coin-pilot/scripts/ops/llm_usage_cost_report.sh 24`
+
+- 정량 관측(최근 24h):
+
+| feature | route | provider | model | total_calls | success_calls | error_calls | total_tokens | cost_usd |
+|---|---|---|---|---:|---:|---:|---:|---:|
+| `ai_decision` | `ai_decision_analyst` | `anthropic` | `claude-haiku-4-5-20251001` | 13 | 12 | 1 | 54,343 | 0.066380 |
+| `ai_decision` | `ai_decision_guardian` | `anthropic` | `claude-haiku-4-5-20251001` | 9 | 9 | 0 | 39,964 | 0.052317 |
+| `ai_decision` | `ai_decision_analyst` | `openai` | `gpt-4o-mini` | 5 | 5 | 0 | 13,732 | 0.002353 |
+| `ai_decision` | `ai_decision_guardian` | `openai` | `gpt-4o-mini` | 2 | 2 | 0 | 5,554 | 0.000919 |
+| `daily_report` | `daily_report_summary` | `openai` | `gpt-4o-mini` | 1 | 1 | 0 | 328 | 0.000106 |
+
+- reconciliation 관측:
+
+| provider | ledger_cost_usd | provider_cost_usd | delta_usd |
+|---|---:|---:|---:|
+| `anthropic` | 0.118697 | 0.000000 | 0.118697 |
+| `openai` | 0.003379 | 0.000000 | 0.003379 |
+
+- snapshot 상태:
+
+| 지표 | 값 |
+|---|---:|
+| `llm_provider_cost_snapshots` 총 행 수 | 0 |
+| provider별 snapshot count | 0 providers |
+| freshness 결과 행 수 | 0 |
+
+- 정량 개선 증빙(추가):
+  - 측정 기간/표본:
+    - 최근 24시간, route 5개
+  - 측정 기준:
+    - route/provider/model 비용 리포트 출력 여부 + provider snapshot 존재 여부
+  - 데이터 출처:
+    - `scripts/ops/llm_usage_cost_report.sh 24`
+    - `llm_provider_cost_snapshots` SQL
+  - 재현 명령:
+    - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
+    - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT provider, count(*) AS snapshot_count FROM llm_provider_cost_snapshots GROUP BY provider ORDER BY provider;"`
+    - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT provider, max(created_at) AS latest_snapshot_at FROM llm_provider_cost_snapshots GROUP BY provider ORDER BY provider;"`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 24h cost report 집계 행 수 | 0 | 5 | +5 | 측정 불가(분모 0) |
+| 24h 비용 관측 provider 수 | 0 | 2 | +2 | 측정 불가(분모 0) |
+| provider cost snapshot 행 수 | 0 | 0 | 0 | 0.0 |
+
+- 해석:
+  - 내부 usage ledger 기반 토큰/비용 관측은 운영 가능 상태다.
+  - 그러나 `provider_cost_usd`가 전부 0이고 snapshot 행이 없어서, 현재는 "route별 비용 추이 리포트는 가능, 외부 비용 대조는 미완료" 상태다.
+  - 따라서 `21-04`는 `done`이 아니라 **"상태 명확화 완료, `in_progress` 유지"** 로 보는 것이 맞다.
+- 다음 판정 조건:
+  1) `LLM_COST_SNAPSHOT_ENABLED=true` 상태에서 최소 1개 provider snapshot row 생성
+  2) freshness 결과에 provider별 최근 시각이 표시
+  3) `ledger_cost_usd` vs `provider_cost_usd` 대조가 의미 있는 수준으로 출력

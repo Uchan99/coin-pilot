@@ -301,6 +301,15 @@ ORDER BY total DESC;
 | `anthropic:claude-haiku-4-5-20251001 (primary)` | 13 | 1 | 7.69 | 1 | 0 |
 | `openai:gpt-4o-mini (canary)` | 5 | 0 | 0.00 | 0 | 0 |
 
+- 추가 관측:
+  - `avg_confidence`:
+    - primary `54.08`
+    - canary `61.00`
+  - symbol breakdown:
+    - primary: `KRW-XRP 12건`, `KRW-DOGE 1건`
+    - canary: `KRW-XRP 5건`
+  - 현재 24h 표본은 `KRW-XRP`에 과도하게 집중되어 있어, 모델 비교 결과를 "전심볼 일반화 결론"으로 해석할 수 없다.
+
 - 정량 개선 증빙(추가):
   - 측정 기간/표본:
     - 최근 24시간, 총 18 decisions
@@ -317,11 +326,13 @@ ORDER BY total DESC;
 | 24h canary 모델 집계 건수 | 0 | 5 | +5 | 측정 불가(분모 0) |
 | 24h primary 모델 집계 건수 | 3 | 13 | +10 | +333.3 |
 | 모델별 최소 표본 기준 충족 수(2모델 기준) | 0 | 0 | 0 | 0.0 |
+| canary 관측 심볼 수 | 0 | 1 | +1 | 측정 불가(분모 0) |
 
 - 해석:
   - 카나리 라우팅은 실제 운영 데이터에서 동작 중이다.
-  - 그러나 canary 표본 5건은 분포/품질 판정에 부족하므로, 현재 단계에서 `done` 전환이나 기본 모델 승격 판단은 이르다.
+  - 그러나 canary 표본 5건은 분포/품질 판정에 부족하고, 모두 `KRW-XRP`에 집중되어 있어 현재 단계에서 `done` 전환이나 기본 모델 승격 판단은 이르다.
 - 다음 판정 조건:
   1) 모델별 `N>=20` 확보
   2) parse_fail/timeout 악화가 primary 대비 `+2%p` 이내
   3) confirm/reject 분포 해석이 가능한 수준의 표본 확보
+  4) 최소 2개 이상 심볼에서 canary 표본 확보
