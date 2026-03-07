@@ -286,3 +286,42 @@ ORDER BY total DESC;
 - `docs/checklists/remaining_work_master_checklist.md`
 - `docs/PROJECT_CHARTER.md`
 - `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
+
+---
+
+## 13. Phase 3 운영 관측 업데이트 (2026-03-08)
+- 관측 요약:
+  - 24시간 구간에서 primary 13건, canary 5건이 기록되어 모델 혼재 자체는 확인됐다.
+  - 다만 계획서의 최소 표본 기준(`모델별 N>=20`)에는 미달하므로 `21-03`은 계속 `in_progress`가 맞다.
+  - 운영 명령은 `/opt/coin-pilot/deploy/cloud/oci`에서 바로 `scripts/ops/...`로 실행하면 경로가 맞지 않으므로, `cd /opt/coin-pilot` 후 실행하거나 절대경로(`/opt/coin-pilot/scripts/ops/...`)를 써야 한다.
+- 정량 관측(2026-03-08, 최근 24h):
+
+| model_used | total | confirm_count | confirm_rate_pct | parse_fail_count | timeout_count |
+|---|---:|---:|---:|---:|---:|
+| `anthropic:claude-haiku-4-5-20251001 (primary)` | 13 | 1 | 7.69 | 1 | 0 |
+| `openai:gpt-4o-mini (canary)` | 5 | 0 | 0.00 | 0 | 0 |
+
+- 정량 개선 증빙(추가):
+  - 측정 기간/표본:
+    - 최근 24시간, 총 18 decisions
+  - 측정 기준:
+    - 모델 혼재 확인 + 최소 표본 기준 충족 여부
+  - 데이터 출처:
+    - `agent_decisions` SQL 집계
+  - 재현 명령:
+    - `cd /opt/coin-pilot && scripts/ops/ai_decision_canary_report.sh 24`
+    - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT model_used, count(*) AS total, count(*) FILTER (WHERE decision='CONFIRM') AS confirm_count, round(100.0 * count(*) FILTER (WHERE decision='CONFIRM') / nullif(count(*),0), 2) AS confirm_rate_pct, count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') AS parse_fail_count, count(*) FILTER (WHERE reasoning ILIKE '%timed out%') AS timeout_count FROM agent_decisions WHERE created_at >= now() - interval '24 hours' GROUP BY model_used ORDER BY total DESC;"`
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 24h canary 모델 집계 건수 | 0 | 5 | +5 | 측정 불가(분모 0) |
+| 24h primary 모델 집계 건수 | 3 | 13 | +10 | +333.3 |
+| 모델별 최소 표본 기준 충족 수(2모델 기준) | 0 | 0 | 0 | 0.0 |
+
+- 해석:
+  - 카나리 라우팅은 실제 운영 데이터에서 동작 중이다.
+  - 그러나 canary 표본 5건은 분포/품질 판정에 부족하므로, 현재 단계에서 `done` 전환이나 기본 모델 승격 판단은 이르다.
+- 다음 판정 조건:
+  1) 모델별 `N>=20` 확보
+  2) parse_fail/timeout 악화가 primary 대비 `+2%p` 이내
+  3) confirm/reject 분포 해석이 가능한 수준의 표본 확보

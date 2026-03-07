@@ -242,18 +242,14 @@ Slash Command:
 ## 현재 우선순위 백로그 (체크리스트 연동)
 상세 상태는 항상 `docs/checklists/remaining_work_master_checklist.md`를 기준으로 확인합니다.
 
-1. `21-05` OCI 인프라 리소스 모니터링 고도화 (`done`)
-2. `21-07` OCI 로그 관측 체계 강화(Loki/Promtail) (`done`)
-3. `21-08` Grafana Loki 로그 패널화 (`done`)
-4. `29` 레짐 전환 구간 전략 평가 + 조건부 핫픽스 (`done`, 추가 레짐 완화 핫픽스 보류)
-5. `21-03` AI Decision 카나리 실험 (`in_progress`)
-6. `21-04` LLM 토큰/비용 관측 대시보드 (`in_progress`)
-7. `29-01` BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 (`todo`)
-8. `30` 전략 피드백 자동화(Spec-First, 승인형 배포) (`todo`)
-9. `31` OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 (`todo`)
-10. `28` AI Decision 전략문서/과거사례 기반 RAG 보강 (`todo`)
-11. `22` 대시보드 가독성/실시간성 표준화(Spec-First) (`todo`)
-12. `23` Next.js 점진 이관 (`blocked`)
+1. `21-03` AI Decision 카나리 실험 (`in_progress`)
+2. `21-04` LLM 토큰/비용 관측 대시보드 (`in_progress`)
+3. `29-01` BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 (`todo`)
+4. `30` 전략 피드백 자동화(Spec-First, 승인형 배포) (`todo`)
+5. `31` OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 (`todo`)
+6. `28` AI Decision 전략문서/과거사례 기반 RAG 보강 (`todo`)
+7. `22` 대시보드 가독성/실시간성 표준화(Spec-First) (`todo`)
+8. `23` Next.js 점진 이관 (`blocked`)
 
 ## 관련 문서
 - 프로젝트 기준/정의: `docs/PROJECT_CHARTER.md`

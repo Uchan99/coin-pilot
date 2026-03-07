@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-08  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Verified  
 **관련 계획 문서**: `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`, `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md`, `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md`, `docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md`  
-**승인 정보**: 미승인 / - / 사용자 승인 대기
+**승인 정보**: 사용자 / 2026-03-08 / "현재, 수정된 문서 커밋 메시지 제공해주고, 다음 단계 진행해줘"
 
 ---
 
@@ -84,3 +84,7 @@
 - 다음에 유사 문제 방지를 위한 작업:
   1) main 상태 변경 시 backlog 숫자 재정렬 여부를 함께 점검
   2) README backlog는 완료 항목 제거, 운영 상태 요약은 완료 항목 유지 원칙을 유지
+
+## 9. 계획 변경 이력
+- 2026-03-08: 신규 계획 작성, 승인 대기(`Approval Pending`).
+- 2026-03-08: 사용자 승인 후 체크리스트 `Priority` 열과 README backlog를 현재 남은 작업 기준으로 재정렬하고, 결과 문서를 작성해 상태를 `Verified`로 전환.
