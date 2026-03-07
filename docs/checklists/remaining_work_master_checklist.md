@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-07  
+최종 수정일: 2026-03-08  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -24,7 +24,7 @@
 | 3 | 24 | 디스코드 모바일 조회 챗봇 | done | 21-05 기본 모니터링 안정화 | `/positions`, `/pnl`, `/status`, `/risk`, `/ask` 정상 응답 + role/channel 제한 정책 검증 완료 | `docker compose --profile discord-bot ... up -d --build bot discord-bot` + Discord slash command 수동 확인(허용/차단 케이스 포함) | `docs/work-plans/24_discord_mobile_chatbot_query_plan.md` | `docs/work-result/24_discord_mobile_chatbot_query_result.md`, `docs/troubleshooting/24_mobile_visibility_gap_discord_query_need.md`, `docs/troubleshooting/24-01_discord_role_nonetype_guard_fix.md`, `docs/troubleshooting/24-02_mobile_api_500_missing_psycopg2.md` |
 | 4 | 21-03 | AI Decision 카나리 실험 | in_progress | 24 최소 기능 반영 후 | 카나리 기간 동안 승인율/거절율/오류율/비용 비교 리포트 확보 | `scripts/ops/ai_decision_canary_report.sh 24` + `agent_decisions.model_used` 모델 혼재 확인 | `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md` | `docs/work-result/21-03_ai_decision_model_canary_experiment_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 5 | 21-04 | LLM 토큰/비용 관측 대시보드 | in_progress | 21-03 실험 데이터 구조 확정 | 모델별 토큰/비용 추이가 Grafana 또는 리포트로 확인 가능 | `scripts/ops/llm_usage_cost_report.sh 24` + `scripts/ops/llm_credit_snapshot_collect.sh` + `SELECT route, provider, model, count(*) FROM llm_usage_events GROUP BY 1,2,3;` + `SELECT provider, count(*) FROM llm_provider_cost_snapshots GROUP BY 1;` | `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md` | `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
-| 6 | 29 | 레짐 전환 구간 전략 평가 + 조건부 핫픽스 | in_progress | 사용자 승인 + 운영 데이터 감사 가능 상태 | 백테스트 시나리오 비교 + 핫픽스 적용/보류 결론 확정 + 결과 문서 작성 | `PYTHONPATH=. python scripts/backtest_v3.py` + `scripts/ops/ai_decision_canary_report.sh 24` + `SELECT count(*) FILTER (WHERE side='SELL') FROM trading_history ...` | `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md` | `docs/work-result/29_regime_transition_strategy_evaluation_and_hotfix_result.md` |
+| 6 | 29 | 레짐 전환 구간 전략 평가 + 조건부 핫픽스 | done | 사용자 승인 + 운영 데이터 감사 가능 상태 | 백테스트 시나리오 비교 + 핫픽스 적용/보류 결론 확정 + 결과 문서 작성 | `PYTHONPATH=. python scripts/backtest_v3.py` + `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv` + `PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 240 --output /tmp/regime_scenarios_240d.csv` + `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT symbol, MIN(timestamp), MAX(timestamp), COUNT(*) ... FROM market_data ..."` | `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md` | `docs/work-result/29_regime_transition_strategy_evaluation_and_hotfix_result.md` |
 | 7 | 29-01 | BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 | todo | 사용자 승인 + 29 baseline 지표 고정 | 레짐별 Rule/Risk/AI 퍼널 지표 상시 조회 + 7일(주 1회) 자동 리포트 + 기존 Weekly Exit Report 증분 확장 + 자동 수정 금지(승인형 제안만) 운영 기준 확정 | (예정) `scripts/ops/rule_funnel_regime_report.sh 72` + 주간 리포트 로그 누적 확인 + 퍼널 SQL 검증 | `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md` | (생성 예정) |
 | 8 | 30 | 전략 피드백 자동화(Spec-First, 승인형 배포) | todo | 29 결과(기준선) 확보 + 21-03/21-04 관측 데이터 사용 가능 | 관측->원인분해->제안->검증->승인 배포 루프 spec 확정 + 자동 분석/게이트 PoC 결과 문서화 | (예정) `scripts/ops/strategy_feedback_report.sh` + `scripts/ops/strategy_feedback_gate.sh` + KPI SQL 검증 | `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md` | (생성 예정) |
 | 9 | 22 | 대시보드 가독성/실시간성 표준화(Spec-First) | todo | 24/21-03 관측 요구사항 반영 | 프론트 무관 운영 UI/freshness/stale 표준 확정 + 23 수용 기준 체크리스트 완성 | (예정) 22 spec 문서 + acceptance checklist 검토 | `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md` | (생성 예정) |
@@ -37,6 +37,7 @@
 | 16 | 21-07 | OCI 로그 관측 체계 강화(Loki/Promtail) | done | 21-05 완료 + 사용자 승인 | Loki/Promtail 수집 + Grafana 조회 + Discord 테스트 알림 기준 확정 + `t1h FAIL=0` + Loki ingest 양수 확인 | `docker compose --env-file .env -f docker-compose.prod.yml up -d --build loki promtail-targets promtail grafana` + `curl -sS http://127.0.0.1:3100/ready` + `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana Alerting 테스트 규칙 1회 발화 후 Discord 수신 확인 | `docs/work-plans/21-07_oci_log_observability_loki_promtail_plan.md` | `docs/work-result/21-07_oci_log_observability_loki_promtail_result.md`, `docs/troubleshooting/21-07_promtail_docker_api_version_mismatch.md` |
 | 17 | 21-08 | Grafana Loki 로그 패널화 | done | 21-07 완료 + 사용자 승인 | `coinpilot-infra`에 Loki 핵심 패널(ingest/error/warn/top talker) 반영 + runbook 해석 기준 문서화 + OCI 검증 결과 문서화 | `scripts/ops/check_24h_monitoring.sh t1h` + `curl -sS -G http://127.0.0.1:3100/loki/api/v1/query --data-urlencode 'query=sum(count_over_time({filename=~\"/targets/logs/coinpilot-.*\\\\.log\"}[5m]))'` + Grafana 패널 수동 확인 | `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md` | `docs/work-result/21-08_grafana_loki_log_dashboard_panelization_result.md` |
 | 18 | 31 | OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 | todo | 21-08 완료 + 사용자 승인 | 모니터링 스크립트 주기 실행(cron) 표준화 + 실행가드(flock/timeout) + 로그 보관 + LLM/AI 관측 갭 점검 자동화 | `bash -n scripts/ops/check_24h_monitoring.sh` + `bash -n scripts/ops/run_scheduled_monitoring.sh` + `crontab/cron.d 등록 확인` + `24h 누적 로그 점검` | `docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md` | (생성 예정) |
+| 19 | 99-04 | Remaining Work 우선순위 재정렬 동기화 | todo | 사용자 승인 + 현재 남은 작업 순서 확정 | 체크리스트 `Priority` 열과 README backlog가 최신 남은 작업 순서와 일치 | `rg -n "21-03|21-04|29-01|30|31|28|22|23" docs/checklists/remaining_work_master_checklist.md README.md` | `docs/work-plans/99-04_remaining_work_priority_reorder_sync_plan.md` | (생성 예정) |
 
 ---
 
@@ -130,6 +131,8 @@
 - 2026-03-07: 사용자 요청에 따라 `29-01` 하위 계획을 신규 등록(Approval Pending). BULL 레짐 Rule funnel 계측 공백을 메우고, 7일(주 1회) 주기 점검 자동화 및 자동 수정 금지(승인형 제안) 원칙을 명시.
 - 2026-03-07: 사용자 요청에 따라 `29-01/30/31` 계획을 "주 1회(7일) 고정 + 기존 Weekly Exit Report 확장" 기준으로 동기화.
 - 2026-03-07: 사용자 요청에 따라 30 계획에 운영 가드레일 6종과 자동 수정 범위(Tier-A YAML 자동 적용 / Tier-B 코드 변경 PR 제안)를 반영하고, 29-01/31에 연계 정책을 추가.
+- 2026-03-08: 29 최종 마감(`done`). `market_data` 실가용 범위가 약 122~125일임을 확인했고, 120/240일 시나리오 모두 `transition_sensitive`가 손실/MDD 개선은 보였지만 `avg_profit_per_trade < 0`, `RR < 1.0`, `PF < 1.0`으로 수익성 게이트를 통과하지 못해 "추가 레짐 완화 핫픽스 보류" 결론을 결과 문서/README와 동기화.
+- 2026-03-08: 99-04 메타 계획 추가(`todo`, Approval Pending). 29 마감 이후 현재 남은 작업 기준으로 체크리스트 `Priority` 열과 README backlog를 재정렬하는 작업을 별도 추적 항목으로 등록.
 
 ---
 

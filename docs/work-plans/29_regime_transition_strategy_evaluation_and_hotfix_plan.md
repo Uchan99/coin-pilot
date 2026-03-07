@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-05  
 **작성자**: Codex  
-**상태**: In Progress  
+**상태**: Done  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`  
 **승인 정보**: 사용자 / 2026-03-06 / "f29 브랜치로 옮겨서 시작해줘"
 
@@ -182,3 +182,4 @@
 - 2026-03-06: Phase E 착수. 사용자 요청(“DOGE/XRP 축소 시 BTC/ETH/SOL 확대 고려”)을 반영해 시나리오 스크립트에 `symbol_rebalanced`/`transition_sensitive_symbol_rebalanced`를 추가.
 - 2026-03-06: 사용자 추가 승인("그렇게 진행해줘")에 따라 Phase F(실거래/백테스트 공통 심볼 비중 배율 핫픽스) 적용을 계획 범위에 포함.
 - 2026-03-06: Phase F 구현 반영. `StrategyConfig`/`strategy_v3.yaml`/`main.py`/`backtest_v3.py`를 공통 배율 규칙으로 정렬하고, 결과 문서 및 Charter changelog를 동기화.
+- 2026-03-08: Phase 6 검증 완료. `market_data` 실가용 범위가 약 122~125일임을 확인했고, 120/240일 시나리오 모두 `transition_sensitive`가 손실/MDD는 줄였지만 수익성 게이트를 충족하지 못해 "추가 레짐 완화 핫픽스 보류"로 최종 결론을 확정했다.

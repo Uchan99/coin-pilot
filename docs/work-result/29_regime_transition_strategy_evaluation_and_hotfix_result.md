@@ -3,9 +3,9 @@
 작성일: 2026-03-06
 작성자: Codex
 관련 계획서: `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`
-상태: In Progress
-완료 범위: Phase 1~5
-선반영/추가 구현: 있음(Phase 2~5)
+상태: Done
+완료 범위: Phase 1~6
+선반영/추가 구현: 있음(Phase 2~6)
 관련 트러블슈팅(있다면): 없음
 
 ---
@@ -252,30 +252,72 @@
 
 ---
 
+### 4.7 시장 데이터 유효 기간 검증(Phase 6)
+- 측정 기간/표본:
+  - 2026-03-08 OCI 운영 DB, 5개 심볼 `market_data(interval='1m')`
+- 측정 기준:
+  - 120/180/240일 백테스트 요청이 실제로 서로 다른 데이터 윈도우를 사용하는지 확인
+- 데이터 출처:
+  - `coinpilot-db` SQL 조회 결과
+- 재현 명령:
+  - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT symbol, MIN(timestamp) AS first_ts, MAX(timestamp) AS last_ts, COUNT(*) AS rows, ROUND(EXTRACT(EPOCH FROM MAX(timestamp)-MIN(timestamp))/86400.0, 2) AS span_days FROM market_data WHERE interval='1m' GROUP BY symbol ORDER BY symbol;"`
+- 검증 결과:
+  - `KRW-BTC`: `122.18일`, `175,630 rows`
+  - `KRW-DOGE`: `124.80일`, `175,306 rows`
+  - `KRW-ETH`: `122.18일`, `175,619 rows`
+  - `KRW-SOL`: `122.31일`, `175,548 rows`
+  - `KRW-XRP`: `122.17일`, `175,628 rows`
+- 해석:
+  - 240일 실행은 "진짜 240일 검증"이 아니라, 실제 보유분인 약 122~125일 전량을 사용하는 실행이다.
+  - 따라서 120일 vs 240일 비교는 완전한 장기 워크포워드라기보다, 최근 120일 대비 추가 2~5일 포함 효과를 보는 보조 검증으로 해석해야 한다.
+
+### 4.8 최종 핫픽스 판정(Phase 6)
+- 측정 기간/표본:
+  - OCI 120일/실가용 240일 백테스트, 시나리오당 119~128체결
+- 측정 기준:
+  - 29 계획의 핫픽스 승인 게이트 충족 여부
+- 데이터 출처:
+  - `/tmp/regime_scenarios_120d.csv`, `/tmp/regime_scenarios_240d.csv`
+- 재현 명령:
+  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 120 --output /tmp/regime_scenarios_120d.csv'`
+  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python scripts/backtest_regime_transition_scenarios.py --days 240 --output /tmp/regime_scenarios_240d.csv'`
+- Before/After 비교표 (baseline vs transition_sensitive):
+
+| 지표 | 120d Before (baseline) | 120d After (transition_sensitive) | 240d Before (baseline) | 240d After (transition_sensitive) |
+|---|---:|---:|---:|---:|
+| 체결 수 | 128 | 119 | 128 | 120 |
+| 총 실현손익 (KRW) | -95,057 | -78,962 | -94,277 | -80,037 |
+| 체결당 평균손익 (KRW) | -742.63 | -663.55 | -736.54 | -666.97 |
+| Reward/Risk Ratio | 0.6726 | 0.6981 | 0.6751 | 0.7048 |
+| Profit Factor | 0.5400 | 0.5800 | 0.5420 | 0.5767 |
+| Max Drawdown (KRW) | 120,781 | 113,752 | 120,375 | 113,752 |
+
+- 판정:
+  - `transition_sensitive`는 baseline 대비 손실과 MDD를 줄였지만, 120일/240일 모두 `평균 체결손익 < 0`, `Reward/Risk < 1.0`, `Profit Factor < 1.0` 상태다.
+  - 따라서 29 계획의 효율 게이트(체결당 평균 실현손익 `> 0 KRW`, Reward/Risk `>= 1.0` 또는 대체 승률 조건 충족)를 만족하지 못한다.
+  - 최종 결론은 **"추가 레짐 완화 핫픽스 보류"** 이다.
+- 추가 관찰:
+  - `symbol_rebalanced`와 `transition_sensitive_symbol_rebalanced`가 각각 `baseline`, `transition_sensitive`와 동일 값으로 출력됐다.
+  - 이유는 2026-03-06 Phase 5에서 심볼 배율 정책(BTC/ETH/SOL 1.2, XRP/DOGE 0.7)이 이미 기본 전략 YAML에 승격되어, 현재 baseline 자체가 해당 배율을 포함하기 때문이다.
+  - 즉, 이번 실행에서 심볼 재배분 시나리오는 "추가 개선안"이 아니라 "현재 운영 baseline의 일부"로 해석해야 한다.
+
 ## 5. 계획 대비 리뷰
 - 계획과 일치한 부분:
-  - Phase B(레짐 전환 백테스트)용 실행 도구를 선행 구축.
+  - Phase B~F 실행 후, Phase D의 데이터 윈도우 검증까지 완료해 적용/보류 결론을 문서화했다.
 - 변경/추가된 부분:
-  - 없음(계획 범위 내 착수).
+  - 장기 검증은 계획상 180/240일 확장까지 상정했으나, 실제 데이터 보유분이 약 122~125일임을 확인해 "실가용 최대 구간" 기준으로 최종 판정을 내렸다.
 
 ---
 
 ## 6. 결론 및 다음 단계
 - 현재 상태 요약:
-  - 29는 `In Progress`. 도구/데이터/시나리오 검증을 거쳐 심볼 비중 핫픽스 코드 반영까지 완료.
-  - 남은 단계는 OCI 배포 적용 후 24h/72h 운영 관측과 SELL 표본 누적 검증.
+  - 29는 `Done`.
+  - 현재 운영 baseline에는 심볼 재배분 정책이 이미 반영되어 있다.
+  - 이번 추가 검증 결과, `transition_sensitive` 레짐 완화안은 손실 감소 효과는 있으나 수익성 게이트를 통과하지 못해 운영 핫픽스로 승격하지 않는다.
 - 후속 작업:
-  1) OCI 배포 적용:
-     - `cd /opt/coin-pilot && git pull --ff-only origin f29`
-     - `cd /opt/coin-pilot/deploy/cloud/oci && docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot`
-  2) 컨테이너 설정 반영 확인:
-     - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python -c "from src.config.strategy import get_config; print(get_config().SYMBOL_POSITION_MULTIPLIERS)"'`
-  3) 24h/72h 운영 관측:
-     - `scripts/ops/check_24h_monitoring.sh t1h`
-     - `scripts/ops/ai_decision_canary_report.sh 24`
-     - `scripts/ops/llm_usage_cost_report.sh 24`
-  4) 악화 시 롤백:
-     - `config/strategy_v3.yaml`의 `position_sizing.symbol_position_multipliers`를 전부 `1.0`으로 복원 후 bot 재기동
+  1) `21-03` 운영 표본/비용 비교 기준으로 마감 가능 여부를 확정
+  2) `21-04` provider cost snapshot/리포트 기준으로 마감 가능 여부를 확정
+  3) 다음 신규 착수는 `29-01` 승인/준비로 이동
 
 ---
 
@@ -317,3 +359,17 @@
 - 트레이드오프와 완화:
   1) 설정 필드 증가로 복잡도 상승 -> 안전 폴백(`<=0`/비숫자 값은 `1.0`)으로 운영 리스크 완화
   2) 시나리오 러너와 계산 중복 가능성 -> post-processing 곱 방식 제거, 설정 오버라이드 방식으로 정렬
+
+---
+
+## 10. README / 체크리스트 동기화 검증
+- 동기화 대상:
+  - `README.md`
+  - `docs/checklists/remaining_work_master_checklist.md`
+- 반영 내용:
+  - 29 상태를 `done`으로 전환
+  - README 운영 요약과 우선순위 백로그에 29 마감/핫픽스 보류 결론을 반영
+- 검증 명령:
+  - `rg -n "29|레짐 전환|추가 레짐 완화 핫픽스 보류" README.md docs/checklists/remaining_work_master_checklist.md`
+- 결과:
+  - 동기화 예정/반영 완료 기준으로 본 결과 문서와 동일 결론이 노출되어야 한다.
