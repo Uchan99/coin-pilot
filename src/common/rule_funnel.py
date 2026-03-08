@@ -27,8 +27,13 @@ def derive_rule_funnel_reason_code(stage: str, reason: Optional[str]) -> str:
         return "entry_signal_detected"
 
     if stage == "risk_reject":
-        if "노출 한도" in text or "exposure" in lower:
-            return "exposure_cap"
+        # 리스크 reject는 전략 튜닝보다 운영 한도 병목과 직접 연결되므로,
+        # "어떤 한도에 막혔는지"를 최대한 세분화해서 남겨야 주간 리포트에서
+        # 단순 risk_other 대신 바로 조치 포인트를 읽을 수 있다.
+        if "단일 주문 한도" in text or "max per order" in lower:
+            return "max_per_order"
+        if "전체 노출 한도" in text or "노출 한도 도달" in text or "total exposure" in lower:
+            return "max_total_exposure"
         if "가용 현금 부족" in text or "insufficient balance" in lower:
             return "cash_cap"
         if "주문 가능 금액이 0 이하" in text:

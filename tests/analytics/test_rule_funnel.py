@@ -1,4 +1,5 @@
 from src.analytics.rule_funnel import RuleFunnelAnalyzer
+from src.common.rule_funnel import derive_rule_funnel_reason_code
 
 
 def _stage(count: int) -> dict:
@@ -63,3 +64,34 @@ def test_generate_review_suggestions_detects_bull_bottlenecks():
     assert "AI guardrail block 비중이 높음" in joined
     assert "AI reject가 confirm보다 많음" in joined
     assert "SIDEWAYS" in joined
+
+
+def test_derive_rule_funnel_reason_code_for_risk_reject_detail():
+    assert (
+        derive_rule_funnel_reason_code(
+            "risk_reject",
+            "단일 주문 한도(20.0%)를 초과했습니다. (요청: 211809, 한도: 196119)",
+        )
+        == "max_per_order"
+    )
+    assert (
+        derive_rule_funnel_reason_code(
+            "risk_reject",
+            "Risk Rejected: 노출 한도 도달 (950,000/1,000,000)",
+        )
+        == "max_total_exposure"
+    )
+    assert (
+        derive_rule_funnel_reason_code(
+            "risk_reject",
+            "가용 현금 부족 (요청: 300000, 가용: 120000)",
+        )
+        == "cash_cap"
+    )
+    assert (
+        derive_rule_funnel_reason_code(
+            "risk_reject",
+            "3연패로 인한 쿨다운 중입니다. (남은 시간: 30.0분)",
+        )
+        == "risk_cooldown"
+    )
