@@ -137,6 +137,8 @@
 - 2026-03-08: 21-03 24h 운영 관측 업데이트. `agent_decisions` 최근 24h 집계에서 primary 13건, canary 5건으로 모델 혼재는 확인됐지만, 계획 기준인 모델별 최소 표본 `N>=20`에 미달해 상태는 `in_progress` 유지. 실행 경로는 `cd /opt/coin-pilot && scripts/ops/ai_decision_canary_report.sh 24` 또는 절대경로 사용이 필요함을 결과 문서에 명시.
 - 2026-03-08: 21-04 24h 운영 관측 업데이트. `scripts/ops/llm_usage_cost_report.sh 24`에서 route/provider/model 비용 리포트 5행과 provider 2개 비용 분리는 확인됐지만, `llm_provider_cost_snapshots`는 여전히 `0 rows`라 reconciliation/freshness가 비어 있음. 따라서 상태는 `in_progress` 유지하고, `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24` 실행 경로를 결과 문서에 명시.
 - 2026-03-08: 29-01 사용자 승인 후 착수(`in_progress`). `rule_funnel_events` 스키마, `scripts/ops/rule_funnel_regime_report.sh`, 주간 리포트 payload 확장(`rule_funnel`, `rule_funnel_suggestions`)까지 Phase 1 로컬 구현을 완료했고, 신규 분석 테스트 6건 통과를 결과 문서에 기록.
+- 2026-03-08: 29-01 OCI 운영 검증 1차 완료. `coinpilot-bot` 재빌드 후 `rule_funnel_events` 적재 4건(`SIDEWAYS rule_pass=2`, `SIDEWAYS risk_reject=2`)을 확인해 운영 DB 계측 경로가 실제 동작함을 검증했다. 단, 아직 BULL/AI 단계 표본은 없어 최종 병목 해석은 보류.
+- 2026-03-08: 29-01 후속 보정. OCI에서 `단일 주문 한도 초과`가 `risk_other`로 뭉친 것을 확인해 `risk_reject` reason_code를 `max_per_order`/`max_total_exposure` 등으로 세분화했고, 관련 로컬 테스트 4건을 통과시켰다.
 
 ---
 

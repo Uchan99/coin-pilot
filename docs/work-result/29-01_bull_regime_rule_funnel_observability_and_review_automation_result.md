@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-08  
 **작성자**: Codex  
-**상태**: In Progress (Phase 1 로컬 구현/검증 완료)  
+**상태**: In Progress (Phase 1 로컬 구현 + OCI 운영 적재 확인 완료)  
 **관련 계획서**: `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md`
 
 ---
@@ -67,15 +67,20 @@
 | 주간 리포트 내 퍼널 필드 수 | 0 | 2 (`rule_funnel`, `rule_funnel_suggestions`) | +2 |
 | 신규 운영 리포트 스크립트 수 | 0 | 1 | +1 |
 | 신규/확장 로컬 검증 테스트 | 0 | 6 passed | +6 |
+| OCI 운영 `rule_funnel_events` 누적 row | 0 | 4 | +4 |
+| OCI 운영 레짐/단계 집계 | 0 | `SIDEWAYS: rule_pass=2, risk_reject=2` | 신규 확인 |
 
 ## 4. 측정 기준
 - 기간:
-  - 로컬 구현 검증 시점 2026-03-08 단일 실행
+  - 로컬 구현 검증 + OCI 운영 확인 시점 2026-03-08 단일 실행
 - 표본 수:
   - 테스트 6건
     - `tests/analytics/test_rule_funnel.py`
     - `tests/analytics/test_exit_performance_phase3.py`
     - `tests/analytics/test_exit_performance_phase4.py`
+  - OCI 운영 이벤트 4건
+    - `KRW-SOL` 2건 (`rule_pass`, `risk_reject`)
+    - `KRW-BTC` 2건 (`rule_pass`, `risk_reject`)
 - 성공 기준:
   - 신규 모듈 문법 오류 없음
   - 퍼널 제안/주간 payload 테스트 통과
@@ -91,6 +96,36 @@ PYTHONPATH=. .venv/bin/pytest -q tests/analytics/test_rule_funnel.py tests/analy
 bash -n scripts/ops/rule_funnel_regime_report.sh
 ```
 
+OCI 운영 확인:
+```bash
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot
+cd /opt/coin-pilot
+docker exec -i -u postgres coinpilot-db psql -d coinpilot < /opt/coin-pilot/migrations/v3_3_4_rule_funnel_events.sql
+scripts/ops/rule_funnel_regime_report.sh 24
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT created_at, symbol, regime, stage, result, reason_code
+FROM rule_funnel_events
+ORDER BY created_at DESC
+LIMIT 20;
+"
+```
+
+OCI 운영 결과:
+- `coinpilot-bot` 재빌드/재기동 후 봇 루프/스케줄러 정상 시작 확인
+- `rule_funnel_events` 적재 4건 확인
+  - `2026-03-08 13:09:19+00` / `KRW-SOL` / `SIDEWAYS` / `rule_pass`
+  - `2026-03-08 13:09:19+00` / `KRW-SOL` / `SIDEWAYS` / `risk_reject`
+  - `2026-03-08 13:11:19+00` / `KRW-BTC` / `SIDEWAYS` / `rule_pass`
+  - `2026-03-08 13:11:19+00` / `KRW-BTC` / `SIDEWAYS` / `risk_reject`
+- `scripts/ops/rule_funnel_regime_report.sh 24` 출력:
+  - `SIDEWAYS rule_pass=2`
+  - `SIDEWAYS risk_reject=2`
+  - `ai_prefilter_reject/ai_guardrail_block/ai_confirm/ai_reject = 0`
+- 로그 근거:
+  - `KRW-SOL Entry Signal Detected`
+  - `단일 주문 한도(20.0%) 초과`로 주문 스킵
+
 추가 확인:
 ```bash
 timeout 20s env PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py -vv -s
@@ -101,18 +136,19 @@ timeout 20s env PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py -vv -s
 
 ## 6. 측정 불가 사유 / 대체 지표 / 추후 계획
 - 측정 불가 사유:
-  - OCI 운영 DB에는 아직 `v3_3_4_rule_funnel_events.sql`을 적용하지 않았으므로 실제 레짐별 이벤트 누적 수치는 아직 없다.
+  - 아직 BULL 표본과 AI 단계(`ai_confirm`/`ai_reject`) 운영 데이터가 확보되지 않아 "왜 BULL에서 AI decision이 적은지"에 대한 최종 병목 결론은 아직 낼 수 없다.
 - 대체 지표:
-  - 로컬 코드/테스트/스크립트 검증으로 스키마/계측 경로/리포트 확장 성공 여부를 우선 확인했다.
+  - SIDEWAYS 운영 이벤트 4건으로 `rule_pass -> risk_reject` 경로 적재가 실제 동작함을 먼저 확인했다.
 - 추후 측정 계획:
-  1. OCI에 migration 적용
-  2. `scripts/ops/rule_funnel_regime_report.sh 72` 실행
-  3. 최근 72시간 BULL/SIDEWAYS 레짐별 `rule_pass -> ai_confirm` 전환율 비교
+  1. `scripts/ops/rule_funnel_regime_report.sh 72`를 반복 실행해 BULL 표본 확보
+  2. 최근 72시간 BULL/SIDEWAYS 레짐별 `rule_pass -> ai_confirm` 전환율 비교
+  3. 현재 `risk_other`로 잡힌 `단일 주문 한도 초과` reason을 다음 소규모 패치에서 세분화(`max_per_order`) 검토
   4. 주간 webhook payload에 funnel 섹션이 포함되는지 실제 운영 로그로 확인
 
 ## 7. 리스크 / 가정 / 미확정 사항
 - 리스크:
   - 퍼널 이벤트가 현재는 "이벤트 로그"이므로, 장시간 운영 전에는 write volume 증가량을 실제 OCI에서 확인해야 한다.
+  - 현재 `단일 주문 한도(20.0%) 초과` 메시지가 `reason_code=risk_other`로 분류돼, risk 병목 세부 원인 해상도는 아직 부족하다.
 - 가정:
   - n8n/Discord weekly webhook은 payload의 신규 필드를 무시하지 않고 그대로 전달 가능하다고 가정했다.
 - 미확정:
@@ -124,4 +160,29 @@ timeout 20s env PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py -vv -s
   - 사유: `29-01`은 아직 `done`이 아니고 Phase 1 구현만 완료되어 README 동기화 조건(major completed)에 해당하지 않음
 - `remaining_work_master_checklist.md`:
   - `29-01` 상태를 `in_progress`로 반영
-  - 본 결과 문서 링크를 추가할 예정
+  - 본 결과 문서 링크를 추가 완료
+
+## 9. Phase 1.1 후속 보정 (2026-03-08)
+- 문제:
+  - OCI 운영 검증에서 `단일 주문 한도(20.0%) 초과`가 `reason_code=risk_other`로 분류돼, 리스크 병목 원인 해상도가 낮았다.
+- 개선:
+  - `src/common/rule_funnel.py`의 `risk_reject` 분류를 세분화했다.
+  - 신규 세분화 코드:
+    - `max_per_order`
+    - `max_total_exposure`
+    - `cash_cap`
+    - `max_positions`
+    - `duplicate_position`
+    - `risk_cooldown`
+- 정량 변화:
+  - before: `단일 주문 한도 초과 -> risk_other`
+  - after: `단일 주문 한도 초과 -> max_per_order`
+- 증빙:
+```bash
+python3 -m py_compile src/common/rule_funnel.py
+PYTHONPATH=. .venv/bin/pytest -q tests/analytics/test_rule_funnel.py tests/analytics/test_exit_performance_phase4.py
+```
+- 결과:
+  - 4 passed
+- 후속 확인 계획:
+  - 다음 OCI 이벤트부터 `risk_other` 대신 `max_per_order`로 적재되는지 `scripts/ops/rule_funnel_regime_report.sh 24`로 재확인
