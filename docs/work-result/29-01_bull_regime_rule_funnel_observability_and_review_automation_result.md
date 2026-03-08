@@ -125,6 +125,11 @@ OCI 운영 결과:
 - 로그 근거:
   - `KRW-SOL Entry Signal Detected`
   - `단일 주문 한도(20.0%) 초과`로 주문 스킵
+- 주간 리포트 수동 실행 확인:
+  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'cd /app && PYTHONPATH=. python -c "import asyncio; from src.bot.main import weekly_exit_report_job; asyncio.run(weekly_exit_report_job())"'`
+  - 결과: `[Scheduler] Weekly Exit Report sent successfully.`
+  - Discord 실제 수신 확인 완료
+  - 단, 당시 Discord 포맷은 기존 `title/period/SELL/summary/suggestions`만 출력했고 `rule_funnel`, `rule_funnel_suggestions`는 노출하지 않았다.
 
 추가 확인:
 ```bash
@@ -138,12 +143,60 @@ timeout 20s env PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py -vv -s
 - 측정 불가 사유:
   - 아직 BULL 표본과 AI 단계(`ai_confirm`/`ai_reject`) 운영 데이터가 확보되지 않아 "왜 BULL에서 AI decision이 적은지"에 대한 최종 병목 결론은 아직 낼 수 없다.
 - 대체 지표:
-  - SIDEWAYS 운영 이벤트 4건으로 `rule_pass -> risk_reject` 경로 적재가 실제 동작함을 먼저 확인했다.
+  - 2026-03-09 기준 72시간 운영 집계에서 `SIDEWAYS rule_pass=12`, `SIDEWAYS risk_reject=12`, `BULL=0`, `AI stage=0`을 확인했다.
+  - 세부 원인은 `max_per_order=6`, `risk_other=6`이며, `risk_other`는 패치 전 legacy row다.
 - 추후 측정 계획:
   1. `scripts/ops/rule_funnel_regime_report.sh 72`를 반복 실행해 BULL 표본 확보
   2. 최근 72시간 BULL/SIDEWAYS 레짐별 `rule_pass -> ai_confirm` 전환율 비교
   3. 현재 `risk_other`로 잡힌 `단일 주문 한도 초과` reason을 다음 소규모 패치에서 세분화(`max_per_order`) 검토
   4. 주간 webhook payload에 funnel 섹션이 포함되는지 실제 운영 로그로 확인
+
+### 6.1 BULL 표본 재확인 메모 (보류 조건)
+- 현재 판정:
+  - 2026-03-09 기준 최근 72시간에 `BULL` row가 0건이므로, `29-01`의 "BULL에서 왜 AI decision이 적은가" 최종 해석은 보류한다.
+- 재개 조건:
+  - `rule_funnel_events`에 `regime='BULL'` 표본이 1건 이상 누적될 때
+- 재확인 명령:
+```bash
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT regime, stage, reason_code, count(*)
+FROM rule_funnel_events
+WHERE created_at >= now() - interval '72 hours'
+GROUP BY 1,2,3
+ORDER BY 1,2,3;
+"
+
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  symbol,
+  regime,
+  stage,
+  reason_code,
+  count(*) AS cnt
+FROM rule_funnel_events
+WHERE created_at >= now() - interval '72 hours'
+GROUP BY 1,2,3,4
+ORDER BY cnt DESC, symbol, regime, stage, reason_code;
+"
+
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  created_at,
+  symbol,
+  regime,
+  stage,
+  result,
+  reason_code,
+  reason
+FROM rule_funnel_events
+WHERE created_at >= now() - interval '72 hours'
+  AND regime = 'BULL'
+ORDER BY created_at DESC;
+"
+```
+- 기대 체크:
+  - `BULL rule_pass > 0`
+  - `BULL risk_reject / ai_prefilter_reject / ai_guardrail_block / ai_confirm / ai_reject` 중 어느 단계가 실제 병목인지 식별 가능
 
 ## 7. 리스크 / 가정 / 미확정 사항
 - 리스크:
@@ -161,6 +214,28 @@ timeout 20s env PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py -vv -s
 - `remaining_work_master_checklist.md`:
   - `29-01` 상태를 `in_progress`로 반영
   - 본 결과 문서 링크를 추가 완료
+
+## 8.1 Weekly Exit Report 포맷 보정 메모 (2026-03-09)
+- 확인 결과:
+  - `weekly_exit_report_job` 실행과 Discord 수신은 성공했다.
+  - 그러나 n8n `weekly-exit-report` workflow 템플릿은 여전히 `summary/suggestions`만 출력하고 있어,
+    repo에서 추가한 `rule_funnel`, `rule_funnel_suggestions`는 Discord 메시지에 보이지 않았다.
+- 조치:
+  - `config/n8n_workflows/weekly-exit-report-workflow.json`에 Rule Funnel 섹션과 Rule Funnel 제안 섹션을 추가했다.
+  - 운영에서 사용 중인 Discord `embeds` 포맷과 동일한 JSON 스타일(`embeds[0].description`)로 템플릿을 재정렬하고, `$json.body` fallback도 유지했다.
+- 정량 상태:
+  - webhook 전송 성공: `1/1`
+  - Discord 수신 성공: `1/1`
+  - Rule Funnel 표시: before `0`, after `repo 템플릿 반영 완료(OCI n8n workflow 동기화 필요)`
+- 후속 운영 확인 명령:
+```bash
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m bot
+docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m n8n
+```
+- 주의:
+  - n8n workflow JSON 템플릿 변경은 repo 반영만으로 운영 UI 상태가 자동 갱신되지 않을 수 있으므로,
+    OCI n8n UI에 workflow import/수동 반영 후 Active 상태를 다시 확인해야 한다.
 
 ## 9. Phase 1.1 후속 보정 (2026-03-08)
 - 문제:
