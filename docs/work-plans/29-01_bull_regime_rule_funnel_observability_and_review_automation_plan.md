@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-07  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`, `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md`, `docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md`  
-**승인 정보**: 미승인 / - / 사용자 승인 대기
+**승인 정보**: 승인 / 2026-03-08 / 사용자 승인 후 구현 착수
 
 ---
 
@@ -149,3 +149,5 @@
 - 2026-03-07: 사용자 요청(29-01 추가, 29 내 주기 점검/자동 수정 가능성 확인)에 따라 신규 계획 생성(Approval Pending).
 - 2026-03-07: 사용자 요청에 따라 주기를 `3~7일`에서 `7일 고정`으로 명확화하고, 기존 Weekly Exit Report 경로 확장(증분 통합) 방침을 추가.
 - 2026-03-07: 사용자 요청에 따라 30번의 운영 가드레일 6종을 29-01 자동 수정 검토 조건으로 연결.
+- 2026-03-08: 사용자 요청에 따라 방금 추가했던 "브랜치 파서 우선" 축소 범위를 제거하고, 원래 승인된 범위(DB 퍼널 계측 + 주간 리포트 증분 통합 + 자동 수정 금지)로 계획을 확정했다.
+- 2026-03-08: 사용자 승인 후 상태를 `Approved`로 변경하고 구현 착수를 시작했다.

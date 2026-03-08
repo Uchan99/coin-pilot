@@ -106,6 +106,34 @@ CREATE INDEX IF NOT EXISTS idx_agent_decisions_decision ON agent_decisions (deci
 
 CREATE INDEX IF NOT EXISTS idx_agent_decisions_regime ON agent_decisions (regime);
 
+-- Rule Funnel Events (29-01)
+-- 목적:
+-- - Rule -> Risk -> AI 병목 지점을 레짐별로 직접 집계
+-- - 자동 수정이 아닌 주간 관측/제안의 근거 데이터 확보
+CREATE TABLE IF NOT EXISTS rule_funnel_events (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    symbol VARCHAR(20) NOT NULL,
+    strategy_name VARCHAR(50),
+    regime VARCHAR(10),
+    stage VARCHAR(40) NOT NULL,
+    result VARCHAR(20) NOT NULL,
+    reason_code VARCHAR(80),
+    reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_funnel_events_created
+ON rule_funnel_events (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rule_funnel_events_regime_stage_created
+ON rule_funnel_events (regime, stage, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rule_funnel_events_symbol_created
+ON rule_funnel_events (symbol, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rule_funnel_events_reason_code_created
+ON rule_funnel_events (reason_code, created_at DESC);
+
 -- LLM usage/cost observability (21-04)
 CREATE TABLE IF NOT EXISTS llm_usage_events (
     id BIGSERIAL PRIMARY KEY,

@@ -13,6 +13,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
 from src.common.models import TradingHistory
+from src.analytics.rule_funnel import RuleFunnelAnalyzer
 
 
 @dataclass
@@ -91,6 +92,30 @@ class ExitPerformanceAnalyzer:
         if v is None:
             return "N/A"
         return f"{v:.2f}%"
+
+    @staticmethod
+    def _build_rule_funnel_text(summary: Dict[str, Any]) -> str:
+        by_regime = summary.get("by_regime", {})
+        if not by_regime:
+            return "- 데이터 없음"
+
+        lines: List[str] = []
+        for regime in ("BULL", "SIDEWAYS", "BEAR", "UNKNOWN"):
+            regime_bucket = by_regime.get(regime)
+            if not regime_bucket:
+                continue
+            lines.append(
+                (
+                    f"- {regime}: "
+                    f"rule_pass={regime_bucket.get('rule_pass', {}).get('count', 0)}, "
+                    f"risk_reject={regime_bucket.get('risk_reject', {}).get('count', 0)}, "
+                    f"prefilter={regime_bucket.get('ai_prefilter_reject', {}).get('count', 0)}, "
+                    f"guardrail={regime_bucket.get('ai_guardrail_block', {}).get('count', 0)}, "
+                    f"ai_confirm={regime_bucket.get('ai_confirm', {}).get('count', 0)}, "
+                    f"ai_reject={regime_bucket.get('ai_reject', {}).get('count', 0)}"
+                )
+            )
+        return "\n".join(lines) if lines else "- 데이터 없음"
 
     @staticmethod
     def generate_tuning_suggestions_from_summary(
@@ -402,7 +427,19 @@ class ExitPerformanceAnalyzer:
     async def build_weekly_report_payload(self, days: int = 7, min_samples: int = 20) -> Dict[str, Any]:
         summary = await self.summarize_period(days=days)
         suggestions = self.generate_tuning_suggestions_from_summary(summary, min_samples=min_samples)
-        llm_summary = await self._generate_llm_summary(summary, suggestions)
+        funnel_analyzer = RuleFunnelAnalyzer(self.session_factory)
+        funnel_summary = await funnel_analyzer.summarize_period(days=days)
+        funnel_suggestions = RuleFunnelAnalyzer.generate_review_suggestions_from_summary(
+            funnel_summary,
+            target_regime="BULL",
+            min_rule_pass=5,
+        )
+        llm_summary = await self._generate_llm_summary(
+            summary,
+            suggestions,
+            funnel_summary=funnel_summary,
+            funnel_suggestions=funnel_suggestions,
+        )
 
         payload = {
             "title": f"📊 CoinPilot Weekly Exit Report ({days}d)",
@@ -413,12 +450,21 @@ class ExitPerformanceAnalyzer:
             "by_exit_reason": summary["by_exit_reason"],
             "by_regime": summary["by_regime"],
             "suggestions": suggestions,
+            "rule_funnel": funnel_summary,
+            "rule_funnel_suggestions": funnel_suggestions,
             "summary": llm_summary,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         return payload
 
-    async def _generate_llm_summary(self, summary: Dict[str, Any], suggestions: List[str]) -> str:
+    async def _generate_llm_summary(
+        self,
+        summary: Dict[str, Any],
+        suggestions: List[str],
+        *,
+        funnel_summary: Dict[str, Any] | None = None,
+        funnel_suggestions: List[str] | None = None,
+    ) -> str:
         by_reason = summary.get("by_exit_reason", {})
         lines: List[str] = []
         for reason, v in sorted(by_reason.items(), key=lambda kv: kv[1].get("count", 0), reverse=True):
@@ -428,9 +474,18 @@ class ExitPerformanceAnalyzer:
             )
         reason_text = "\n".join(lines) if lines else "- 데이터 없음"
         suggestion_text = "\n".join(f"- {s}" for s in suggestions)
+        funnel_text = self._build_rule_funnel_text(funnel_summary or {})
+        funnel_suggestion_text = "\n".join(f"- {s}" for s in (funnel_suggestions or [])) or "- 데이터 없음"
 
         prompt = PromptTemplate(
-            input_variables=["period_days", "total_sells", "reason_text", "suggestion_text"],
+            input_variables=[
+                "period_days",
+                "total_sells",
+                "reason_text",
+                "suggestion_text",
+                "funnel_text",
+                "funnel_suggestion_text",
+            ],
             template="""
 당신은 CoinPilot 운영 분석가입니다.
 다음 데이터를 기반으로 4줄 이내의 주간 운영 요약을 작성하세요.
@@ -442,8 +497,14 @@ class ExitPerformanceAnalyzer:
 [Exit Reason 요약]
 {reason_text}
 
-[자동 제안]
+[Exit 기반 자동 제안]
 {suggestion_text}
+
+[Rule Funnel 요약]
+{funnel_text}
+
+[Rule Funnel 자동 제안]
+{funnel_suggestion_text}
 
 규칙:
 1) 숫자 근거를 최소 1개 포함
@@ -460,6 +521,8 @@ class ExitPerformanceAnalyzer:
                     "total_sells": summary.get("total_sells", 0),
                     "reason_text": reason_text,
                     "suggestion_text": suggestion_text,
+                    "funnel_text": funnel_text,
+                    "funnel_suggestion_text": funnel_suggestion_text,
                 }
             )
             return response.content
@@ -467,5 +530,6 @@ class ExitPerformanceAnalyzer:
             return (
                 f"LLM 요약 생성 실패 ({e}). "
                 f"기본 요약: sells={summary.get('total_sells', 0)}, "
-                f"suggestions={len(suggestions)}"
+                f"suggestions={len(suggestions)}, "
+                f"funnel_suggestions={len(funnel_suggestions or [])}"
             )

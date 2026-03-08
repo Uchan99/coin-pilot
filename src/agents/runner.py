@@ -11,6 +11,7 @@ from src.common.models import AgentDecision
 from src.agents.factory import select_ai_decision_route
 from src.common.notification import notifier
 from src.common.llm_usage import build_usage_request_id, log_llm_usage_event
+from src.common.rule_funnel import record_rule_funnel_event
 
 def create_agent_graph():
     """AI 에이전트 워크플로우 그래프 생성"""
@@ -211,6 +212,17 @@ class AgentRunner:
                     regime=regime
                 )
                 session.add(log)
+                # AI 최종 판정은 퍼널의 마지막 단계다.
+                # decision 로그와 같은 트랜잭션에 묶어야 운영 집계에서 누락/불일치가 줄어든다.
+                record_rule_funnel_event(
+                    session,
+                    symbol=symbol,
+                    strategy_name=strategy,
+                    regime=regime,
+                    stage="ai_confirm" if decision == "CONFIRM" else "ai_reject",
+                    result="confirm" if decision == "CONFIRM" else "reject",
+                    reason=reasoning,
+                )
                 await session.commit()
 
             # Discord 알림 전송 (REJECT/CONFIRM 모두)

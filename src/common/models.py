@@ -159,6 +159,29 @@ class AgentDecision(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class RuleFunnelEvent(Base):
+    """
+    Rule -> Risk -> AI 퍼널 단계를 레짐별로 계측하는 이벤트 테이블.
+
+    설계 의도:
+    - agent_decisions만으로는 "AI가 적게 호출된 원인"을 분리할 수 없으므로,
+      Rule pass / Risk reject / AI guardrail block / AI final decision을
+      동일 스키마로 누적해 병목 지점을 직접 SQL로 확인한다.
+    - 주문 로직을 바꾸지 않고 관측만 추가하는 목적이므로, 최소 필드만 저장한다.
+    """
+    __tablename__ = "rule_funnel_events"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    strategy_name = Column(String(50), nullable=True, index=True)
+    regime = Column(String(10), nullable=True, index=True)
+    stage = Column(String(40), nullable=False, index=True)
+    result = Column(String(20), nullable=False, index=True)
+    reason_code = Column(String(80), nullable=True, index=True)
+    reason = Column(Text, nullable=True)
+
+
 class LlmUsageEvent(Base):
     """
     LLM 호출 단위 usage/cost 원장 테이블.

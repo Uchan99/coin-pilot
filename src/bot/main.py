@@ -37,6 +37,7 @@ from src.common.llm_usage import (
     get_llm_cost_snapshot_interval_minutes,
     is_llm_cost_snapshot_enabled,
 )
+from src.common.rule_funnel import record_rule_funnel_event
 from src.mobile.query_api import mobile_router
 
 # Graceful Shutdown Handler
@@ -308,6 +309,15 @@ async def bot_loop():
                             debug_entry = os.getenv("DEBUG_ENTRY", "0") == "1"
                             if strategy.check_entry_signal(indicators, debug=debug_entry):
                                 print(f"[{symbol}] Entry Signal Detected!")
+                                record_rule_funnel_event(
+                                    session,
+                                    symbol=symbol,
+                                    strategy_name=strategy.name,
+                                    regime=regime,
+                                    stage="rule_pass",
+                                    result="pass",
+                                    reason="Entry Signal Detected",
+                                )
                                 
                                 balance = await executor.get_balance(session)
                                 reference_equity = await risk_manager.get_reference_equity(session)
@@ -348,6 +358,15 @@ async def bot_loop():
                                         bot_reason = f"Risk Rejected: 가용 현금 부족 ({cash_cap:,.0f})"
                                     else:
                                         bot_reason = "Risk Rejected: 주문 가능 금액이 0 이하"
+                                    record_rule_funnel_event(
+                                        session,
+                                        symbol=symbol,
+                                        strategy_name=strategy.name,
+                                        regime=regime,
+                                        stage="risk_reject",
+                                        result="reject",
+                                        reason=bot_reason,
+                                    )
                                     print(f"[-] {symbol} Order Skipped: {bot_reason}")
                                     continue
 
@@ -384,6 +403,15 @@ async def bot_loop():
                                         if not should_run_ai:
                                             bot_action = "SKIP"
                                             bot_reason = f"AI PreFilter Rejected: {prefilter_reason}"
+                                            record_rule_funnel_event(
+                                                session,
+                                                symbol=symbol,
+                                                strategy_name=strategy.name,
+                                                regime=regime,
+                                                stage="ai_prefilter_reject",
+                                                result="reject",
+                                                reason=bot_reason,
+                                            )
                                             metrics.ai_prefilter_skips.inc()
                                             print(f"[-] {symbol} AI PreFilter Rejected: {prefilter_reason}")
                                         else:
@@ -395,6 +423,15 @@ async def bot_loop():
                                             if ai_blocked:
                                                 bot_action = "SKIP"
                                                 bot_reason = f"AI Guardrail Blocked: {ai_block_reason}"
+                                                record_rule_funnel_event(
+                                                    session,
+                                                    symbol=symbol,
+                                                    strategy_name=strategy.name,
+                                                    regime=regime,
+                                                    stage="ai_guardrail_block",
+                                                    result="block",
+                                                    reason=bot_reason,
+                                                )
                                                 metrics.ai_prefilter_skips.inc()
                                                 print(f"[-] {symbol} AI Guardrail Blocked: {ai_block_reason}")
                                             else:
@@ -429,6 +466,15 @@ async def bot_loop():
                                     # 리스크 관리로 인한 거부
                                     bot_action = "SKIP"
                                     bot_reason = f"Risk Rejected: {risk_reason}"
+                                    record_rule_funnel_event(
+                                        session,
+                                        symbol=symbol,
+                                        strategy_name=strategy.name,
+                                        regime=regime,
+                                        stage="risk_reject",
+                                        result="reject",
+                                        reason=bot_reason,
+                                    )
                                     print(f"[-] {symbol} Order Skipped: {risk_reason}")
                             else:
                                 # 시그널 없음
