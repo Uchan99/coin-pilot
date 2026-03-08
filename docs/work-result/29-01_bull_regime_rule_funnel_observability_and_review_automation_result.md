@@ -222,11 +222,15 @@ ORDER BY created_at DESC;
     repo에서 추가한 `rule_funnel`, `rule_funnel_suggestions`는 Discord 메시지에 보이지 않았다.
 - 조치:
   - `config/n8n_workflows/weekly-exit-report-workflow.json`에 Rule Funnel 섹션과 Rule Funnel 제안 섹션을 추가했다.
-  - 운영에서 사용 중인 Discord `embeds` 포맷과 동일한 JSON 스타일(`embeds[0].description`)로 템플릿을 재정렬하고, `$json.body` fallback도 유지했다.
+  - 1차 시도에서는 `description`에 Rule Funnel 내용을 직접 이어붙였으나, n8n `Send Discord Message` 노드/Discord 400 응답이 발생했다.
+  - 2차 보정으로는 사용 중인 Weekly Exit Report workflow의 기존 형식(`jsonBody = {{ { \"embeds\": [...] } }}`)을 유지하고, 기존 `기간/SELL 샘플/요약` description은 그대로 둔 채 `제안`, `Rule Funnel`, `Rule Funnel 제안`만 embed `fields`로 추가했다.
 - 정량 상태:
   - webhook 전송 성공: `1/1`
-  - Discord 수신 성공: `1/1`
-  - Rule Funnel 표시: before `0`, after `repo 템플릿 반영 완료(OCI n8n workflow 동기화 필요)`
+  - Discord 수신 성공: `2/2`
+  - Rule Funnel 표시: before `0/1`, after `1/1`
+  - 실제 표시된 운영 값:
+    - `SIDEWAYS: rule_pass=21, risk_reject=21, prefilter=0, guardrail=0, ai_confirm=0, ai_reject=0`
+    - `BULL 퍼널 데이터 부족: rule_pass 0건 (최소 5건 필요)`
 - 후속 운영 확인 명령:
 ```bash
 cd /opt/coin-pilot/deploy/cloud/oci
@@ -236,6 +240,7 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m n8n
 - 주의:
   - n8n workflow JSON 템플릿 변경은 repo 반영만으로 운영 UI 상태가 자동 갱신되지 않을 수 있으므로,
     OCI n8n UI에 workflow import/수동 반영 후 Active 상태를 다시 확인해야 한다.
+  - 2026-03-09 01:04 KST 수동 실행에서는 Discord 메시지에 `제안`, `Rule Funnel`, `Rule Funnel 제안` 3개 필드가 실제 표시되는 것을 확인했다.
 
 ## 9. Phase 1.1 후속 보정 (2026-03-08)
 - 문제:

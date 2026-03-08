@@ -140,7 +140,7 @@
 - 2026-03-08: 29-01 OCI 운영 검증 1차 완료. `coinpilot-bot` 재빌드 후 `rule_funnel_events` 적재 4건(`SIDEWAYS rule_pass=2`, `SIDEWAYS risk_reject=2`)을 확인해 운영 DB 계측 경로가 실제 동작함을 검증했다. 단, 아직 BULL/AI 단계 표본은 없어 최종 병목 해석은 보류.
 - 2026-03-08: 29-01 후속 보정. OCI에서 `단일 주문 한도 초과`가 `risk_other`로 뭉친 것을 확인해 `risk_reject` reason_code를 `max_per_order`/`max_total_exposure` 등으로 세분화했고, 관련 로컬 테스트 4건을 통과시켰다.
 - 2026-03-09: 29-01 72h 운영 메모 추가. `SIDEWAYS rule_pass=12`, `SIDEWAYS risk_reject=12`, `BULL=0`, `AI stage=0`으로 확인돼 최종 병목 해석은 BULL 표본 확보 시점까지 보류하고, 재확인 SQL 3종을 결과 문서에 메모했다.
-- 2026-03-09: 29-01 Weekly Exit Report 운영 확인. `weekly_exit_report_job` 수동 실행에서 bot 로그 기준 전송 성공, Discord 수신 성공까지 확인했다. 다만 기존 n8n Discord 포맷에 `rule_funnel` 섹션이 누락돼 repo workflow 템플릿을 보정했고, OCI n8n workflow 동기화가 다음 확인 항목이다.
+- 2026-03-09: 29-01 Weekly Exit Report 운영 확인. `weekly_exit_report_job` 수동 실행에서 bot 로그 기준 전송 성공, Discord 수신 성공까지 확인했다. 1차 description 직접 확장안은 n8n/Discord 400 오류가 있었으나, 기존 weekly-report 형식(`jsonBody = {{ { \"embeds\": [...] } }}`)을 유지한 채 `제안/Rule Funnel/Rule Funnel 제안`을 embed fields로 추가하는 2차 보정 후 Discord 실메시지에 세 필드가 정상 표시됨을 재확인했다.
 
 ---
 
