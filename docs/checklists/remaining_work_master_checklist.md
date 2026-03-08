@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-08  
+최종 수정일: 2026-03-09  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -141,6 +141,8 @@
 - 2026-03-08: 29-01 후속 보정. OCI에서 `단일 주문 한도 초과`가 `risk_other`로 뭉친 것을 확인해 `risk_reject` reason_code를 `max_per_order`/`max_total_exposure` 등으로 세분화했고, 관련 로컬 테스트 4건을 통과시켰다.
 - 2026-03-09: 29-01 72h 운영 메모 추가. `SIDEWAYS rule_pass=12`, `SIDEWAYS risk_reject=12`, `BULL=0`, `AI stage=0`으로 확인돼 최종 병목 해석은 BULL 표본 확보 시점까지 보류하고, 재확인 SQL 3종을 결과 문서에 메모했다.
 - 2026-03-09: 29-01 Weekly Exit Report 운영 확인. `weekly_exit_report_job` 수동 실행에서 bot 로그 기준 전송 성공, Discord 수신 성공까지 확인했다. 1차 description 직접 확장안은 n8n/Discord 400 오류가 있었으나, 기존 weekly-report 형식(`jsonBody = {{ { \"embeds\": [...] } }}`)을 유지한 채 `제안/Rule Funnel/Rule Funnel 제안`을 embed fields로 추가하는 2차 보정 후 Discord 실메시지에 세 필드가 정상 표시됨을 재확인했다.
+- 2026-03-09: 21-03 72h 운영 관측 업데이트. canary env(`AI_CANARY_ENABLED=true`, `AI_CANARY_PERCENT=20`)와 실제 canary 표본 `6건`을 확인해 비활성/환경 누락 이슈는 해소됐음을 검증했다. 다만 계획 기준인 모델별 최소 표본 `N>=20`에는 여전히 미달하므로 `in_progress` 유지, 추가 구현보다 관측 지속이 우선이다.
+- 2026-03-09: 29-01은 구현/운영 검증 범위가 사실상 마무리됐고 현재는 `BULL` 및 `AI stage` 표본 대기만 남았다. 상태는 `in_progress`를 유지하지만 신규 구현 포커스는 다음 우선순위 작업(`30`)으로 이동 가능하다.
 
 ---
 

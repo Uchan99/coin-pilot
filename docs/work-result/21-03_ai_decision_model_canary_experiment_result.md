@@ -258,6 +258,60 @@ ORDER BY total DESC;
   - 재기동 후 `agent_decisions` 신규 건수가 0건이라 canary 분포(특히 OpenAI 경로) 평가는 아직 유보 상태.
 - 정량 관측(운영 로그 기반):
 
+## 12. Phase 2.1 운영 관측 업데이트 (2026-03-09)
+- 해결/판정 대상:
+  - 카나리 실험이 실제로 비활성화된 상태인지, 아니면 단순 표본 부족으로 마감 판정이 불가능한 상태인지 재확인
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+scripts/ops/ai_decision_canary_report.sh 72
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  model_used,
+  count(*) AS total,
+  count(*) FILTER (WHERE decision='CONFIRM') AS confirm_count,
+  round(100.0 * count(*) FILTER (WHERE decision='CONFIRM') / nullif(count(*),0), 2) AS confirm_rate_pct,
+  count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') AS parse_fail_count,
+  count(*) FILTER (WHERE reasoning ILIKE '%timed out%') AS timeout_count
+FROM agent_decisions
+WHERE created_at >= now() - interval '72 hours'
+GROUP BY model_used
+ORDER BY total DESC;
+"
+docker exec coinpilot-bot env | grep -E 'CANARY|AI_DECISION|OPENAI|ANTHROPIC'
+```
+- 운영 관측 결과:
+  - `primary=25`, `canary=6`
+  - confirm rate:
+    - `primary=4.00%` (`1/25`)
+    - `canary=0.00%` (`0/6`)
+  - 오류:
+    - `primary parse_fail=1`, `timeout=0`
+    - `canary parse_fail=0`, `timeout=0`
+  - 심볼 분포:
+    - primary: `KRW-XRP=12`, `KRW-DOGE=11`, `KRW-BTC=1`, `KRW-SOL=1`
+    - canary: `KRW-XRP=5`, `KRW-BTC=1`
+  - 환경 주입:
+    - `AI_CANARY_ENABLED=true`
+    - `AI_CANARY_PERCENT=20`
+    - `AI_CANARY_PROVIDER=openai`
+    - `AI_CANARY_MODEL=gpt-4o-mini`
+- before / after 해석:
+  - before(24h 관측): `primary=3`, `canary=0`으로 canary 비활성 가능성까지 의심되는 상태
+  - after(72h 관측): canary가 실제 `6건` 관측되어 비활성/환경 누락 이슈는 아님이 확인됨
+  - 변화량:
+    - canary 표본: `0 -> 6` (`+6`)
+    - canary 활성 판단: `미확정 -> 정상 활성`
+- 측정 기준:
+  - 기간: 최근 72시간
+  - 표본 수: 총 31건 (`primary 25`, `canary 6`)
+  - 성공 기준: canary 경로가 1건 이상 관측되고 env 설정이 정상 노출될 것
+  - 실패 기준: 72시간 기준 canary `0건` 또는 env 누락 재발
+- 결론:
+  - `21-03`은 canary 비활성 이슈가 아니라 표본 부족 상태다.
+  - 계획 기준인 모델별 최소 표본 `N>=20`에는 canary가 여전히 미달(`6`)하므로 상태는 `in_progress` 유지.
+  - 즉시 추가 구현 대신, `168h` 이상 누적 관측 후 재판정하는 것이 맞다.
+
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | bot 내부 canary 핵심 env 유효 개수(7개 기준) | 0 | 7 | +7 | +100.0 |

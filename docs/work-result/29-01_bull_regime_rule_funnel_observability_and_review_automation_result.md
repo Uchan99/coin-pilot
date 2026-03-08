@@ -242,6 +242,28 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m n8n
     OCI n8n UI에 workflow import/수동 반영 후 Active 상태를 다시 확인해야 한다.
   - 2026-03-09 01:04 KST 수동 실행에서는 Discord 메시지에 `제안`, `Rule Funnel`, `Rule Funnel 제안` 3개 필드가 실제 표시되는 것을 확인했다.
 
+## 8.2 현재 단계 판정 (2026-03-09)
+- 구현/운영 검증 완료 항목:
+  1. `rule_funnel_events` 스키마/런타임 계측 반영
+  2. OCI 운영 적재 확인
+  3. `risk_reject` reason 세분화(`max_per_order`) 확인
+  4. Weekly Exit Report Discord 노출 확인
+- 남은 항목:
+  - `BULL` 표본 확보
+  - `ai_prefilter_reject` / `ai_guardrail_block` / `ai_confirm` / `ai_reject` 운영 표본 확보
+- 해석:
+  - 현재 `29-01`은 추가 구현보다 운영 관측이 남은 상태다.
+  - 따라서 본 스트림은 `in_progress`를 유지하되, 신규 구현 포커스는 다음 우선순위 작업(`30`)으로 이동 가능하다.
+- 정량 근거:
+  - 최근 72시간 Rule Funnel:
+    - `SIDEWAYS rule_pass=21`
+    - `SIDEWAYS risk_reject=21`
+    - `BULL=0`
+    - `AI stage=0`
+  - Weekly Exit Report Discord 표시:
+    - before `0/1`
+    - after `1/1`
+
 ## 9. Phase 1.1 후속 보정 (2026-03-08)
 - 문제:
   - OCI 운영 검증에서 `단일 주문 한도(20.0%) 초과`가 `reason_code=risk_other`로 분류돼, 리스크 병목 원인 해상도가 낮았다.
