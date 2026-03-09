@@ -97,13 +97,14 @@ bash -n scripts/ops/strategy_feedback_gate.sh
 
 ## 7.1 운영 이슈 메모 (2026-03-10)
 - 증상:
-  - OCI에서 `scripts/ops/strategy_feedback_report.sh`, `scripts/ops/strategy_feedback_gate.sh` 직접 실행 시 초기에는 `Permission denied`, 이후 `python: command not found`
+  - OCI에서 `scripts/ops/strategy_feedback_report.sh`, `scripts/ops/strategy_feedback_gate.sh` 직접 실행 시 초기에는 `Permission denied`, 이후 `python: command not found`, 그 다음 `ModuleNotFoundError: No module named 'sqlalchemy'`
 - 원인:
   - 스크립트 내용은 반영됐지만 git 실행 권한 비트(`+x`)가 누락된 상태로 pull됐다.
-  - 추가로 스크립트가 `python`만 가정했고, heredoc 파이썬이 읽을 일수 파라미터를 `export`하지 않아 OCI 셸 호환성이 부족했다.
+  - 추가로 스크립트가 다른 운영 스크립트와 달리 host python을 직접 사용해, bot 이미지에만 설치된 `sqlalchemy` 등 런타임 의존성을 OCI 호스트에서 찾지 못했다.
+  - heredoc 파이썬이 읽을 일수 파라미터도 container exec 환경 변수로 명시 주입되지 않았다.
 - 조치:
   - repo에서 두 스크립트에 실행 권한을 부여했다.
-  - `python3 -> python` 자동 탐지와 `REPORT_DAYS/APPROVAL_DAYS/FALLBACK_DAYS/PYTHONPATH` export를 추가했다.
+  - 두 스크립트를 `docker compose exec -T bot python` 패턴으로 전환하고, `REPORT_DAYS/APPROVAL_DAYS/FALLBACK_DAYS/PYTHONPATH=/app`를 container exec 환경 변수로 주입하도록 수정했다.
 - 임시 우회 명령:
 ```bash
 bash scripts/ops/strategy_feedback_report.sh 7 14 30

@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 REPORT_DAYS="${1:-7}"
 APPROVAL_DAYS="${2:-14}"
 FALLBACK_DAYS="${3:-30}"
+ENV_FILE="${COINPILOT_ENV_FILE:-${REPO_ROOT}/deploy/cloud/oci/.env}"
+COMPOSE_FILE="${COINPILOT_COMPOSE_FILE:-${REPO_ROOT}/deploy/cloud/oci/docker-compose.prod.yml}"
 
 for value in "${REPORT_DAYS}" "${APPROVAL_DAYS}" "${FALLBACK_DAYS}"; do
   if ! [[ "${value}" =~ ^[0-9]+$ ]]; then
@@ -14,21 +19,30 @@ done
 
 echo "[INFO] Strategy Feedback Report"
 echo "[INFO] report_days=${REPORT_DAYS}, approval_days=${APPROVAL_DAYS}, fallback_days=${FALLBACK_DAYS}"
+echo "[INFO] env=${ENV_FILE}"
+echo "[INFO] compose=${COMPOSE_FILE}"
 
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
-elif command -v python >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-else
-  echo "[FAIL] python3 또는 python 실행 파일을 찾을 수 없습니다."
-  exit 127
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "[FAIL] env file not found: ${ENV_FILE}"
+  exit 2
+fi
+if [[ ! -f "${COMPOSE_FILE}" ]]; then
+  echo "[FAIL] compose file not found: ${COMPOSE_FILE}"
+  exit 2
 fi
 
-# heredoc 내부 파이썬은 셸 지역변수를 직접 읽지 못하므로, OCI/로컬 공통으로
-# export된 환경 변수만 사용하게 고정한다.
-export REPORT_DAYS APPROVAL_DAYS FALLBACK_DAYS PYTHONPATH=.
+run_compose() {
+  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+}
 
-"${PYTHON_BIN}" - <<'PY'
+# 전략 피드백 분석기는 sqlalchemy 등 bot 이미지 의존성을 사용하므로,
+# 호스트 셸이 아니라 운영 bot 컨테이너 안에서 항상 동일한 런타임으로 실행한다.
+run_compose exec -T \
+  -e REPORT_DAYS="${REPORT_DAYS}" \
+  -e APPROVAL_DAYS="${APPROVAL_DAYS}" \
+  -e FALLBACK_DAYS="${FALLBACK_DAYS}" \
+  -e PYTHONPATH=/app \
+  bot python - <<'PY'
 import asyncio
 import json
 import os

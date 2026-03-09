@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 REPORT_DAYS="${1:-7}"
 APPROVAL_DAYS="${2:-14}"
 FALLBACK_DAYS="${3:-30}"
+ENV_FILE="${COINPILOT_ENV_FILE:-${REPO_ROOT}/deploy/cloud/oci/.env}"
+COMPOSE_FILE="${COINPILOT_COMPOSE_FILE:-${REPO_ROOT}/deploy/cloud/oci/docker-compose.prod.yml}"
 
 for value in "${REPORT_DAYS}" "${APPROVAL_DAYS}" "${FALLBACK_DAYS}"; do
   if ! [[ "${value}" =~ ^[0-9]+$ ]]; then
@@ -12,19 +17,31 @@ for value in "${REPORT_DAYS}" "${APPROVAL_DAYS}" "${FALLBACK_DAYS}"; do
   fi
 done
 
-if command -v python3 >/dev/null 2>&1; then
-  PYTHON_BIN="python3"
-elif command -v python >/dev/null 2>&1; then
-  PYTHON_BIN="python"
-else
-  echo "[FAIL] python3 또는 python 실행 파일을 찾을 수 없습니다."
-  exit 127
+echo "[INFO] Strategy Feedback Gate"
+echo "[INFO] report_days=${REPORT_DAYS}, approval_days=${APPROVAL_DAYS}, fallback_days=${FALLBACK_DAYS}"
+echo "[INFO] env=${ENV_FILE}"
+echo "[INFO] compose=${COMPOSE_FILE}"
+
+if [[ ! -f "${ENV_FILE}" ]]; then
+  echo "[FAIL] env file not found: ${ENV_FILE}"
+  exit 2
+fi
+if [[ ! -f "${COMPOSE_FILE}" ]]; then
+  echo "[FAIL] compose file not found: ${COMPOSE_FILE}"
+  exit 2
 fi
 
-# gate/report 스크립트가 동일한 입력 계약을 보도록 export를 강제한다.
-export REPORT_DAYS APPROVAL_DAYS FALLBACK_DAYS PYTHONPATH=.
+run_compose() {
+  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+}
 
-"${PYTHON_BIN}" - <<'PY'
+# gate 스크립트도 host python/venv 상태에 의존하지 않고 bot 컨테이너 기준으로 고정한다.
+run_compose exec -T \
+  -e REPORT_DAYS="${REPORT_DAYS}" \
+  -e APPROVAL_DAYS="${APPROVAL_DAYS}" \
+  -e FALLBACK_DAYS="${FALLBACK_DAYS}" \
+  -e PYTHONPATH=/app \
+  bot python - <<'PY'
 import asyncio
 import os
 import sys
