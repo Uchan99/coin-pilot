@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-06  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/15_post_exit_analysis_enhancement_plan.md`, `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`, `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`  
-**승인 정보**: 미승인 (구현/배포 승인 대기)
+**승인 정보**: 승인 / 2026-03-10 / 사용자 승인 후 구현 착수
 
 ---
 
@@ -328,6 +328,17 @@
   - 배포/마이그레이션
   - 자동 적용 스크립트 실행
 
+## 10.2 승인 후 1차 구현 범위(2026-03-10)
+- 포함:
+  - `src/analytics/strategy_feedback.py`
+  - `scripts/ops/strategy_feedback_report.sh`
+  - `scripts/ops/strategy_feedback_gate.sh`
+  - 분석기 단위 테스트
+- 제외:
+  - Discord/n8n 통합
+  - 자동 적용기(`strategy_feedback_apply.sh`)
+  - PR 자동 생성기
+
 ## 11. 후속 조치
 1. 29 결과(핫픽스 결론)를 30 입력 기준선으로 연결
 2. 28(RAG)에서 전략 설명 근거 생성 시 30의 피드백 스키마를 재사용
@@ -339,3 +350,4 @@
 - 2026-03-07: 사용자 요청에 따라 운영 가드레일 6종(주간 cap, 2주 shadow, 자동 보류 기준, 롤백 트리거, 재현성 해시, Discord 표준 승인 포맷)과 자동 수정 범위(Tier-A/Tier-B)를 추가.
 - 2026-03-10: 사용자 요청(`f30` 브랜치에서 30 plan 구체화 시작)에 따라 최신 관측 상태(`21-03/21-04/29-01`)를 입력 조건으로 반영하고, 데이터 계약/출력 JSON/gate_result/Discord 포맷/자동 보류 조건을 바로 구현 가능한 수준으로 세부화했다. 상태는 여전히 `Approval Pending`이며 승인 전 구현/배포는 수행하지 않는다.
 - 2026-03-10: 사용자 피드백을 반영해 `SELL >= 20` 단일 하드 게이트를 `SELL >= 12` 검토 게이트 + `SELL >= 20` 강한 승인 게이트로 이원화했다. 승인 판단 기본 윈도우는 14일, 표본 부족 시 30일 확장으로 명시했다.
+- 2026-03-10: 사용자 승인에 따라 상태를 `Approved`로 변경하고, 1차 구현 범위를 `분석기 + report/gate 스크립트 + 테스트`로 고정했다.
