@@ -14,8 +14,13 @@
   - 기존 주간 Exit 리포트는 있으나, Rule Funnel/백테스트 기반 "전략 수정 제안"은 포함되어 있지 않음.
   - Daily Report에 신호는 있으나, Rule Engine 파라미터(진입/익절/손절/레짐)를 체계적으로 피드백하는 자동 루프가 없음.
   - 29번 검증에서 데이터 윈도우/표본 부족 문제가 확인되어, 관측→개선 제안→검증의 자동 체계 필요성이 증가.
+  - 2026-03-09 기준 최신 상태:
+    - `21-03`: canary 경로는 정상 활성(`72h canary=6`)이나 모델별 최소 표본 `N>=20` 미달로 관측만 지속 중
+    - `21-04`: 내부 usage ledger는 동작하지만 `llm_provider_cost_snapshots=0`으로 reconciliation 미완료
+    - `29-01`: Rule Funnel 구현/Discord 노출까지 완료됐고, 현재는 `BULL`/`AI stage` 표본 대기만 남음
 - 왜 지금 필요한지:
   - FE/BE 이관(23)보다 전략 품질과 손익 안정성에 직접 영향을 주는 기반 자동화가 우선임.
+  - 관측성 스트림들이 모두 “구현 완료 + 운영 표본 대기” 단계에 들어갔으므로, 다음 신규 구현 포커스는 전략 피드백 spec 확정이 적절함.
 
 ## 1. 문제 요약
 - 증상:
@@ -37,6 +42,7 @@
 3. 자동 제안 체계를 기본으로 하되, 파라미터 변경에 한해 제한적 자동 적용 가능 여부를 운영정책으로 명확화
 4. 추후 28번 RAG와 결합 가능한 근거 데이터 계약(spec) 확정
 5. 기존 Discord 주간 Exit 리포트에 전략 제안 섹션을 증분 통합(주 1회 7일 고정)
+6. 승인 전에는 코드 변경/배포/마이그레이션 없이, 결과 스키마와 운영 게이트만 확정한다.
 
 ### 2.2 비목표
 1. 본 계획에서 무인 자동 배포/무인 자동 파라미터 변경은 수행하지 않음
@@ -73,6 +79,7 @@
 ## 4. 대응 전략
 - 단기:
   - 전략 피드백 표준 스키마/리포트/검증 게이트를 먼저 문서화(Spec-First)
+  - 이번 턴 목표는 “바로 구현 가능한 spec 수준”까지 세부화하고 승인 대기 상태를 명확히 유지하는 것
 - 중기:
   - 자동 분석 리포트/파라미터 후보 생성 스크립트 구현
   - 워크포워드 백테스트 게이트 자동 실행
@@ -88,6 +95,50 @@
 3. 출력 스키마:
    - 전략 상태 점수, 원인 분해 점수, 파라미터 후보 목록, 검증 결과, 최종 권고
 
+#### Phase A 세부 계약(이번 턴에 고정할 항목)
+1. 기본 집계 윈도우:
+   - `lookback_days=7` (주간 보고 기본값)
+   - 승인 판단 기본값: `lookback_days=14`
+   - 보조 비교/표본 확장: `lookback_days=30`
+   - 최근 레짐 전환 구간은 `29` 결과 기준 동일 심볼/동일 기간 재사용
+2. 최소 표본 게이트:
+   - `SELL >= 12`이면 “검토 가능(reviewable)” 상태로 올릴 수 있음
+   - `SELL >= 20`이면 “강한 승인(strong approval)” 게이트 충족
+   - `SELL < 12`이면 파라미터 변경 제안은 생성 가능하지만 자동으로 `hold with candidate`
+   - `AI decisions >= 20` 미만이면 AI 병목 해석을 보조 참고치로만 취급
+   - `rule_funnel BULL rule_pass >= 5` 미만이면 BULL 병목 해석 자동 보류
+3. 입력 소스별 역할:
+   - `trading_history`: 실현손익/exit reason/보유시간
+   - `agent_decisions`: AI confirm/reject/parse_fail/timeout/model mix
+   - `rule_funnel_events`: Rule/Risk/AI 퍼널 병목
+   - `llm_usage_events`: 비용/호출량 증가율
+   - `market_data`: 재현 백테스트/워크포워드 입력
+4. 산출 JSON 초안:
+```json
+{
+  "window": {"days": 7, "start": "...", "end": "..."},
+  "readiness": {
+    "sell_samples": 0,
+    "ai_decisions": 0,
+    "bull_rule_pass": 0,
+    "approval_tier": "hold",
+    "eligible_for_change": false,
+    "hold_reasons": []
+  },
+  "scoreboard": {
+    "avg_realized_pnl_krw": 0,
+    "profit_factor": 0.0,
+    "max_drawdown_pct": 0.0,
+    "ai_reject_rate_pct": 0.0,
+    "llm_cost_delta_pct": 0.0
+  },
+  "bottlenecks": [],
+  "candidate_changes": [],
+  "gate_result": "hold",
+  "evidence": []
+}
+```
+
 ### Phase B. 자동 분석 리포트
 1. 손익 분해:
    - 진입 실패 / 청산 실패 / 레짐 오판 / AI 과차단 점수
@@ -99,6 +150,23 @@
    - 기존 `Weekly Exit Report` payload에 `Strategy Feedback` 블록 추가
    - Discord에는 요약(판정/핵심 수치) + 상세(파라미터 후보/근거) 2단 메시지로 전송
 
+#### Phase B 세부 산출(이번 턴에 고정할 항목)
+1. 요약 블록 필수 필드:
+   - `gate_result`: `recommend | hold | discard`
+   - `approval_tier`: `hold | reviewable | strong_approval`
+   - `top_bottleneck`: 예) `SIDEWAYS max_per_order`, `BULL rule_pass shortage`
+   - `kpi_delta`: 전주 대비 `avg_realized_pnl`, `PF`, `MDD`, `AI reject rate`, `LLM cost`
+2. 상세 블록 필수 필드:
+   - `candidate_id`
+   - `target_param`
+   - `current_value`
+   - `proposed_value`
+   - `expected_effect`
+   - `hold_reason` 또는 `approval_reason`
+3. Discord 표준 포맷:
+   - 메시지 1: `판정 + KPI 4줄 + 병목 2줄`
+   - 메시지 2: 파라미터 후보별 diff + 백테스트 결과 + config hash + `approval_tier`
+
 ### Phase C. 파라미터 후보 생성(룰 기반)
 1. 후보 생성 범위 제한:
    - RSI/MA/거래량 임계값, TP/SL, trailing 설정
@@ -107,6 +175,29 @@
 3. 금지 규칙:
    - 리스크 한도/절대 안전규칙은 자동 변경 불가
 
+#### Phase C 세부 후보 규칙(초안 고정)
+1. 후보 허용 파라미터:
+   - `bull.rsi_14_max`
+   - `sideways.rsi_14_max`
+   - `bear.rsi_14_max`
+   - `take_profit_pct`
+   - `stop_loss_pct`
+   - `trailing_stop_pct`
+   - `volume_ratio_min`
+2. 후보 생성 조건 예시:
+   - `RSI_OVERBOUGHT` 비중 과대 + 평균 수익 양호: `take_profit_pct` 상향 후보
+   - `TIME_LIMIT` 이후 후행 하락 지속: 현행 유지 또는 더 조기 청산 후보
+   - `rule_pass` 충분하나 `ai_reject` 과다: 파라미터 후보 생성 금지, AI/RAG 관측 이슈로 분류
+   - `rule_pass` 자체 부족: 레짐 진입 조건 후보만 생성
+3. 후보 생성 금지 조건:
+   - `BULL rule_pass < 5`
+   - `parse_fail_rate >= 10%`
+   - `provider cost snapshot missing`
+4. 후보 생성/승인 분리 규칙:
+   - `SELL < 12`: 후보 생성만 허용, `gate_result=hold`
+   - `12 <= SELL < 20`: 후보 생성 + 수동 검토 가능, `approval_tier=reviewable`
+   - `SELL >= 20`: 정식 승인 심사 가능, `approval_tier=strong_approval`
+
 ### Phase D. 검증 게이트 자동화
 1. 백테스트 게이트:
    - 워크포워드 + 최근 구간 재검증 동시 통과
@@ -114,6 +205,28 @@
    - 수익/리스크 동시 기준 미달 시 자동 보류
 3. 산출물:
    - “승인 가능/보류/폐기” 판정 + 근거 지표
+
+#### Phase D 세부 게이트(이번 턴에 고정할 항목)
+1. 필수 통과 게이트:
+   - `avg_realized_pnl_per_sell > 0`
+   - `profit_factor >= 1.0`
+   - `max_drawdown_pct` 악화 `+2%p` 이내
+   - `ai_reject_rate_pct` 악화 `+10%p` 이내
+   - `llm_cost_delta_pct` 증가 `+20%` 이내
+2. 자동 보류(`hold`) 조건:
+   - `SELL < 12`
+   - 비용 snapshot 누락
+   - 카나리 실험 표본 부족
+   - Rule Funnel 병목이 운영 한도(`max_per_order`)에 집중돼 전략 파라미터 조정 근거가 약한 경우
+3. 조건부 검토(`reviewable`) 조건:
+   - `12 <= SELL < 20`
+   - 필수 KPI 급락 없음
+   - Rule Funnel 또는 백테스트 근거가 명확
+   - 최종 적용은 수동 승인만 가능
+4. 자동 폐기(`discard`) 조건:
+   - 백테스트 수익/리스크 동시 악화
+   - 변경폭 제한 위반
+   - 재현성 해시 누락
 
 ### Phase E. 승인 배포/롤백 운영
 1. 승인형 배포:
@@ -153,6 +266,13 @@
 - 자동 적용 허용 조건(추가):
   - Shadow 모드 종료 + 주간 변경 cap 충족 + 자동 보류 기준 미충족 + 롤백 트리거 미발생
 
+### 6.1 이번 Plan 구체화 완료 기준
+1. 입력 데이터 계약과 최소 표본 게이트가 문서에 고정될 것
+2. `gate_result`(`recommend|hold|discard`) 판정 로직이 정량 기준으로 정의될 것
+3. `approval_tier`(`hold|reviewable|strong_approval`)가 명시될 것
+4. Discord/주간 리포트에 들어갈 표준 필드가 확정될 것
+5. 승인 전 구현/배포 금지 원칙이 명시될 것
+
 ## 7. 예상 변경 파일
 1. `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md` (본 문서)
 2. `docs/work-result/30_strategy_feedback_automation_spec_first_result.md` (구현 후)
@@ -178,6 +298,8 @@
    - `python -c "import asyncio; from src.bot.main import weekly_exit_report_job; asyncio.run(weekly_exit_report_job())"`
 7. 재현성 해시 검증:
    - `sha256sum config/strategy_v3.yaml`
+8. Rule Funnel 병목 확인:
+   - `scripts/ops/rule_funnel_regime_report.sh 72`
 
 ## 9. 롤백
 - 코드 롤백:
@@ -197,6 +319,15 @@
 - Charter 반영:
   - 승인형 자동화 정책이 운영 규칙으로 확정되면 changelog에 반영
 
+## 10.1 이번 턴 산출물 범위(승인 전)
+- 포함:
+  - 본 계획서 구체화
+  - 체크리스트 최근 업데이트 메모
+- 제외:
+  - 코드 구현
+  - 배포/마이그레이션
+  - 자동 적용 스크립트 실행
+
 ## 11. 후속 조치
 1. 29 결과(핫픽스 결론)를 30 입력 기준선으로 연결
 2. 28(RAG)에서 전략 설명 근거 생성 시 30의 피드백 스키마를 재사용
@@ -206,3 +337,5 @@
 - 2026-03-06: 사용자 요청(전략 피드백 자동화 아이디어)을 반영해 신규 main 계획 30 생성. 구현 전 Spec-First + 승인형 배포 원칙으로 범위를 확정.
 - 2026-03-07: 사용자 요청에 따라 주기 정책을 "주 1회(7일 고정)"로 명확화하고, 기존 Weekly Exit Report 경로에 전략 제안 섹션을 증분 통합하는 방식을 추가.
 - 2026-03-07: 사용자 요청에 따라 운영 가드레일 6종(주간 cap, 2주 shadow, 자동 보류 기준, 롤백 트리거, 재현성 해시, Discord 표준 승인 포맷)과 자동 수정 범위(Tier-A/Tier-B)를 추가.
+- 2026-03-10: 사용자 요청(`f30` 브랜치에서 30 plan 구체화 시작)에 따라 최신 관측 상태(`21-03/21-04/29-01`)를 입력 조건으로 반영하고, 데이터 계약/출력 JSON/gate_result/Discord 포맷/자동 보류 조건을 바로 구현 가능한 수준으로 세부화했다. 상태는 여전히 `Approval Pending`이며 승인 전 구현/배포는 수행하지 않는다.
+- 2026-03-10: 사용자 피드백을 반영해 `SELL >= 20` 단일 하드 게이트를 `SELL >= 12` 검토 게이트 + `SELL >= 20` 강한 승인 게이트로 이원화했다. 승인 판단 기본 윈도우는 14일, 표본 부족 시 30일 확장으로 명시했다.
