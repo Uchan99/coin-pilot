@@ -95,6 +95,19 @@ bash -n scripts/ops/strategy_feedback_gate.sh
 - 미확정:
   - Discord/n8n에 `Strategy Feedback` 블록을 어떤 메시지 포맷으로 붙일지는 다음 Phase에서 확정한다.
 
+## 7.1 운영 이슈 메모 (2026-03-10)
+- 증상:
+  - OCI에서 `scripts/ops/strategy_feedback_report.sh`, `scripts/ops/strategy_feedback_gate.sh` 직접 실행 시 `Permission denied`
+- 원인:
+  - 스크립트 내용은 반영됐지만 git 실행 권한 비트(`+x`)가 누락된 상태로 pull됨
+- 조치:
+  - repo에서 두 스크립트에 실행 권한을 부여했다.
+- 임시 우회 명령:
+```bash
+bash scripts/ops/strategy_feedback_report.sh 7 14 30
+bash scripts/ops/strategy_feedback_gate.sh 7 14 30
+```
+
 ## 8. README / 체크리스트 동기화
 - `README.md`:
   - 미반영
