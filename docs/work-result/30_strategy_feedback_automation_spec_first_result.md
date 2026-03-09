@@ -78,13 +78,43 @@ bash -n scripts/ops/strategy_feedback_gate.sh
 
 ## 6. 측정 불가 사유 / 대체 지표 / 추후 계획
 - 측정 불가 사유:
-  - 아직 OCI 운영에서 `strategy_feedback_report.sh`를 실제 표본으로 실행한 결과는 확보하지 못했다.
+  - provider 비용 snapshot이 아직 0건이라 비용 reconciliation 기반 승인 판단은 완결되지 않았다.
 - 대체 지표:
   - 단위 테스트로 `14d 표본 부족 -> 30d 확장`, `reviewable`, `candidate 생성` 동작을 검증했다.
+  - OCI 운영에서 `strategy_feedback_report.sh 7 14 30` / `strategy_feedback_gate.sh 7 14 30`를 실제 실행해 현재 게이트 판정과 보류/폐기 사유를 확보했다.
 - 추후 계획:
-  1. OCI에서 `scripts/ops/strategy_feedback_report.sh 7 14 30` 실행
+  1. `21-04` provider cost snapshot 수집 경로를 복구해 비용 gate를 활성화
   2. Discord 주간 리포트 통합은 다음 Phase에서 반영
   3. 자동 적용기/PR 생성기는 승인 후 후속 Phase로 분리
+
+## 6.1 OCI 운영 검증 결과 (2026-03-10)
+- 실행 명령:
+```bash
+bash scripts/ops/strategy_feedback_report.sh 7 14 30
+bash scripts/ops/strategy_feedback_gate.sh 7 14 30
+```
+- 실제 판정:
+  - `gate_result=discard`
+  - `approval_tier=reviewable`
+  - `sell_samples=16`
+  - `ai_decisions=544`
+  - `bull_rule_pass=0`
+- 핵심 수치:
+  - `avg_realized_pnl_pct=-0.6369`
+  - `profit_factor=0.5807`
+  - `max_drawdown_pct=19.7283`
+  - `ai_reject_rate_pct=96.875`
+  - `llm_cost_usd=0.862175`
+  - `llm_cost_delta_pct=null` (`provider_snapshot_count=0`)
+- hold 사유:
+  - `provider cost snapshot 누락: 비용 reconciliation 보류`
+  - `BULL rule_pass 부족: 0건 (최소 5건 필요)`
+- discard 사유:
+  - `평균 실현 손익률이 0 이하`
+  - `Profit Factor가 1.0 미만`
+- 해석:
+  - 현재 전략 피드백 자동화는 정상적으로 데이터 집계와 게이트 판정을 수행했다.
+  - 다만 현 시점 운영 데이터 기준으로는 비용 snapshot 누락과 BULL 표본 부족이 남아 있고, 실현 손익/Profit Factor 자체도 기준 미달이라 변경 제안은 생성되지 않았다.
 
 ## 7. 리스크 / 가정 / 미확정 사항
 - 리스크:
@@ -105,6 +135,8 @@ bash -n scripts/ops/strategy_feedback_gate.sh
 - 조치:
   - repo에서 두 스크립트에 실행 권한을 부여했다.
   - 두 스크립트를 `docker compose exec -T bot python` 패턴으로 전환하고, `REPORT_DAYS/APPROVAL_DAYS/FALLBACK_DAYS/PYTHONPATH=/app`를 container exec 환경 변수로 주입하도록 수정했다.
+- 결과:
+  - 보정 후 OCI에서 `report`, `gate` 스크립트 모두 정상 실행됐고, 실제 게이트 판정(`discard`, `reviewable`)을 출력했다.
 - 임시 우회 명령:
 ```bash
 bash scripts/ops/strategy_feedback_report.sh 7 14 30

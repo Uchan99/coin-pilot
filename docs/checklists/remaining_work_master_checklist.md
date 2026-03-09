@@ -146,6 +146,7 @@
 - 2026-03-10: 사용자 요청에 따라 `30` 계획을 `f30` 브랜치에서 구체화했다. 최신 입력 조건(`21-03` 표본 부족, `21-04` snapshot 누락, `29-01` monitoring-only)을 반영해 데이터 계약, 최소 표본 게이트, `gate_result(recommend|hold|discard)`, Discord 주간 보고 필드, 자동 보류 조건을 문서화했다. 이후 사용자 피드백을 반영해 `SELL >= 12` 검토 게이트 + `SELL >= 20` 강한 승인 게이트로 이원화하고, 승인 판단 윈도우를 `14일 기본 / 30일 확장`으로 구체화했다. 상태는 승인 전이므로 `todo` 유지.
 - 2026-03-10: 사용자 승인 후 `30`을 `in_progress`로 전환하고 1차 구현(전략 피드백 분석기, `strategy_feedback_report.sh`, `strategy_feedback_gate.sh`, 테스트 3건)을 반영했다. Discord/n8n 통합과 자동 적용기는 이번 Phase 범위에서 제외했다.
 - 2026-03-10: 30 OCI 런타임 호환성 보정. 초기 `Permission denied`, 이후 `python: command not found`와 `ModuleNotFoundError: sqlalchemy`를 확인해 두 ops 스크립트를 host python 대신 `docker compose exec -T bot python` 패턴으로 전환하고, 관련 트러블슈팅 문서를 체크리스트에 연결했다.
+- 2026-03-10: 30 OCI 1차 운영 실행 성공. `strategy_feedback_report.sh 7 14 30` / `gate.sh 7 14 30`에서 `gate_result=discard`, `approval_tier=reviewable`, `sell_samples=16`, `ai_decisions=544`, `bull_rule_pass=0`, `avg_realized_pnl_pct=-0.6369`, `profit_factor=0.5807`를 확인했다. 현재는 비용 snapshot 누락과 BULL 표본 부족, 실현 손익/PF 기준 미달로 변경 제안이 생성되지 않는 상태다.
 
 ---
 

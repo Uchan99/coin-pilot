@@ -9,7 +9,7 @@
 
 ## 0. 문제 정의
 - 증상:
-  - OCI에서 `scripts/ops/strategy_feedback_report.sh 7 14 30`, `scripts/ops/strategy_feedback_gate.sh 7 14 30` 실행 시 초기에는 `Permission denied`, 이후 `python: command not found`
+  - OCI에서 `scripts/ops/strategy_feedback_report.sh 7 14 30`, `scripts/ops/strategy_feedback_gate.sh 7 14 30` 실행 시 초기에는 `Permission denied`, 이후 `python: command not found`, 그 다음 `ModuleNotFoundError: No module named 'sqlalchemy'`
 - 영향:
   - 30 Phase 1 분석기/게이트 PoC를 운영 데이터로 즉시 검증할 수 없었다.
 - 재현 조건:
@@ -29,7 +29,7 @@
 ## 2. Before / After 정량 증빙
 | 항목 | Before | After | 변화량 |
 |---|---:|---:|---:|
-| OCI 직접 실행 성공률 | 0/2 | 2/2 기대치(컨테이너 실행 패치 후 재검증 대상) | +2 |
+| OCI 직접 실행 성공률 | 0/2 | 2/2 | +2 |
 | 런타임 일관성 | host python 의존 | bot 컨테이너 런타임 고정 | +1 |
 | container exec 주입 변수 | 0 | 4 | +4 |
 | 직접 실행 가능 여부 | `100644` | `100755` | +1 권한 비트 |
@@ -52,6 +52,17 @@ stat -c '%A %n' scripts/ops/strategy_feedback_report.sh scripts/ops/strategy_fee
 bash scripts/ops/strategy_feedback_report.sh 7 14 30
 bash scripts/ops/strategy_feedback_gate.sh 7 14 30
 ```
+
+## 4.1 최종 확인 결과
+- `strategy_feedback_report.sh 7 14 30`:
+  - `gate_result=discard`
+  - `approval_tier=reviewable`
+  - `sell_samples=16`
+  - `ai_decisions=544`
+- `strategy_feedback_gate.sh 7 14 30`:
+  - `gate_result=discard approval_tier=reviewable sell_samples=16 ai_decisions=544`
+- 결론:
+  - 런타임 호환성 이슈는 해소됐고, 현재 남은 문제는 스크립트 실행 자체가 아니라 실제 전략 KPI/표본 조건이다.
 
 ## 5. 재발 방지
 1. 신규 ops 스크립트는 host python보다 `docker compose exec -T bot python`을 기본 패턴으로 사용
