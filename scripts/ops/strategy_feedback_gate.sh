@@ -12,7 +12,19 @@ for value in "${REPORT_DAYS}" "${APPROVAL_DAYS}" "${FALLBACK_DAYS}"; do
   fi
 done
 
-PYTHONPATH=. python - <<'PY'
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "[FAIL] python3 또는 python 실행 파일을 찾을 수 없습니다."
+  exit 127
+fi
+
+# gate/report 스크립트가 동일한 입력 계약을 보도록 export를 강제한다.
+export REPORT_DAYS APPROVAL_DAYS FALLBACK_DAYS PYTHONPATH=.
+
+"${PYTHON_BIN}" - <<'PY'
 import asyncio
 import os
 import sys

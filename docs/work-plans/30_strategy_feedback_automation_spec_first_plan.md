@@ -4,7 +4,8 @@
 **작성자**: Codex  
 **상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/15_post_exit_analysis_enhancement_plan.md`, `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`, `docs/work-plans/29_regime_transition_strategy_evaluation_and_hotfix_plan.md`  
-**승인 정보**: 승인 / 2026-03-10 / 사용자 승인 후 구현 착수
+**승인 정보**: 승인 / 2026-03-10 / 사용자 승인 후 구현 착수  
+**관련 트러블슈팅**: `docs/troubleshooting/30_strategy_feedback_ops_script_runtime_compatibility.md`
 
 ---
 
@@ -351,3 +352,4 @@
 - 2026-03-10: 사용자 요청(`f30` 브랜치에서 30 plan 구체화 시작)에 따라 최신 관측 상태(`21-03/21-04/29-01`)를 입력 조건으로 반영하고, 데이터 계약/출력 JSON/gate_result/Discord 포맷/자동 보류 조건을 바로 구현 가능한 수준으로 세부화했다. 상태는 여전히 `Approval Pending`이며 승인 전 구현/배포는 수행하지 않는다.
 - 2026-03-10: 사용자 피드백을 반영해 `SELL >= 20` 단일 하드 게이트를 `SELL >= 12` 검토 게이트 + `SELL >= 20` 강한 승인 게이트로 이원화했다. 승인 판단 기본 윈도우는 14일, 표본 부족 시 30일 확장으로 명시했다.
 - 2026-03-10: 사용자 승인에 따라 상태를 `Approved`로 변경하고, 1차 구현 범위를 `분석기 + report/gate 스크립트 + 테스트`로 고정했다.
+- 2026-03-10: OCI 운영 검증 중 `Permission denied`와 `python: command not found`를 확인해, ops 스크립트 실행 권한 비트 및 `python3/python` 호환성, heredoc 환경 변수 export 보정을 후속 수정 범위에 추가했다.

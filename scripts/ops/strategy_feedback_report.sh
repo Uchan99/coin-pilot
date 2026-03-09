@@ -15,7 +15,20 @@ done
 echo "[INFO] Strategy Feedback Report"
 echo "[INFO] report_days=${REPORT_DAYS}, approval_days=${APPROVAL_DAYS}, fallback_days=${FALLBACK_DAYS}"
 
-PYTHONPATH=. python - <<'PY'
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "[FAIL] python3 또는 python 실행 파일을 찾을 수 없습니다."
+  exit 127
+fi
+
+# heredoc 내부 파이썬은 셸 지역변수를 직접 읽지 못하므로, OCI/로컬 공통으로
+# export된 환경 변수만 사용하게 고정한다.
+export REPORT_DAYS APPROVAL_DAYS FALLBACK_DAYS PYTHONPATH=.
+
+"${PYTHON_BIN}" - <<'PY'
 import asyncio
 import json
 import os

@@ -3,7 +3,7 @@
 작성일: 2026-03-10
 작성자: Codex
 관련 계획서: `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md`
-상태: In Progress (Phase 1 분석기/ops report 구현 완료)
+상태: In Progress (Phase 1 분석기/ops report 구현 완료, OCI 런타임 호환성 보정 포함)
 
 ---
 
@@ -97,16 +97,20 @@ bash -n scripts/ops/strategy_feedback_gate.sh
 
 ## 7.1 운영 이슈 메모 (2026-03-10)
 - 증상:
-  - OCI에서 `scripts/ops/strategy_feedback_report.sh`, `scripts/ops/strategy_feedback_gate.sh` 직접 실행 시 `Permission denied`
+  - OCI에서 `scripts/ops/strategy_feedback_report.sh`, `scripts/ops/strategy_feedback_gate.sh` 직접 실행 시 초기에는 `Permission denied`, 이후 `python: command not found`
 - 원인:
-  - 스크립트 내용은 반영됐지만 git 실행 권한 비트(`+x`)가 누락된 상태로 pull됨
+  - 스크립트 내용은 반영됐지만 git 실행 권한 비트(`+x`)가 누락된 상태로 pull됐다.
+  - 추가로 스크립트가 `python`만 가정했고, heredoc 파이썬이 읽을 일수 파라미터를 `export`하지 않아 OCI 셸 호환성이 부족했다.
 - 조치:
   - repo에서 두 스크립트에 실행 권한을 부여했다.
+  - `python3 -> python` 자동 탐지와 `REPORT_DAYS/APPROVAL_DAYS/FALLBACK_DAYS/PYTHONPATH` export를 추가했다.
 - 임시 우회 명령:
 ```bash
 bash scripts/ops/strategy_feedback_report.sh 7 14 30
 bash scripts/ops/strategy_feedback_gate.sh 7 14 30
 ```
+- 관련 트러블슈팅:
+  - `docs/troubleshooting/30_strategy_feedback_ops_script_runtime_compatibility.md`
 
 ## 8. README / 체크리스트 동기화
 - `README.md`:
@@ -114,4 +118,4 @@ bash scripts/ops/strategy_feedback_gate.sh 7 14 30
   - 사유: `30`은 아직 `done`이 아니고 Phase 1만 구현됨
 - `remaining_work_master_checklist.md`:
   - `30` 상태를 `in_progress`로 반영
-  - 본 결과 문서 링크를 추가 완료
+  - 본 결과 문서와 OCI 런타임 호환성 트러블슈팅 링크를 추가 완료
