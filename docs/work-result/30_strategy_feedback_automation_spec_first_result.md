@@ -116,6 +116,25 @@ bash scripts/ops/strategy_feedback_gate.sh 7 14 30
   - 현재 전략 피드백 자동화는 정상적으로 데이터 집계와 게이트 판정을 수행했다.
   - 다만 현 시점 운영 데이터 기준으로는 비용 snapshot 누락과 BULL 표본 부족이 남아 있고, 실현 손익/Profit Factor 자체도 기준 미달이라 변경 제안은 생성되지 않았다.
 
+## 6.2 현재 `discard` 원인 분해 (2026-03-10)
+- 윈도우 차이:
+  - 주간 보고(`report_days=7`)와 승인 판단(`approval_days=14`)은 서로 다른 역할을 가진다.
+  - 이번 실행에서 최근 7일 `weekly_exit_summary.by_regime.SIDEWAYS.avg_pnl_pct=0.552%`로 최근 구간 자체는 흑자였지만,
+  - 승인 게이트는 최근 14일 SELL 16건 전체를 기준으로 계산돼 `avg_realized_pnl_pct=-0.6369%`, `profit_factor=0.5807`로 폐기(`discard`)가 반환됐다.
+- 의미:
+  - 최근 7일만 보면 완만한 회복 신호가 있으나, 승인 창(14일) 누적 손익은 아직 음수다.
+  - 따라서 현재 `discard`는 "최근 7일 성과 악화"보다 "최근 14일 누적 기준 미달"이 더 직접적인 원인이다.
+- 레짐/퍼널 병목:
+  - `SIDEWAYS rule_pass=113`, `risk_reject=108`로 횡보장 후보 대부분이 리스크 단계에서 차단됐다.
+  - 그중 `SIDEWAYS risk_reject max_per_order=102`로, 횡보장 후보의 주요 병목은 전략 파라미터가 아니라 주문 한도(`max_per_order`)였다.
+  - `BEAR rule_pass=21`, `ai_prefilter_reject=19`, `reason=weak_volume_recovery`로 하락장 후보는 AI 이전 prefilter에서 거의 대부분 차단됐다.
+- 현재 판단:
+  - `30`의 자동 분석기는 정상 동작하지만, 이번 운영 데이터로는 "전략 파라미터 조정"보다
+    1) 비용 snapshot 복구(`21-04`)
+    2) BULL 표본 확보(`29-01`)
+    3) `SIDEWAYS max_per_order`가 전략 문제인지 운영 리스크 문제인지 추가 분리
+    가 우선이다.
+
 ## 7. 리스크 / 가정 / 미확정 사항
 - 리스크:
   - 현재 `max_drawdown_pct`는 포트폴리오 equity curve가 아니라 SELL 시퀀스 기반 MDD proxy다.
