@@ -3,7 +3,7 @@
 작성일: 2026-03-10
 작성자: Codex
 관련 계획서: docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md
-상태: In Progress (Phase A/B Implemented)
+상태: In Progress (Phase A/B Verified on OCI)
 완료 범위: Phase A, Phase B
 관련 트러블슈팅(있다면): `docs/troubleshooting/31_scheduled_monitoring_runtime_path_and_loki_readiness_false_fail.md`
 
@@ -112,6 +112,34 @@
   - 관련 원인을 트러블슈팅 문서로 분리하고,
   - 기본 lock 경로를 `${LOG_ROOT}/locks`로 변경,
   - Loki query API success를 readiness fallback으로 인정하도록 보정했다.
+
+## 5.2 OCI 2차 운영 검증(보정 후 최종)
+- 검증 시각:
+  - 2026-03-10 14:28 UTC 전후
+- 실행 명령:
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t1h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t1h --automation-mode`
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh ai-canary-24h /opt/coin-pilot/scripts/ops/ai_decision_canary_report.sh 24`
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh llm-usage-24h /opt/coin-pilot/scripts/ops/llm_usage_cost_report.sh 24`
+  - `sudo tail -n 200 /var/log/coinpilot/ops/*.log`
+- 정량 결과:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `monitoring-t1h` exit_code | 1 | 0 | -1 | -100.0 |
+| `monitoring-t1h` FAIL 개수 | 1 | 0 | -1 | -100.0 |
+| `monitoring-t1h` WARN 개수 | 0 | 0 | 0 | 0.0 |
+| `ai-canary-24h` exit_code | 0 | 0 | 0 | 0.0 |
+| `llm-usage-24h` exit_code | 0 | 0 | 0 | 0.0 |
+| cron 활성 상태 | active | active | 0 | 0.0 |
+
+- 세부 확인:
+  - `monitoring-t1h` 최신 로그에서 `Loki readiness 확인(ready)`와 `FAIL: 0 / WARN: 0 / exit_code=0`를 확인했다.
+  - `ai-canary-24h` 최신 로그에서 `primary 14건`, `canary 3건`, `exit_code=0`를 확인했다.
+  - `llm-usage-24h` 최신 로그에서 route/provider/model 집계 5행과 `exit_code=0`를 확인했다.
+  - `llm_provider_cost_snapshots`가 `0 rows`인 상태는 21-04 개인 계정 fallback 정책과 일치하므로, 본 Phase에서는 FAIL 조건으로 취급하지 않았다.
+- 해석:
+  - cron 파일 설치, root 실행, 로그 보관, `flock/timeout` 래퍼, 자동화 모드, Loki readiness fallback이 모두 OCI에서 실제 동작함을 확인했다.
+  - 따라서 31은 전체 완료 전 단계이지만, **Phase A/B의 설계와 운영 적용은 검증 완료**로 판단한다.
 
 ## 6. README 동기화 여부
 - 이번 Phase는 main task `done`이 아니고 운영 예시/래퍼 추가 수준이므로 `README.md`는 동기화하지 않았다.

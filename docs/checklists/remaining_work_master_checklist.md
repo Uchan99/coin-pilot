@@ -155,6 +155,7 @@
 - 2026-03-10: `21-04` 상태를 `blocked`로 전환. 사유는 구현 실패가 아니라 개인 계정 capability 제약으로 provider 비용 API reconciliation을 더 진행할 수 없기 때문이며, 현재는 내부 usage observability만 정상 운영하는 fallback 모드다.
 - 2026-03-10: `31` 사용자 승인 후 착수(`in_progress`). `check_24h_monitoring.sh`에 `--automation-mode`를 추가해 수동 UI 확인 WARN 노이즈를 억제했고, `run_scheduled_monitoring.sh` 래퍼와 `deploy/cloud/oci/ops/coinpilot-monitoring.cron.example`를 추가해 cron 주기표/실행 가드/로그 표준의 첫 구현을 반영했다.
 - 2026-03-10: `31` OCI 1차 검증 중 런타임 이슈를 확인했다. 비root `/tmp` 스모크에서 기본 lock 경로 권한 충돌이 발생했고, Loki `/ready` empty 응답으로 false FAIL이 발생해 트러블슈팅 문서를 추가하고 `LOCK_ROOT=${LOG_ROOT}/locks` 기본값 및 Loki readiness fallback(query API success) 보정을 반영했다.
+- 2026-03-10: `31` OCI 2차 검증 완료. `/etc/cron.d/coinpilot-monitoring` + `cron active` 상태에서 root 기준 스모크를 재실행했고, `monitoring-t1h`는 `FAIL:0/WARN:0/exit_code=0`, `ai-canary-24h`/`llm-usage-24h`도 모두 `exit_code=0`으로 통과했다. 현재는 Phase A/B 검증 완료 상태이며, 남은 범위는 관측 갭 자동 판정(Phase C)이다.
 
 ---
 
