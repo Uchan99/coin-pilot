@@ -65,3 +65,32 @@ FROM scoped
 GROUP BY model_used, symbol
 ORDER BY model_used, total DESC, symbol;
 "
+
+echo
+echo "[INFO] analyst usage breakdown (rag status)"
+docker exec -u postgres "${DB_CONTAINER}" psql -d "${DB_NAME}" -v ON_ERROR_STOP=1 -c "
+WITH scoped AS (
+  SELECT
+    provider,
+    model,
+    COALESCE(meta->>'rag_status',
+      CASE WHEN COALESCE(meta->>'rag_enabled', 'false') = 'true' THEN 'enabled' ELSE 'disabled' END
+    ) AS rag_status,
+    latency_ms,
+    estimated_cost_usd
+  FROM llm_usage_events
+  WHERE created_at >= now() - interval '${HOURS} hours'
+    AND route = 'ai_decision_analyst'
+    AND feature = 'ai_decision'
+)
+SELECT
+  provider,
+  model,
+  rag_status,
+  COUNT(*) AS total_calls,
+  ROUND(AVG(latency_ms)::numeric, 2) AS avg_latency_ms,
+  ROUND(AVG(estimated_cost_usd)::numeric, 6) AS avg_cost_usd
+FROM scoped
+GROUP BY provider, model, rag_status
+ORDER BY provider, model, rag_status;
+"

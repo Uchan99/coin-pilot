@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 from src.common.llm_usage import (
@@ -10,10 +11,12 @@ from src.common.llm_usage import (
     estimate_tokens_from_text,
     extract_usage_from_llm_result,
     extract_usage_from_response_message,
+    fetch_llm_cost_value,
     load_llm_credit_snapshot_configs,
     load_llm_cost_snapshot_configs,
 )
 from datetime import datetime, timezone
+from decimal import Decimal
 
 
 class _FakeMessage:
@@ -179,3 +182,87 @@ def test_load_llm_cost_snapshot_configs(monkeypatch):
     assert configs[0].value_json_path == "data.0.amount.usd"
     assert "START_UNIX" in configs[0].url_template
     assert configs[0].headers["Authorization"] == "Bearer test-admin-key"
+
+
+def test_load_llm_cost_snapshot_configs_with_method_body_and_divisor(monkeypatch):
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_PROVIDERS", "anthropic")
+    monkeypatch.setenv(
+        "LLM_COST_SNAPSHOT_ANTHROPIC_URL_TEMPLATE",
+        "https://api.example.test/usage"
+    )
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_ANTHROPIC_VALUE_JSON_PATH", "unused.scalar")
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_ANTHROPIC_METHOD", "POST")
+    monkeypatch.setenv(
+        "LLM_COST_SNAPSHOT_ANTHROPIC_BODY_TEMPLATE",
+        '{"starting_at":"${START_ISO}","ending_at":"${END_ISO}"}'
+    )
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_ANTHROPIC_ITEMS_JSON_PATH", "data")
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_ANTHROPIC_ITEM_VALUE_JSON_PATH", "amount")
+    monkeypatch.setenv("LLM_COST_SNAPSHOT_ANTHROPIC_VALUE_DIVISOR", "100")
+
+    configs = load_llm_cost_snapshot_configs()
+
+    assert len(configs) == 1
+    assert configs[0].method == "POST"
+    assert configs[0].body_template == '{"starting_at":"${START_ISO}","ending_at":"${END_ISO}"}'
+    assert configs[0].items_json_path == "data"
+    assert configs[0].item_value_json_path == "amount"
+    assert configs[0].value_divisor == Decimal("100")
+
+
+def test_fetch_llm_cost_value_supports_post_items_sum_and_divisor():
+    import httpx
+
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["url"] = str(request.url)
+        captured["body"] = request.content.decode()
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"amount": "125"},
+                    {"amount": "75"},
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+
+    class _FakeAsyncClient(httpx.AsyncClient):
+        def __init__(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            super().__init__(*args, **kwargs)
+
+    httpx.AsyncClient = _FakeAsyncClient
+    try:
+        from src.common.llm_usage import CostSnapshotConfig
+
+        config = CostSnapshotConfig(
+            provider="anthropic",
+            url_template="https://api.example.test/costs",
+            value_json_path="unused.scalar",
+            headers={"x-test": "1"},
+            method="POST",
+            body_template='{"start":"${START_ISO}","end":"${END_ISO}"}',
+            items_json_path="data",
+            item_value_json_path="amount",
+            value_divisor=Decimal("100"),
+        )
+        cost, resolved_url = asyncio.run(
+            fetch_llm_cost_value(
+                config,
+                window_start=datetime(2026, 3, 10, 0, 0, tzinfo=timezone.utc),
+                window_end=datetime(2026, 3, 10, 1, 0, tzinfo=timezone.utc),
+            )
+        )
+    finally:
+        httpx.AsyncClient = original_async_client
+
+    assert captured["method"] == "POST"
+    assert resolved_url == "https://api.example.test/costs"
+    assert '"2026-03-10T00:00:00Z"' in captured["body"]
+    assert cost == Decimal("2.00000000")

@@ -154,3 +154,4 @@
 - 2026-03-04: Phase 1 운영 검증은 통과했으나 `llm_credit_snapshots` 자동 수집 부재로 reconciliation 정밀 검증은 Phase 2로 이월.
 - 2026-03-05: 사용자 재승인 후 Phase 2 구현 착수. `LLM_CREDIT_SNAPSHOT_*` env 기반 provider API 수집, scheduler 주기 실행, one-shot 수집 스크립트(`scripts/ops/llm_credit_snapshot_collect.sh`), 리포트 snapshot freshness 구간을 계획 범위에 추가.
 - 2026-03-05: Phase 2.1 계획 보정. provider 공식 API의 balance endpoint 의존을 제거하고, `LLM_COST_SNAPSHOT_*` env 기반 구간 비용 수집(`llm_provider_cost_snapshots`)으로 전환해 route 원장(`llm_usage_events`)과 비용 합계를 대조하는 방식으로 변경.
+- 2026-03-10: Phase 2.2 구현 범위 추가. 실제 provider 비용 API 연결성을 높이기 위해 cost snapshot 수집기에 `HTTP method`, `body template`, `배열 bucket 합산`, `최소 단위(divisor)` 지원을 추가한다.

@@ -15,6 +15,10 @@ class AgentState(TypedDict):
     indicators: Dict[str, Any]    # RSI, BB, MA 등
     # 카나리 실험 시 Analyst/Guardian가 동일 모델 경로를 사용하도록 공유하는 라우팅 메타데이터
     llm_route: Optional[Dict[str, Any]]
+    # 전략 문서/과거 사례 기반 RAG 실험 컨텍스트 (Phase 28)
+    rag_context: Optional[Dict[str, Any]]
+    # offline replay 등 운영 외 비교 실행 여부
+    replay_mode: Optional[bool]
     
     # 분석 결과
     analyst_decision: Optional[Dict[str, Any]]

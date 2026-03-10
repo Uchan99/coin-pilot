@@ -3,7 +3,7 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-상태: In Progress (Phase 1 + Phase 2 + Phase 2.1 Code Implemented)
+상태: Blocked (개인 계정 fallback 운영 중 / provider reconciliation은 account capability 제약으로 보류)
 완료 범위: Phase 1, Phase 2, Phase 2.1(코드 반영)
 선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
@@ -256,7 +256,7 @@
 | `llm_credit_snapshots` 행 수 | 0 | 0 | 0 | 0.0 |
 
 - 상태 판단:
-  - Phase 1 구현은 완료됐지만, `llm_credit_snapshots` 자동 수집/대조 고도화가 남아 있으므로 `21-04`는 `in_progress`를 유지한다.
+  - Phase 1 구현은 완료됐지만, provider 외부 비용 대조는 개인 계정 capability 제약으로 진행할 수 없어 현재는 `blocked`로 관리한다.
 
 ---
 
@@ -318,6 +318,53 @@
     - `scripts/ops/llm_credit_snapshot_collect.sh`: 이름은 유지, 내부 동작은 cost snapshot 수집으로 전환
 - 정량 증빙:
 
+## 16. Phase 2.2 구현 반영 (2026-03-10)
+- 문제 정의:
+  - 기존 cost snapshot 수집기는 `GET + 단일 value_json_path`만 지원해, 실제 provider 비용 API에서 흔한 배열 bucket 응답/POST body/최소 단위(cents) 반환을 다루기 어려웠다.
+  - 이 제약 때문에 운영 `.env`를 채워도 `llm_provider_cost_snapshots`를 실제 API 형식에 맞게 연결하기가 까다로웠다.
+- 구현 요약:
+  - `src/common/llm_usage.py`
+    - `CostSnapshotConfig`에 `method`, `body_template`, `items_json_path`, `item_value_json_path`, `value_divisor`를 추가했다.
+    - `fetch_llm_cost_value()`가 `GET/POST`, JSON body 템플릿, 배열 합산, 최소 단위 -> USD 환산(divisor)을 지원하도록 확장했다.
+  - 운영 env/compose 예시 보강:
+    - `.env.example`
+    - `deploy/cloud/oci/.env.example`
+    - `deploy/cloud/oci/docker-compose.prod.yml`
+  - 테스트 보강:
+    - `tests/utils/test_llm_usage.py`에 `POST + items sum + divisor` 케이스 추가
+- 효과/의미:
+  - provider 비용 API가 단일 scalar가 아니라 bucket list를 반환해도 route 원장과의 reconciliation 경로를 유지할 수 있다.
+  - 비용이 cents/lowest unit로 오더라도 `VALUE_DIVISOR` 설정만으로 USD 정규화가 가능하다.
+- 정량 증빙:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| cost snapshot 설정 필드 수(provider당) | 3 (`URL_TEMPLATE`, `VALUE_JSON_PATH`, `HEADERS_JSON`) | 8 (`+ METHOD/BODY_TEMPLATE/ITEMS_JSON_PATH/ITEM_VALUE_JSON_PATH/VALUE_DIVISOR`) | +5 | +166.7 |
+| cost snapshot 지원 HTTP method | GET만 | GET/POST | +1 | N/A |
+| cost snapshot 응답 해석 방식 | 단일 scalar | scalar + 배열합산 + divisor | +2 유형 | N/A |
+| `tests/utils/test_llm_usage.py` 통과 건수 | 10 | 14 | +4 | +40.0 |
+
+- OCI 적용 후 확인 명령:
+```bash
+cd /opt/coin-pilot
+git fetch origin
+git checkout pretrade
+git pull --ff-only origin pretrade
+
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot
+
+cd /opt/coin-pilot
+bash scripts/ops/llm_credit_snapshot_collect.sh
+bash scripts/ops/llm_usage_cost_report.sh 24
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT created_at, provider, window_start, window_end, cost_usd, currency, source, note
+FROM llm_provider_cost_snapshots
+ORDER BY created_at DESC
+LIMIT 20;
+"
+```
+
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | provider 외부 대조 저장 대상 테이블 수 | 1 (`llm_credit_snapshots`) | 2 (`+ llm_provider_cost_snapshots`) | +1 | +100.0 |
@@ -376,7 +423,7 @@
   - `/opt/coin-pilot` 기준에서 `scripts/ops/llm_usage_cost_report.sh 24` 실행은 정상 동작했고, 최근 24시간 모델/route별 토큰/비용 리포트가 출력됐다.
   - 내부 원장 기준으로는 `anthropic`과 `openai` 모두 비용 분리가 가능하다.
   - 하지만 `llm_provider_cost_snapshots`는 여전히 `0 rows`이며 freshness 섹션도 비어 있어 외부 비용 대조(reconciliation)는 아직 불가하다.
-  - 따라서 `21-04`는 "운영 리포트 동작 확인 완료"까지는 도달했지만, 현재 문서 기준으로는 `in_progress` 유지가 맞다.
+  - 따라서 `21-04`는 "운영 리포트 동작 확인 완료"까지는 도달했지만, 개인 계정 기준에서는 provider reconciliation이 불가해 현재 문서 기준 상태는 `blocked`가 맞다.
 - 경로 주의:
   - 실행 위치가 `/opt/coin-pilot/deploy/cloud/oci`면 `scripts/ops/...` 상대경로가 맞지 않는다.
   - 권장 실행:
@@ -430,8 +477,81 @@
 - 해석:
   - 내부 usage ledger 기반 토큰/비용 관측은 운영 가능 상태다.
   - 그러나 `provider_cost_usd`가 전부 0이고 snapshot 행이 없어서, 현재는 "route별 비용 추이 리포트는 가능, 외부 비용 대조는 미완료" 상태다.
-  - 따라서 `21-04`는 `done`이 아니라 **"상태 명확화 완료, `in_progress` 유지"** 로 보는 것이 맞다.
+  - 따라서 `21-04`는 `done`이 아니라 **"상태 명확화 완료, 개인 계정 capability 제약으로 `blocked`"** 로 보는 것이 맞다.
 - 다음 판정 조건:
   1) `LLM_COST_SNAPSHOT_ENABLED=true` 상태에서 최소 1개 provider snapshot row 생성
   2) freshness 결과에 provider별 최근 시각이 표시
   3) `ledger_cost_usd` vs `provider_cost_usd` 대조가 의미 있는 수준으로 출력
+
+---
+
+## 18. Env Example 현실화 보정 (2026-03-10)
+- 문제 정의:
+  - `.env.example`와 `deploy/cloud/oci/.env.example`의 cost snapshot 예시는 기능 필드가 완전하지 않았고,
+    개인 계정 운영자가 그대로 채우면 동작할 수 있는 것처럼 보일 여지가 있었다.
+  - 특히 OCI example은 `METHOD/BODY/ITEMS/DIVISOR` 필드가 누락되어 있었고,
+    Anthropic divisor 기본값도 `1`로 남아 있었다.
+- 영향:
+  - 개인 계정 사용자가 admin/org 권한 없이 cost snapshot을 활성화해도 `llm_provider_cost_snapshots = 0` 상태가 지속될 가능성이 높았다.
+  - Anthropic 응답이 cents 단위일 때 비용이 100배 크게 기록될 위험이 있었다.
+- 개선 내용:
+  - 두 example 파일 모두 "개인 계정은 기본적으로 disabled 유지" 주석 추가
+  - 기본 polling/lookback을 `1440분 / 24시간`으로 조정
+  - OCI example에 provider별 `METHOD/BODY/ITEMS/ITEM_VALUE/DIVISOR` 필드를 모두 추가
+  - Anthropic divisor 기본값을 `100`으로 수정
+- 정량 비교:
+
+| 항목 | Before | After | 변화량 |
+|---|---:|---:|---:|
+| OCI example cost snapshot 필드 수(provider당) | 3 | 8 | +5 |
+| 기본 polling/lookback | 60분 / 1h | 1440분 / 24h | 일 단위 API와 정합화 |
+| Anthropic divisor 기본값 | 1 | 100 | cents → USD 변환 정합화 |
+
+- 측정 기준:
+  - 비교 대상: `.env.example`, `deploy/cloud/oci/.env.example`
+  - 성공 기준: 개인 계정 fallback 설명이 포함되고, 두 example 모두 동일한 provider 설정 필드 세트를 제공할 것
+- 증빙 명령:
+  - `rg -n "LLM_COST_SNAPSHOT_(ENABLED|INTERVAL_MIN|LOOKBACK_HOURS|ANTHROPIC_|OPENAI_)" .env.example deploy/cloud/oci/.env.example`
+
+---
+
+## 19. 개인 계정 Fallback 운영 기준 확정 (2026-03-10)
+- 문제 정의:
+  - OpenAI/Anthropic 개인 계정 기준으로는 org/admin 비용 API 접근 권한이 없어
+    `llm_provider_cost_snapshots` 기반 외부 비용 대조를 계속 시도해도 실질적으로 수집이 불가능할 수 있다.
+  - 이 상태를 명확히 정의하지 않으면 `21-04`가 구현 미완인지, 계정 제약으로 보류인지 경계가 모호해진다.
+- 운영 정의:
+  - **개인 계정 fallback**이란, provider 외부 비용 snapshot은 비활성화하고
+    내부 `llm_usage_events` 원장만으로 route/provider/model별 토큰/추정 비용을 운영하는 모드다.
+  - 설정 기준:
+    - `LLM_USAGE_ENABLED=true`
+    - `LLM_COST_SNAPSHOT_ENABLED=false`
+- 영향/해석:
+  - 사용 가능한 지표:
+    - route별 호출 수
+    - input/output/total tokens
+    - 모델별/제공자별 추정 비용
+    - canary와 primary의 상대 비용 비교
+  - 사용 불가능한 지표:
+    - provider 청구서와의 exact reconciliation
+    - `llm_provider_cost_snapshots` freshness / delta 기반 대조
+- 정량 근거:
+
+| 항목 | 값 | 해석 |
+|---|---:|---|
+| 최근 24h 내부 비용 관측 provider 수 | 2 | `anthropic`, `openai` 모두 ledger 기반 관측 가능 |
+| 최근 24h 내부 비용 집계 행 수 | 5 | route/provider/model별 리포트 운영 가능 |
+| `llm_provider_cost_snapshots` 총 행 수 | 0 | 개인 계정 fallback 모드에서는 정상 |
+
+- 측정 기준:
+  - 기간: 최근 24시간
+  - 성공 기준:
+    1) `llm_usage_cost_report.sh 24`가 route/provider/model 비용 리포트를 출력할 것
+    2) `LLM_COST_SNAPSHOT_ENABLED=false` 상태에서 snapshot 0건을 정상으로 해석할 것
+- 증빙 명령:
+  - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
+  - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT count(*) FROM llm_provider_cost_snapshots;"`
+- 상태 판단:
+  - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
+  - 체크리스트 상태는 `blocked`로 관리한다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이다.
+  - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.

@@ -196,6 +196,24 @@ SHELL=/bin/bash
 25 3 * * * root /opt/coin-pilot/scripts/backup/n8n_backup.sh >> /var/log/coinpilot/n8n-backup.log 2>&1
 ```
 
+### 7.3-1 모니터링 cron 예시 (`/etc/cron.d/coinpilot-monitoring`)
+운영 점검은 개별 스크립트를 직접 cron에 넣지 말고, 아래 래퍼를 통해 실행한다.
+
+이유:
+1. `flock`으로 중복 실행 방지
+2. `timeout`으로 hang 방지
+3. `/var/log/coinpilot/ops` 로그 형식 통일
+
+예시 파일 원본:
+- `deploy/cloud/oci/ops/coinpilot-monitoring.cron.example`
+
+적용 예시:
+```cron
+40 * * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t1h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t1h --automation-mode
+20 4 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh ai-canary-24h /opt/coin-pilot/scripts/ops/ai_decision_canary_report.sh 24
+30 4 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh llm-usage-24h /opt/coin-pilot/scripts/ops/llm_usage_cost_report.sh 24
+```
+
 ### 7.4 수동 백업 테스트
 ```bash
 sudo /opt/coin-pilot/scripts/backup/postgres_backup.sh
