@@ -3,8 +3,8 @@
 작성일: 2026-03-10
 작성자: Codex
 관련 계획서: docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md
-상태: In Progress (Phase A/B Verified on OCI, Phase C Implemented)
-완료 범위: Phase A, Phase B, Phase C(구현)
+상태: Done
+완료 범위: Phase A, Phase B, Phase C
 관련 트러블슈팅(있다면): `docs/troubleshooting/31_scheduled_monitoring_runtime_path_and_loki_readiness_false_fail.md`
 
 ---
@@ -176,8 +176,41 @@
   - 운영 공백은 비용 snapshot 자체보다 "최근 의사결정이 0건인지"와 "scheduled log가 갱신되지 않는지"를 먼저 보는 편이 실무적으로 더 유효하다.
 - 조치:
   - `check_24h_monitoring.sh`에 snapshot freshness, AI inactivity, cron heartbeat helper를 추가했다.
-  - 다만 OCI에서 이번 턴에 직접 검증한 것은 Phase A/B 로그 경로이므로, Phase C는 구현 완료 상태로 기록하고 OCI 재검증은 다음 실행으로 남긴다.
+  - 이후 OCI에서 `t6h`, `t12h`, `t24h`, `all --automation-mode`를 실행해 실제 판정과 로그 누적을 재검증했다.
+
+## 5.4 OCI 3차 운영 검증(Phase C 포함 최종)
+- 검증 시각:
+  - 2026-03-10 14:40~14:42 UTC 전후
+- 실행 명령:
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t6h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t6h --automation-mode`
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t12h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t12h --automation-mode`
+  - `sudo bash /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t24h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t24h --automation-mode`
+  - `sudo bash /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh all --automation-mode`
+  - `sudo tail -n 200 /var/log/coinpilot/ops/*.log`
+- 정량 결과:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| `monitoring-t6h` exit_code | 미측정 | 0 | 신규 확인 | 측정 불가 |
+| `monitoring-t12h` exit_code | 미측정 | 0 | 신규 확인 | 측정 불가 |
+| `monitoring-t24h` exit_code | 미측정 | 0 | 신규 확인 | 측정 불가 |
+| `all --automation-mode` FAIL 개수 | 미측정 | 0 | 신규 확인 | 측정 불가 |
+| `all --automation-mode` WARN 개수 | 미측정 | 0 | 신규 확인 | 측정 불가 |
+| `AI decision inactivity` 6h 판정 | 미측정 | `PASS(10건)` | 신규 확인 | 측정 불가 |
+| `scheduled heartbeat` PASS 대상 수 | 미측정 | 6 | 신규 확인 | 측정 불가 |
+| `LLM snapshot freshness` 개인 계정 fallback 오탐 수 | 1(정책 미반영 시 가능) | 0(INFO 처리) | -1 | -100.0 |
+
+- 세부 확인:
+  - `t6h` 최신 로그에서 `Entry/AI/Risk 이벤트 로그 83건`, `최근 6h agent_decisions 10건`, `exit_code=0`을 확인했다.
+  - `t12h` 최신 로그에서 RSS/Daily 배치 실패 키워드 없음, `exit_code=0`을 확인했다.
+  - `t24h` 최신 로그에서 백업 3종 최신 파일, `cron active`, heartbeat 6개 PASS, `exit_code=0`을 확인했다.
+  - `all --automation-mode` 전체 점검에서 `FAIL:0`, `WARN:0`을 확인했다.
+  - `LLM cost snapshot 비활성(개인 계정 fallback 또는 운영 정책)`이 INFO로 처리되어 21-04 blocked 정책과 충돌하지 않았다.
+- 해석:
+  - Phase C에서 추가한 freshness/inactivity/heartbeat 판정이 OCI 운영 환경에서도 false fail 없이 동작함을 확인했다.
+  - 따라서 31 계획의 완료 조건인 `cron 표준화 + 실행가드 + 로그 보관 + LLM/AI 관측 갭 점검 자동화`가 모두 충족되었다.
 
 ## 6. README 동기화 여부
-- 이번 Phase는 main task `done`이 아니고 운영 예시/래퍼 추가 수준이므로 `README.md`는 동기화하지 않았다.
-- 추후 31 전체 완료 또는 운영 정책 확정 시 README 동기화 여부를 다시 판단한다.
+- 본 작업은 main task `done` 기준을 충족해 `README.md`를 같은 변경 세트에서 동기화했다.
+- 검증 명령:
+  - `rg -n "현재 운영 상태 요약|LLM 비용 관측|운영 점검 자동화|31|21-04" README.md`
