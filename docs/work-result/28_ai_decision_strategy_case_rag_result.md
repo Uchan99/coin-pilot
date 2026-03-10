@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`
-상태: In Progress (Phase 1 offline replay 경로 로컬 구현 완료)
+상태: In Progress (Phase 1 offline replay 경로 구현 완료, 정적 검증 완료, 실제 replay 실측은 OCI 대상)
 
 ---
 
@@ -79,7 +79,7 @@
 
 ## 5. 측정 기준
 - 기간:
-  - 2026-03-11 로컬 구현 검증
+  - 2026-03-11 코드 구현 및 정적 검증
 - 표본 수:
   - 신규 단위 테스트 4건
 - 성공 기준:
@@ -112,7 +112,7 @@ PYTHONPATH=. .venv/bin/python scripts/replay_ai_decision_rag.py --help
   - 단위 테스트 4건으로 전략 레퍼런스 로드, RAG 블록 생성, BUY `signal_info` 기반 replay 복원 경로를 검증했다.
   - CLI 도움말과 shell syntax 검증으로 ops 경로가 깨지지 않았음을 확인했다.
 - 추후 측정 계획:
-  1. 로컬 또는 OCI에서 `scripts/ops/replay_ai_decision_rag.sh --hours 168 --limit 30 --output /tmp/ai_rag_replay.json` 실행
+  1. OCI에서 `docker compose ... exec -T bot ... python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30 | tee /tmp/ai_rag_replay.json` 실행
   2. 최소 `N>=30`에서 `decision_changed_count`, `parse_fail_rate`, `p50 latency_ms`, `avg cost_usd`, `avg confidence delta` 비교
   3. 기준 통과 시에만 Phase 2 live canary Analyst 제한 주입 진행
 
@@ -125,19 +125,22 @@ PYTHONPATH=. .venv/bin/python scripts/replay_ai_decision_rag.py --help
   - docker/compose + env/compose 파일이 모두 있을 때만 bot 컨테이너를 사용하고, 그렇지 않으면 `.venv/bin/python` 또는 `python3`로 로컬 실행하도록 보정했다.
 - 영향:
   - 운영 OCI에서는 기존과 동일하게 bot 컨테이너 런타임을 유지한다.
-  - 로컬 WSL 개발 환경에서는 docker 유무와 무관하게 replay smoke test가 가능해졌다.
+  - 로컬 WSL 개발 환경에서는 CLI/진입점 smoke test는 가능하지만, 실제 replay 실측은 DB/봇 source of truth가 있는 OCI에서 수행하는 것을 기준으로 한다.
 
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
-  - Phase 1 replay 경로의 **로컬 구현과 정적 검증**만 완료됐다.
+  - Phase 1 replay 경로의 **코드 구현과 정적 검증**만 완료됐고, 실제 replay 실측은 아직 수행하지 않았다.
 - 아직 안 한 것:
   - 실제 replay 결과 수집
   - replay 기준 통과 여부 판정
   - live canary Analyst 제한 주입
-- 다음 바로 실행할 검증 명령:
+- 다음 바로 실행할 검증 명령(OCI 기준):
 ```bash
-bash scripts/ops/replay_ai_decision_rag.sh --hours 168 --limit 30 --output /tmp/ai_rag_replay.json
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
+'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30' \
+| tee /tmp/ai_rag_replay.json
 python3 - <<'PY'
 import json
 from pathlib import Path
