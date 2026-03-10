@@ -1,0 +1,107 @@
+# 31. OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 결과
+
+작성일: 2026-03-10
+작성자: Codex
+관련 계획서: docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md
+상태: In Progress (Phase A/B Implemented)
+완료 범위: Phase A, Phase B
+관련 트러블슈팅(있다면): 없음
+
+---
+
+## 1. 해결한 문제 정의
+- 증상:
+  - 운영 점검 스크립트는 존재했지만 cron/systemd에서 바로 쓰기엔 실행 가드, timeout, 로그 표준이 없었다.
+  - `check_24h_monitoring.sh t1h`는 수동 UI 확인 항목을 항상 `WARN`으로 올려 자동 실행 시 고정 노이즈가 발생할 수 있었다.
+- 영향:
+  - 동일 점검을 cron에 억지로 붙이면 중복 실행과 로그 산재, 의미 없는 WARN 누적이 생길 수 있었다.
+- 재현 조건:
+  - OCI에서 `scripts/ops/check_24h_monitoring.sh t1h`를 주기 실행하거나, 여러 운영 스크립트를 개별 cron 라인으로 직접 등록할 때
+
+## 2. 구현 내용
+### 2.1 `check_24h_monitoring.sh` 자동화 모드 추가
+- 파일:
+  - `scripts/ops/check_24h_monitoring.sh`
+- 변경 내용:
+  - `--automation-mode` 플래그 추가
+  - 자동화 모드에서는 Grafana/Discord 수동 확인 항목을 `WARN`이 아니라 `INFO`로 기록
+- 설계 이유:
+  - 자동 실행 결과는 “실제 장애” 위주로 해석해야 하므로, 사람이 반드시 UI에서 봐야 하는 항목은 고정 WARN에서 제외하는 편이 운영상 낫다.
+- 고려 대안:
+  1) 수동 확인 WARN 유지
+  2) 해당 항목 자체를 삭제
+  3) 자동화 모드에서만 INFO 강등 (채택)
+- 트레이드오프:
+  - 장점: cron 로그의 고정 노이즈 감소
+  - 단점: 수동 확인 필요성이 자동 로그에서는 약해질 수 있음
+  - 완화: INFO 메시지와 runbook에 수동 확인 필요성을 그대로 남김
+
+### 2.2 `run_scheduled_monitoring.sh` 래퍼 추가
+- 파일:
+  - `scripts/ops/run_scheduled_monitoring.sh`
+- 변경 내용:
+  - `flock` 기반 중복 실행 방지
+  - `timeout` 기반 hang 방지
+  - `/var/log/coinpilot/ops` 일 단위 로그 표준
+  - `started_at`, `ended_at`, `elapsed_sec`, `exit_code` 메타 로그 기록
+- 설계 이유:
+  - cron 라인마다 flock/timeout/log redirection을 반복하면 운영 실수 가능성이 높다.
+  - 공통 래퍼로 고정해야 스케줄 추가 시 검증이 단순해진다.
+- 고려 대안:
+  1) 각 cron 라인에 직접 flock/timeout 명시
+  2) systemd timer 전면 전환
+  3) 공통 shell wrapper 사용 (채택)
+- 트레이드오프:
+  - 장점: 운영 표준 단일화, 로그 증빙 일관성 확보
+  - 단점: wrapper 자체의 유지보수 비용
+  - 완화: bash 단일 파일 + 최소 env override만 허용
+
+### 2.3 cron 예시 파일 추가
+- 파일:
+  - `deploy/cloud/oci/ops/coinpilot-monitoring.cron.example`
+- 변경 내용:
+  - `t1h/t6h/t12h/t24h`, `ai_decision_canary_report.sh 24`, `llm_usage_cost_report.sh 24`, `strategy_feedback_report.sh 7 14 30` 주기표 예시 추가
+- 설계 이유:
+  - runbook 문장만으로는 실제 등록 시각과 충돌 회피 기준이 흐려진다.
+  - 예시 cron 파일이 있으면 운영자가 그대로 검토/적용하기 쉽다.
+
+## 3. 정량 증빙
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 자동 실행 전용 플래그 수(`check_24h_monitoring.sh`) | 0 | 1 | +1 | 측정 불가(분모 0) |
+| 공통 스케줄 래퍼 수 | 0 | 1 | +1 | 측정 불가(분모 0) |
+| cron 예시 등록 라인 수 | 0 | 7 | +7 | 측정 불가(분모 0) |
+| 고정 수동 WARN 항목(자동화 모드 기준) | 1 | 0 | -1 | -100.0 |
+
+- 측정 기준:
+  - 대상 파일: `scripts/ops/check_24h_monitoring.sh`, `scripts/ops/run_scheduled_monitoring.sh`, `deploy/cloud/oci/ops/coinpilot-monitoring.cron.example`
+  - 성공 기준:
+    1) `check_24h_monitoring.sh --automation-mode`가 문법상 유효할 것
+    2) 래퍼와 cron 예시가 bash/텍스트 기준 유효할 것
+    3) 자동화 모드에서 수동 확인 항목이 WARN 누적에서 제외될 것
+- 측정 불가 사유:
+  - 실제 24h cron 누적 로그는 OCI 등록 전이므로 아직 측정하지 않았다.
+  - 대체 지표로 bash syntax, help 출력, cron 예시 라인 수를 사용했다.
+  - 추후 측정 계획: OCI에 cron 등록 후 72시간 로그 누적과 exit code 분포를 추가 측정
+
+## 4. 검증 명령
+- 정적 검증:
+  - `bash -n scripts/ops/check_24h_monitoring.sh`
+  - `bash -n scripts/ops/run_scheduled_monitoring.sh`
+  - `scripts/ops/check_24h_monitoring.sh --help`
+  - `scripts/ops/run_scheduled_monitoring.sh --help || true`
+  - `rg -n "automation-mode|run_scheduled_monitoring|coinpilot-monitoring.cron.example" scripts/ops deploy/cloud/oci/ops docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
+- OCI 적용 후 검증(예정):
+  - `sudo install -m 0644 /opt/coin-pilot/deploy/cloud/oci/ops/coinpilot-monitoring.cron.example /etc/cron.d/coinpilot-monitoring`
+  - `sudo systemctl reload cron`
+  - `sudo tail -n 200 /var/log/coinpilot/ops/*.log`
+  - `crontab -l || sudo cat /etc/cron.d/coinpilot-monitoring`
+
+## 5. 운영 적용 메모
+- 이번 Phase는 host-side script/doc 변경만 포함한다.
+- OCI 적용 시 `git pull`만으로 충분하고 bot 재빌드는 불필요하다.
+
+## 6. README 동기화 여부
+- 이번 Phase는 main task `done`이 아니고 운영 예시/래퍼 추가 수준이므로 `README.md`는 동기화하지 않았다.
+- 추후 31 전체 완료 또는 운영 정책 확정 시 README 동기화 여부를 다시 판단한다.

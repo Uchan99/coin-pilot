@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-07  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/18-14_oci_24h_monitoring_script_automation_plan.md`, `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/21-08_grafana_loki_log_dashboard_panelization_plan.md`  
-**승인 정보**: 미승인 / - / 사용자 승인 대기
+**승인 정보**: 사용자 승인 / 2026-03-10 / "그럼 다음 task 진행하자"
 
 ---
 
@@ -155,3 +155,4 @@
 - 2026-03-07: 사용자 요청에 따라 신규 계획 생성(Approval Pending). `scripts/ops` 운영 스크립트의 cron 자동화와 관측 갭 보강 범위를 정의.
 - 2026-03-07: 사용자 요청에 따라 전략 자동화 주기를 주 1회(7일)로 명확화하고, 기존 Weekly Exit 리포트 직후 전략 제안 리포트 실행 슬롯(`일요일 22:10 KST`)을 주기표에 추가.
 - 2026-03-07: 사용자 요청에 따라 전략 자동 적용 스케줄은 Shadow 2주 종료 전까지 비활성(default off) 정책을 추가.
+- 2026-03-10: 사용자 승인 후 Phase A/B 범위를 이번 구현 턴으로 확정. 자동화 모드가 포함된 `check_24h_monitoring.sh`, 실행 가드 래퍼 `run_scheduled_monitoring.sh`, cron 예시 파일을 먼저 구현하고 Phase C 관측 갭 보강은 후속으로 남긴다.

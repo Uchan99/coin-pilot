@@ -16,6 +16,7 @@ FAIL_COUNT=0
 WARN_COUNT=0
 MODE="all"
 OUTPUT_FILE=""
+AUTOMATION_MODE=false
 
 SERVICES=(bot collector dashboard db grafana n8n prometheus redis node-exporter cadvisor container-map loki promtail-targets promtail)
 OPTIONAL_SERVICES=(discord-bot)
@@ -23,12 +24,13 @@ OPTIONAL_SERVICES=(discord-bot)
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/ops/check_24h_monitoring.sh [all|t0|t1h|t6h|t12h|t24h] [--output <file>]
+  scripts/ops/check_24h_monitoring.sh [all|t0|t1h|t6h|t12h|t24h] [--output <file>] [--automation-mode]
 
 Examples:
   scripts/ops/check_24h_monitoring.sh all
   scripts/ops/check_24h_monitoring.sh t0
   scripts/ops/check_24h_monitoring.sh all --output /var/log/coinpilot/monitoring-24h.log
+  scripts/ops/check_24h_monitoring.sh t1h --automation-mode
 
 Optional env overrides:
   COINPILOT_ENV_FILE=/opt/coin-pilot/deploy/cloud/oci/.env
@@ -62,6 +64,10 @@ parse_args() {
         fi
         OUTPUT_FILE="$2"
         shift 2
+        ;;
+      --automation-mode)
+        AUTOMATION_MODE=true
+        shift
         ;;
       -h|--help|help)
         usage
@@ -359,6 +365,15 @@ check_loki_log_pipeline() {
 
 check_manual_alert_routing_notice() {
   info "T+1h: Grafana/Discord 라우팅 확인 안내"
+  # 자동 실행(cron)에서는 이 항목이 항상 미확인 상태이므로 WARN으로 누적되면
+  # 실제 장애 신호 대비 노이즈가 된다. 수동 점검에서만 WARN을 유지하고,
+  # 자동화 모드에서는 "별도 UI 확인 필요"라는 안내만 INFO로 남긴다.
+  if [[ "${AUTOMATION_MODE}" == "true" ]]; then
+    info "automation mode: Grafana/Discord 라우팅 수동 확인 항목은 WARN 집계에서 제외"
+    echo "  - 수동 점검 시 Grafana Alert rules / Contact points Test / Discord 수신 확인 필요"
+    return
+  fi
+
   warn "Grafana Alert Rule/Notification Policy와 Discord 수신은 UI에서 수동 확인 필요"
   echo "  - Grafana: Alerting > Alert rules 상태 확인"
   echo "  - Grafana: Contact points(coinpilot) Test 실행 후 Discord 수신 확인"
@@ -502,6 +517,7 @@ main() {
   parse_args "$@"
   setup_output_redirection
 
+  info "automation_mode=${AUTOMATION_MODE}"
   check_prerequisites
 
   case "${MODE}" in

@@ -1,0 +1,14 @@
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+SHELL=/bin/bash
+
+# CoinPilot 운영 모니터링 주기 예시
+# - 백업 cron(03:05/03:15/03:25)과 충돌을 피하도록 시간대를 분리한다.
+# - 모든 실행은 run_scheduled_monitoring.sh를 통해 flock/timeout/로그 보관 규칙을 공유한다.
+
+40 * * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t1h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t1h --automation-mode
+50 */6 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t6h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t6h --automation-mode
+0 1,13 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t12h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t12h --automation-mode
+10 4 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh monitoring-t24h /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t24h --automation-mode
+20 4 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh ai-canary-24h /opt/coin-pilot/scripts/ops/ai_decision_canary_report.sh 24
+30 4 * * * root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh llm-usage-24h /opt/coin-pilot/scripts/ops/llm_usage_cost_report.sh 24
+10 22 * * 0 root /opt/coin-pilot/scripts/ops/run_scheduled_monitoring.sh strategy-feedback-7d /opt/coin-pilot/scripts/ops/strategy_feedback_report.sh 7 14 30
