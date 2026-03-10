@@ -163,6 +163,35 @@ docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compo
   - Phase 1은 "오류율/지연/비용 측면의 안전성"은 확보했지만, confidence 하락과 decision drift가 커서 기준 미달이다.
   - 따라서 **Phase 2 live canary Analyst 제한 주입은 보류**한다.
 
+## 7.3 drift 원인 분해 메모 (2026-03-11)
+- 추가 확인 명령:
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
+payload = json.loads(Path('/tmp/ai_rag_replay.json').read_text(encoding='utf-8'))
+for row in payload["records"]:
+    if row["decision_changed"] or (row.get("confidence_delta") or 0) <= -10:
+        print(row["sample_id"], row["symbol"], row["regime"], row["decision_changed"], row["confidence_delta"], row["rag_on"].get("rag_source_summary"))
+PY
+```
+- 추가 관측:
+  - drift가 발생한 8건은 모두 `SIDEWAYS` 표본이었다.
+  - drift 표본의 `rag_source_summary`는 전부 `['strategy:9', 'cases:5']`로 동일했다.
+  - 대표 패턴은 baseline `CONFIRM 68~72`가 RAG-on `REJECT 42`로 수렴하는 형태였다.
+  - `rag_context_preview` 앞부분은 대부분 정적 전략/리스크 요약이 차지했고, 실제 과거 사례 레이어는 후순위에 배치됐다.
+- 해석:
+  - 현재 RAG는 "전략/운영 제약을 상기시키는 기능"은 수행하지만, SIDEWAYS 진입 신호의 캔들 구조보다 정적 가드레일을 더 강하게 앵커링하고 있다.
+  - 특히 Analyst가 이미 Rule Engine을 통과한 신호를 검토하는 단계인데, 프롬프트 앞부분의 정적 규칙이 커지면서 `보수적 REJECT` 쪽으로 과도하게 수렴하는 경향이 나타났다.
+  - 과거 사례 요약이 들어가더라도, 현재 컨텍스트 순서/길이상 전략 요약 블록이 먼저/더 길게 보이기 때문에 사례 레이어의 보정 효과가 약하다.
+- 현재 단계 판단:
+  - 다음 수정은 "더 많은 문서를 넣는 것"이 아니라,
+    1) 전략 요약 길이 축소
+    2) 과거 사례 우선 배치
+    3) Analyst에게 `Rule Engine 통과 신호를 재판정하지 말고 캔들 구조/지속성만 보라`는 경계 문구 강화
+    중 하나로 좁혀야 한다.
+  - 즉, 현재 병목은 retrieval 양보다 **prompt ordering / weighting** 문제에 가깝다.
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
