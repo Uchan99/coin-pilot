@@ -231,3 +231,4 @@
 
 ## 13. 계획 변경 이력
 - 2026-03-10: 실거래 전환 시 Dashboard/History/Reconciliation 요구사항을 별도 하위 계획(`21-09`)으로 분리해, executor 교체 외에 UI/정산/source-of-truth 변경 범위를 명시했다.
+- 2026-03-10: `21-09` Stage A 구현으로 exchange 원장 테이블 4종(`exchange_account_snapshots`, `exchange_orders`, `exchange_fills`, `reconciliation_runs`)과 baseline/migration이 추가됐다. 아직 live executor와 UI 전환은 미구현이다.

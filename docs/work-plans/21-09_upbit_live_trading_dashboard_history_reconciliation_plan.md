@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-10  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/21_live_trading_transition_1m_krw_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md`, `docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md`  
-**승인 정보**: 미승인 / - / 사용자 승인 대기  
+**승인 정보**: 사용자 / 2026-03-10 / "dev21 브랜치에서 stage A 진행" 승인  
 
 ---
 
@@ -213,3 +213,4 @@
 
 ## 12. 계획 변경 이력
 - 2026-03-10: 사용자 요청에 따라 실거래 전환 시 Dashboard/History/Reconciliation이 어떻게 달라지는지 분리 명세하는 하위 계획으로 신규 작성.
+- 2026-03-10: 사용자 승인 후 Stage A(실거래 최소 데이터 계약 정의) 구현에 착수. 범위는 exchange 원장 테이블 4종, ORM 모델, migration, baseline init, 최소 회귀 테스트로 한정한다.

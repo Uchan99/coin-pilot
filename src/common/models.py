@@ -259,6 +259,124 @@ class LlmProviderCostSnapshot(Base):
     note = Column(Text, nullable=True)
 
 
+class ExchangeAccountSnapshot(Base):
+    """
+    거래소 계좌 스냅샷 테이블.
+
+    왜 별도 테이블이 필요한가:
+    - 기존 `account_state`는 paper 잔고 1개 row만 표현하므로,
+      실거래의 "KRW + 코인 잔고 + 주문 잠금(locked) + 평균매수가"를 담을 수 없다.
+    - 실거래 전환 시 Dashboard/정산은 paper 장부가 아니라 거래소 스냅샷을
+      기준으로 canonical portfolio를 만들어야 하므로, 원장(raw snapshot)을 먼저 보존한다.
+    """
+    __tablename__ = "exchange_account_snapshots"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    exchange = Column(String(32), nullable=False, default="upbit", index=True)
+    asset_symbol = Column(String(20), nullable=False, index=True)
+    balance = Column(Numeric(20, 8), nullable=False)
+    locked = Column(Numeric(20, 8), nullable=False, default=0)
+    avg_buy_price = Column(Numeric(20, 8), nullable=True)
+    unit_currency = Column(String(10), nullable=True)
+    source = Column(String(40), nullable=False, default="exchange_api")
+    raw_payload = Column(JSONB, nullable=True)
+
+
+class ExchangeOrder(Base):
+    """
+    거래소 주문 원장 테이블.
+
+    설계 의도:
+    - `trading_history`는 전략 관점 trade log로 유지하고,
+      실제 거래소의 주문 상태(pending/partial/filled/cancelled)는 별도 원장으로 보존한다.
+    - 추후 live executor/reconciliation/job이 같은 표준 필드를 쓰도록
+      상태/수량/수수료/원본 payload를 최소 단위로 저장한다.
+    """
+    __tablename__ = "exchange_orders"
+    __table_args__ = (
+        UniqueConstraint("exchange_order_id", name="uq_exchange_orders_exchange_order_id"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    exchange = Column(String(32), nullable=False, default="upbit", index=True)
+    exchange_order_id = Column(String(128), nullable=False)
+    client_order_id = Column(String(128), nullable=True, index=True)
+    market = Column(String(20), nullable=False, index=True)
+    side = Column(String(10), nullable=False)
+    ord_type = Column(String(20), nullable=False)
+    state = Column(String(20), nullable=False, index=True)
+    requested_price = Column(Numeric(20, 8), nullable=True)
+    requested_volume = Column(Numeric(20, 8), nullable=True)
+    remaining_volume = Column(Numeric(20, 8), nullable=True)
+    executed_volume = Column(Numeric(20, 8), nullable=True)
+    avg_fill_price = Column(Numeric(20, 8), nullable=True)
+    paid_fee = Column(Numeric(20, 8), nullable=True)
+    reserved_fee = Column(Numeric(20, 8), nullable=True)
+    remaining_fee = Column(Numeric(20, 8), nullable=True)
+    locked = Column(Numeric(20, 8), nullable=True)
+    time_in_force = Column(String(20), nullable=True)
+    source = Column(String(20), nullable=False, default="live")
+    strategy_name = Column(String(50), nullable=True, index=True)
+    signal_info = Column(JSONB, nullable=True)
+    raw_payload = Column(JSONB, nullable=True)
+
+
+class ExchangeFill(Base):
+    """
+    거래소 체결 원장 테이블.
+
+    실패 모드/엣지케이스:
+    - 실거래는 한 주문이 여러 fill로 나뉠 수 있으므로, order row 1개만으로는
+      실제 체결 평균가/수량/수수료를 정확히 재구성할 수 없다.
+    - 따라서 fill 단위를 별도 테이블로 저장해 이후 realized PnL과 history audit을 계산한다.
+    """
+    __tablename__ = "exchange_fills"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    exchange = Column(String(32), nullable=False, default="upbit", index=True)
+    exchange_order_id = Column(String(128), nullable=False, index=True)
+    exchange_trade_id = Column(String(128), nullable=True, index=True)
+    market = Column(String(20), nullable=False, index=True)
+    side = Column(String(10), nullable=False)
+    fill_price = Column(Numeric(20, 8), nullable=False)
+    fill_volume = Column(Numeric(20, 8), nullable=False)
+    fee = Column(Numeric(20, 8), nullable=True)
+    liquidity = Column(String(20), nullable=True)
+    filled_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    source = Column(String(20), nullable=False, default="exchange_fill")
+    raw_payload = Column(JSONB, nullable=True)
+
+
+class ReconciliationRun(Base):
+    """
+    거래소-DB 정산 실행 이력 테이블.
+
+    왜 필요한가:
+    - 실거래 전환의 핵심 리스크는 전략보다 정산 불일치다.
+    - 매 실행마다 mismatch 건수와 세부 details를 남겨야,
+      신규 BUY 차단/kill switch/운영 보고의 근거를 수치로 설명할 수 있다.
+    """
+    __tablename__ = "reconciliation_runs"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    exchange = Column(String(32), nullable=False, default="upbit", index=True)
+    mode = Column(String(20), nullable=False, default="dry_run")
+    status = Column(String(20), nullable=False, index=True)
+    snapshot_started_at = Column(DateTime(timezone=True), nullable=True)
+    snapshot_finished_at = Column(DateTime(timezone=True), nullable=True)
+    account_mismatch_count = Column(Integer, nullable=False, default=0)
+    order_mismatch_count = Column(Integer, nullable=False, default=0)
+    fill_mismatch_count = Column(Integer, nullable=False, default=0)
+    portfolio_mismatch_count = Column(Integer, nullable=False, default=0)
+    note = Column(Text, nullable=True)
+    details = Column(JSONB, nullable=True)
+
+
 class NewsArticle(Base):
     """
     RSS에서 수집한 뉴스 원본/정규화 데이터를 저장하는 테이블.
