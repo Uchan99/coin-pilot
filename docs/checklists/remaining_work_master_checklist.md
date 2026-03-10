@@ -160,6 +160,7 @@
 - 2026-03-10: `31` Phase C OCI 재검증 완료 및 마감(`done`). `t6h/t12h/t24h`와 `all --automation-mode` 실행에서 `FAIL:0/WARN:0`, `AI inactivity PASS(최근 6h 10건)`, `heartbeat 6개 PASS`, 개인 계정 fallback 기준 `LLM snapshot freshness INFO 처리`를 확인했다. README도 같은 변경 세트에서 동기화했다.
 - 2026-03-11: `28` 사용자 승인 후 착수(`in_progress`). live canary 표본 부족을 반영해 Phase 1을 offline replay로 전환했고, 전략/사례 2계층 RAG helper(`src/agents/ai_decision_rag.py`), BUY `signal_info` 기반 replay 샘플 복원기(`src/agents/ai_decision_replay.py`), replay CLI/ops 래퍼, Analyst 선택적 RAG 주입 경로를 구현했다. 정적 검증은 신규 테스트 `4 passed`, `py_compile`, shell syntax, CLI help 통과까지 완료했고, 이어서 OCI replay 실측(`samples=10`, `decision_changed_count=8`, `avg_confidence_delta=-22.4`) 결과 confidence 하락과 decision drift가 커 Phase 2 live canary는 보류했다.
 - 2026-03-11: `28` replay drift 원인 분해 추가. drift 표본 8건은 모두 `SIDEWAYS`였고 `rag_source_summary=['strategy:9','cases:5']`가 동일했으며, baseline `CONFIRM 68~72`가 RAG-on `REJECT 42`로 수렴했다. 정적 전략/리스크 요약이 과거 사례보다 앞에서 길게 주입되며 Analyst가 과보수적으로 앵커링되는 문제로 판단돼, 다음 단계는 문서 추가보다 prompt ordering/weighting 조정이 우선이다.
+- 2026-03-11: `28-01` prompt ordering/weighting 보정 착수. 전략 요약을 `strategy:9 -> strategy:4` 목표로 축소하고, `[과거 사례 요약]`을 `[전략 문서 핵심]`보다 앞에 배치했으며, Analyst에 `Rule Engine 재판정 금지 + 캔들 구조/지속성만 검토` 경계 문구를 추가했다. 정적 검증은 `tests/agents/test_ai_decision_rag.py` `5 passed`, `py_compile`, shell syntax 통과까지 완료했고, 다음 단계는 OCI replay 재측정이다.
 
 ---
 

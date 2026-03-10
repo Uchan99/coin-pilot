@@ -47,7 +47,7 @@ def build_strategy_reference_lines(regime: str) -> List[str]:
     normalized_regime = (regime or "UNKNOWN").strip().upper()
 
     lines: List[str] = []
-    for section_name in ("global", "risk"):
+    for section_name in ("global",):
         section = config.get(section_name, [])
         if isinstance(section, list):
             lines.extend(str(item).strip() for item in section if str(item).strip())
@@ -56,7 +56,28 @@ def build_strategy_reference_lines(regime: str) -> List[str]:
     if isinstance(regime_section, list):
         lines.extend(str(item).strip() for item in regime_section if str(item).strip())
 
-    return lines[:9]
+    # 전략 요약은 "많을수록 좋은" 정보가 아니다.
+    # Phase 1 replay 결과에서 strategy:9가 과도한 보수 앵커링을 유발했기 때문에,
+    # 28-01부터는 핵심 운영 경계 + 레짐별 기술 해석만 남기고 최대 4줄로 제한한다.
+    return lines[:4]
+
+
+def render_ai_decision_rag_text(strategy_lines: List[str], case_lines: List[str]) -> str:
+    """
+    Analyst 프롬프트용 RAG 블록 문자열을 렌더링한다.
+
+    설계 의도:
+    - 28-01 보정의 핵심은 retrieval 소스 수를 바꾸는 것이 아니라,
+      "무엇을 먼저 보게 할 것인가"를 조정하는 것이다.
+    - 과거 사례를 전략 요약보다 먼저 배치해, 정적 운영 원칙보다
+      실제 유사 사례와 최근 병목을 우선 참고하게 만든다.
+    """
+    blocks: List[str] = []
+    if case_lines:
+        blocks.append("[과거 사례 요약]\n- " + "\n- ".join(case_lines))
+    if strategy_lines:
+        blocks.append("[전략 문서 핵심]\n- " + "\n- ".join(strategy_lines))
+    return "\n\n".join(blocks).strip()
 
 
 async def build_recent_case_reference_lines(
@@ -183,12 +204,6 @@ async def build_ai_decision_rag_context(
         lookback_days=lookback_days,
     )
 
-    blocks: List[str] = []
-    if strategy_lines:
-        blocks.append("[전략 문서 요약]\n- " + "\n- ".join(strategy_lines))
-    if case_lines:
-        blocks.append("[과거 사례 요약]\n- " + "\n- ".join(case_lines))
-
     return {
         "strategy_lines": strategy_lines,
         "case_lines": case_lines,
@@ -196,5 +211,5 @@ async def build_ai_decision_rag_context(
             f"strategy:{len(strategy_lines)}",
             f"cases:{len(case_lines)}",
         ],
-        "text": "\n\n".join(blocks).strip(),
+        "text": render_ai_decision_rag_text(strategy_lines=strategy_lines, case_lines=case_lines),
     }

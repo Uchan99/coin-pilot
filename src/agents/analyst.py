@@ -85,7 +85,17 @@ def build_analyst_rag_reference_block(rag_context: Optional[Dict[str, Any]]) -> 
     prefix = "[추가 참고: 전략/과거사례 RAG]"
     if summary_text:
         prefix += f" ({summary_text})"
-    return f"\n\n{prefix}\n{raw_text}"
+    # Analyst는 이미 Rule Engine을 통과한 후보를 기술적으로 검증하는 단계다.
+    # 따라서 RSI/거래량/MA/BB 임계치 자체를 다시 심판하는 순간
+    # RAG의 정적 규칙이 프롬프트 앞부분에서 과도하게 앵커링되어
+    # valid 후보를 일괄 REJECT하는 drift가 생길 수 있다.
+    boundary_guard = (
+        "[RAG 사용 경계]\n"
+        "- 아래 참고자료는 Rule Engine을 뒤집기 위한 근거가 아니라, 유사 사례와 캔들 구조 해석의 보조 자료다.\n"
+        "- RSI, 거래량, MA, 볼린저밴드 임계치를 다시 판정하거나 규칙 자체를 더 엄격하게 재해석하지 말 것.\n"
+        "- 직전 2~6개 캔들의 꼬리 구조, 몸통 강도, 반등/하락 지속성, 변동성 이상 징후만 기술적으로 검토할 것."
+    )
+    return f"\n\n{prefix}\n{boundary_guard}\n\n{raw_text}"
 
 
 def sanitize_market_context_for_analyst(

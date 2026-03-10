@@ -203,3 +203,5 @@ scripts/ops/rule_funnel_regime_report.sh 72
 - 2026-03-11: 사용자 승인 후 구현 착수. Phase 1 범위로 `ai_decision_rag.py`, `ai_decision_replay.py`, `scripts/replay_ai_decision_rag.py`, `scripts/ops/replay_ai_decision_rag.sh`, Analyst 선택적 RAG 주입 경로, 단위 테스트를 반영한다.
 - 2026-03-11: WSL 로컬 검증에서 docker 미설치로 replay ops 래퍼가 실패한 것을 반영해, `scripts/ops/replay_ai_decision_rag.sh`에 `.venv/bin/python`/`python3` 로컬 폴백 경로를 추가했다. 운영 환경에서는 여전히 bot 컨테이너 경로를 우선 사용한다.
 - 2026-03-11: OCI replay 실측 결과 `samples=10`, `decision_changed_count=8`, `avg_confidence_delta=-22.4`, `rag_avg_cost_usd +13.0%`, `rag_latency_p50_ms -19.8%`, parse fail `0->0`을 확인했다. 안전성(오류/지연/비용) 측면은 통과했지만 confidence 하락과 decision drift가 커서 Phase 2 live canary는 보류하고, 표본 확대 및 drift 원인 분해를 다음 단계로 남긴다.
+- 2026-03-11: drift 원인 분해 결과, 문제는 retrieval 양보다 prompt ordering/weighting에 가깝다고 판단해 후속 하위 작업 `28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_plan.md`를 분리했다.
+- 2026-03-11: `28-01` 구현 착수. 전략 요약 축소(`strategy:9 -> strategy:4` 목표), 과거 사례 우선 배치, Analyst 경계 문구 강화를 반영했고, 정적 검증(`tests 5 passed`, `py_compile`, shell syntax)을 완료했다. 다음 단계는 OCI replay 재측정이다.

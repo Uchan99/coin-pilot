@@ -192,6 +192,21 @@ PY
     중 하나로 좁혀야 한다.
   - 즉, 현재 병목은 retrieval 양보다 **prompt ordering / weighting** 문제에 가깝다.
 
+## 7.4 28-01 prompt ordering/weighting 보정 착수 (2026-03-11)
+- 관련 계획/결과:
+  - `docs/work-plans/28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_plan.md`
+  - `docs/work-result/28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_result.md`
+- 반영 내용:
+  - 전략 요약 목표를 `strategy:9 -> strategy:4` 수준으로 축소
+  - `[과거 사례 요약]`을 `[전략 문서 핵심]`보다 앞에 배치
+  - Analyst에 `Rule Engine 통과 신호를 재판정하지 말고 캔들 구조/지속성만 검토`하는 경계 문구 강화
+- 정적 검증:
+  - `tests/agents/test_ai_decision_rag.py`: `5 passed`
+  - `python3 -m py_compile src/agents/ai_decision_rag.py src/agents/analyst.py scripts/replay_ai_decision_rag.py`: 통과
+  - `bash -n scripts/ops/replay_ai_decision_rag.sh`: 통과
+- 현재 단계 판단:
+  - 코드 보정은 완료했고, 다음 단계는 같은 OCI replay를 다시 돌려 drift 완화 여부를 재측정하는 것이다.
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
