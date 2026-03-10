@@ -35,7 +35,7 @@ Examples:
 
 Optional env overrides:
   COINPILOT_OPS_LOG_ROOT=/var/log/coinpilot/ops
-  COINPILOT_OPS_LOCK_ROOT=/tmp/coinpilot-ops-locks
+  COINPILOT_OPS_LOCK_ROOT=/var/log/coinpilot/ops/locks
   COINPILOT_OPS_TIMEOUT_SEC=900
 EOF
 }

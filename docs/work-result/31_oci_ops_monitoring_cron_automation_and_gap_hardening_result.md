@@ -3,8 +3,8 @@
 작성일: 2026-03-10
 작성자: Codex
 관련 계획서: docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md
-상태: In Progress (Phase A/B Verified on OCI)
-완료 범위: Phase A, Phase B
+상태: In Progress (Phase A/B Verified on OCI, Phase C Implemented)
+완료 범위: Phase A, Phase B, Phase C(구현)
 관련 트러블슈팅(있다면): `docs/troubleshooting/31_scheduled_monitoring_runtime_path_and_loki_readiness_false_fail.md`
 
 ---
@@ -65,6 +65,29 @@
   - runbook 문장만으로는 실제 등록 시각과 충돌 회피 기준이 흐려진다.
   - 예시 cron 파일이 있으면 운영자가 그대로 검토/적용하기 쉽다.
 
+### 2.4 관측 갭 자동 판정(Phase C) 추가
+- 파일:
+  - `scripts/ops/check_24h_monitoring.sh`
+- 변경 내용:
+  - `LLM snapshot freshness` 점검 추가
+    - `LLM_COST_SNAPSHOT_ENABLED=false`면 개인 계정 fallback으로 간주하고 INFO 처리
+    - 활성화 상태에서는 provider별 snapshot 0건/stale 여부를 WARN으로 판정
+  - `AI decision inactivity` 점검 추가
+    - 최근 6시간 `agent_decisions` 0건이면 bot 상태와 함께 WARN/FAIL 분기
+  - `scheduled monitoring heartbeat` 점검 추가
+    - `/var/log/coinpilot/ops/*.log` 최신 갱신 시각을 보고 t1h/t6h/t12h/t24h/ai-canary/llm-usage job의 공백을 WARN으로 판정
+- 설계 이유:
+  - Phase A/B만으로는 "돌아간다"는 사실만 확인되고, "최근에 안 돌았는지/비용 스냅샷이 멈췄는지/AI 의사결정이 장시간 0건인지"를 자동으로 읽을 수 없었다.
+  - 기존 cron 구조를 바꾸지 않고 `check_24h_monitoring.sh` 안에 얇은 판정 로직만 추가하는 편이 운영 리스크가 가장 낮다.
+- 고려 대안:
+  1) 별도 Phase C 전용 스크립트 생성
+  2) `run_scheduled_monitoring.sh`가 로그 본문까지 파싱
+  3) `check_24h_monitoring.sh`에 판정 함수 직접 추가 (채택)
+- 트레이드오프:
+  - 장점: 기존 운영자가 쓰는 단일 점검 스크립트 안에서 모든 판정을 확인 가능
+  - 단점: 쉘 스크립트 길이가 길어짐
+  - 완화: helper 함수로 분리하고 임계치(`LLM_SNAPSHOT_MAX_LAG_MINUTES`, `AI_DECISION_INACTIVITY_HOURS`)를 env override로 노출
+
 ## 3. 정량 증빙
 
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
@@ -73,6 +96,8 @@
 | 공통 스케줄 래퍼 수 | 0 | 1 | +1 | 측정 불가(분모 0) |
 | cron 예시 등록 라인 수 | 0 | 7 | +7 | 측정 불가(분모 0) |
 | 고정 수동 WARN 항목(자동화 모드 기준) | 1 | 0 | -1 | -100.0 |
+| Phase C 자동 판정 함수 수 | 0 | 3 | +3 | 측정 불가(분모 0) |
+| Phase C env override 수 | 0 | 3 | +3 | 측정 불가(분모 0) |
 
 - 측정 기준:
   - 대상 파일: `scripts/ops/check_24h_monitoring.sh`, `scripts/ops/run_scheduled_monitoring.sh`, `deploy/cloud/oci/ops/coinpilot-monitoring.cron.example`
@@ -80,10 +105,11 @@
     1) `check_24h_monitoring.sh --automation-mode`가 문법상 유효할 것
     2) 래퍼와 cron 예시가 bash/텍스트 기준 유효할 것
     3) 자동화 모드에서 수동 확인 항목이 WARN 누적에서 제외될 것
+    4) Phase C helper가 문법상 유효하고, `--help`에 신규 override가 노출될 것
 - 측정 불가 사유:
-  - 실제 24h cron 누적 로그는 OCI 등록 전이므로 아직 측정하지 않았다.
-  - 대체 지표로 bash syntax, help 출력, cron 예시 라인 수를 사용했다.
-  - 추후 측정 계획: OCI에 cron 등록 후 72시간 로그 누적과 exit code 분포를 추가 측정
+  - Phase C는 이번 턴에서 구현만 완료했고 OCI에서 `t6h/t24h`를 아직 재검증하지 않았다.
+  - 대체 지표로 bash syntax, help 출력, helper 함수 수를 사용했다.
+  - 추후 측정 계획: OCI에서 `check_24h_monitoring.sh t6h`, `t24h`, `all`을 실행해 inactivity/freshness/heartbeat 판정을 실측한다.
 
 ## 4. 검증 명령
 - 정적 검증:
@@ -92,11 +118,14 @@
   - `scripts/ops/check_24h_monitoring.sh --help`
   - `scripts/ops/run_scheduled_monitoring.sh --help || true`
   - `rg -n "automation-mode|run_scheduled_monitoring|coinpilot-monitoring.cron.example" scripts/ops deploy/cloud/oci/ops docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md`
+  - `rg -n "LLM_SNAPSHOT_MAX_LAG_MINUTES|AI_DECISION_INACTIVITY_HOURS|heartbeat" scripts/ops/check_24h_monitoring.sh`
 - OCI 적용 후 검증(예정):
   - `sudo install -m 0644 /opt/coin-pilot/deploy/cloud/oci/ops/coinpilot-monitoring.cron.example /etc/cron.d/coinpilot-monitoring`
-  - `sudo systemctl reload cron`
+  - `sudo systemctl restart cron`
   - `sudo tail -n 200 /var/log/coinpilot/ops/*.log`
   - `crontab -l || sudo cat /etc/cron.d/coinpilot-monitoring`
+  - `sudo bash /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t6h --automation-mode`
+  - `sudo bash /opt/coin-pilot/scripts/ops/check_24h_monitoring.sh t24h --automation-mode`
 
 ## 5. 운영 적용 메모
 - 이번 Phase는 host-side script/doc 변경만 포함한다.
@@ -140,6 +169,14 @@
 - 해석:
   - cron 파일 설치, root 실행, 로그 보관, `flock/timeout` 래퍼, 자동화 모드, Loki readiness fallback이 모두 OCI에서 실제 동작함을 확인했다.
   - 따라서 31은 전체 완료 전 단계이지만, **Phase A/B의 설계와 운영 적용은 검증 완료**로 판단한다.
+
+## 5.3 Phase C 구현 메모
+- 확인된 사실:
+  - 21-04가 개인 계정 fallback 모드(`LLM_COST_SNAPSHOT_ENABLED=false`)로 고정되면서, Phase C의 freshness 점검은 "0 rows를 장애로 오해하지 않는 정책"을 함께 가져가야 했다.
+  - 운영 공백은 비용 snapshot 자체보다 "최근 의사결정이 0건인지"와 "scheduled log가 갱신되지 않는지"를 먼저 보는 편이 실무적으로 더 유효하다.
+- 조치:
+  - `check_24h_monitoring.sh`에 snapshot freshness, AI inactivity, cron heartbeat helper를 추가했다.
+  - 다만 OCI에서 이번 턴에 직접 검증한 것은 Phase A/B 로그 경로이므로, Phase C는 구현 완료 상태로 기록하고 OCI 재검증은 다음 실행으로 남긴다.
 
 ## 6. README 동기화 여부
 - 이번 Phase는 main task `done`이 아니고 운영 예시/래퍼 추가 수준이므로 `README.md`는 동기화하지 않았다.

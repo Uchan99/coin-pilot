@@ -156,3 +156,4 @@
 - 2026-03-07: 사용자 요청에 따라 전략 자동화 주기를 주 1회(7일)로 명확화하고, 기존 Weekly Exit 리포트 직후 전략 제안 리포트 실행 슬롯(`일요일 22:10 KST`)을 주기표에 추가.
 - 2026-03-07: 사용자 요청에 따라 전략 자동 적용 스케줄은 Shadow 2주 종료 전까지 비활성(default off) 정책을 추가.
 - 2026-03-10: 사용자 승인 후 Phase A/B 범위를 이번 구현 턴으로 확정. 자동화 모드가 포함된 `check_24h_monitoring.sh`, 실행 가드 래퍼 `run_scheduled_monitoring.sh`, cron 예시 파일을 먼저 구현하고 Phase C 관측 갭 보강은 후속으로 남긴다.
+- 2026-03-10: Phase C 1차 구현 범위를 `check_24h_monitoring.sh`에 직접 추가하는 방식으로 구체화. 대상은 `LLM snapshot freshness(24h)`, `AI decision inactivity(6h)`, `scheduled monitoring heartbeat(24h)` 3종이며, 기존 cron 주기표는 유지하고 판정 로직만 보강한다.
