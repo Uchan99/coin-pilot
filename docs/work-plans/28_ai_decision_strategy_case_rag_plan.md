@@ -2,9 +2,9 @@
 
 **작성일**: 2026-03-05  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: In Progress  
 **관련 계획 문서**: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`, `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md`, `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md`, `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md`  
-**승인 정보**: 미승인 (2026-03-11 현재 구현 전 범위 재정의 완료)
+**승인 정보**: 2026-03-11 사용자 승인 완료 (`offline replay -> live canary` 2단 구조로 진행)
 
 ---
 
@@ -76,10 +76,13 @@
   - RAG 컨텍스트 길이와 검색 문서 수를 상한(`k<=3`)으로 제한
 
 ## 5. 구현 범위 (승인 시)
-### Phase 1. 전략/사례 RAG의 최소 실험 경로
+### Phase 1. Offline Replay 기반 안전성/품질 비교
+- 목표:
+  - live canary 표본 부족 상태에서도 baseline Analyst와 RAG-on Analyst를 같은 입력으로 비교 가능한 재생(replay) 경로를 만든다.
+  - 이 단계에서는 "운영 성능 우열 결론"이 아니라 "주입 가능성/오류율/latency/cost/reasoning 정렬"을 본다.
 - 변경 파일(예정):
   1) `src/agents/analyst.py`
-     - canary 경로에서만 retrieval context 주입
+     - replay 실행 시 RAG on/off를 토글할 수 있는 주입 지점 추가
   2) `src/agents/guardian.py`
      - Phase 1에서는 직접 주입하지 않거나, Analyst 대비 최소 범위로 제한
   3) `src/agents/rag_agent.py` 또는 신규 모듈
@@ -87,12 +90,14 @@
   4) 신규 인덱싱/검색 모듈(예정)
      - 전략 문서 source set
      - 과거 사례 source set
-  5) `scripts/ops/ai_decision_canary_report.sh`
-     - RAG on/off canary 비교용 필드 추가(가능한 범위)
+  5) 신규 replay 스크립트(예정)
+     - 최근 `agent_decisions` 또는 저장된 입력 샘플을 읽어 baseline/RAG-on Analyst를 나란히 실행
+  6) `scripts/ops/ai_decision_canary_report.sh`
+     - Phase 2 live canary 진입 전까지는 변경 없음 또는 후속 확장만 검토
   6) 결과 문서/필요 시 트러블슈팅 문서
 - Phase 1에서 의도적으로 제외:
   - 이미지/차트 패턴 자료
-  - 전체 운영 경로 강제 적용
+  - live 운영 경로 강제 적용
   - 신규 복잡 스키마 도입
   - Guardian 대규모 리프롬프팅
 - DB 변경:
@@ -102,6 +107,12 @@
   - 판단 경로 지연 증가(토큰/latency) 관리 필요
   - 전략 문서가 오래된 경우 stale context가 오히려 판단 품질을 해칠 수 있음
   - 과거 사례는 "정답"이 아니라 참고 맥락이므로, retrieval 결과가 Rule Engine을 override하면 안 됨
+
+### Phase 2. Live Canary 제한 주입
+- 시작 조건:
+  - Phase 1 replay에서 parse fail/timeout/latency/cost 악화가 허용 범위 이내일 것
+- 목표:
+  - canary Analyst에만 전략/사례 RAG를 제한 주입하고 실제 운영 표본을 소량 수집한다.
 
 ## 6. 데이터 소스 정책
 - 전략 문서(허용):
@@ -125,16 +136,22 @@
 - 회귀 테스트:
   - 기존 AI Decision 경로 테스트 + RAG 비활성 fallback 테스트
 - 운영 체크:
-  - canary 기간(24~72h) 품질/비용 리포트 비교
+  - Phase 1: replay 비교 결과를 파일/JSON으로 저장
+  - Phase 2: canary 기간(24~72h) 품질/비용 리포트 비교
   - `21-03` 리포트와 같은 관측 방식으로 `model_used` 외 `rag_context_source` 또는 유사 메타 차이를 비교
   - `29-01` rule funnel 상 `ai_confirm/ai_reject` 단계 비율이 급격히 악화되지 않는지 확인
-- 정량 성공 기준(Phase 1):
+- 정량 성공 기준(Phase 1 replay):
+  - replay 표본 최소 `N>=30` 확보 시도
   - `parse_fail_rate` 증가 `+2%p` 이내
   - `timeout_count` 증가 `+2%p` 이내
   - `avg_confidence`가 baseline 대비 `-5pt` 초과 하락하지 않을 것
+  - `p50 latency_ms` 증가 `+20%` 이내
+  - `avg cost_usd` 증가 `+20%` 이내
+- 정량 성공 기준(Phase 2 live canary):
   - canary 표본 `N>=20` 확보 전에는 `hold`
 - 측정 명령(예정):
 ```bash
+PYTHONPATH=. python scripts/replay_ai_decision_rag.py --hours 168 --limit 50 --output /tmp/ai_rag_replay.json
 scripts/ops/ai_decision_canary_report.sh 24
 docker exec -u postgres coinpilot-db psql -d coinpilot -c "
 SELECT model_used, count(*), avg(confidence)
@@ -165,12 +182,14 @@ scripts/ops/rule_funnel_regime_report.sh 72
   - 표본이 작은 상태에서 RAG on/off 차이를 과대해석할 수 있다.
   - retrieval 품질보다 source 문서 품질이 병목일 수 있다.
   - RAG가 Rule Engine 경계(reason boundary)를 재해석하는 듯한 부작용이 생길 수 있다.
+  - replay용 과거 입력이 완전히 재현되지 않으면 live와 오차가 발생할 수 있다.
 - 가정:
   - 현재 PGVector 기반 문서 검색 경로를 AI Decision 전용으로 재사용 가능하다.
   - 개인 계정 fallback으로도 token/latency 비교는 가능하다.
 - 미확정:
   - 과거 사례를 문서화된 natural language로 인덱싱할지, 구조화 요약문으로 만들지
   - Guardian까지 주입할지, Analyst만 먼저 볼지
+  - replay 입력을 `agent_decisions`에서 직접 복원할지, 별도 fixture/샘플 파일을 만들지
 
 ## 11. 후속 조치
 - 다음에 유사 문제 방지를 위한 작업:
@@ -180,3 +199,6 @@ scripts/ops/rule_funnel_regime_report.sh 72
 
 ## 12. 변경 이력
 - 2026-03-11: `21-04`를 개인 계정 capability 제약으로 `blocked`, `31`을 `done`으로 반영해 선행 상태를 최신화했다. 기존 방향성 메모 수준의 계획을 "전략 문서 + 과거 사례 2계층 RAG를 AI Decision canary 경로에만 제한 주입"하는 Phase 1 실험 계획으로 재정의했다.
+- 2026-03-11: live canary 표본 부족을 반영해 Phase 1을 `offline replay` 비교 경로로 재정의했다. Phase 2부터 canary Analyst 제한 주입으로 이어가는 2단 구조로 계획을 보정했다.
+- 2026-03-11: 사용자 승인 후 구현 착수. Phase 1 범위로 `ai_decision_rag.py`, `ai_decision_replay.py`, `scripts/replay_ai_decision_rag.py`, `scripts/ops/replay_ai_decision_rag.sh`, Analyst 선택적 RAG 주입 경로, 단위 테스트를 반영한다.
+- 2026-03-11: WSL 로컬 검증에서 docker 미설치로 replay ops 래퍼가 실패한 것을 반영해, `scripts/ops/replay_ai_decision_rag.sh`에 `.venv/bin/python`/`python3` 로컬 폴백 경로를 추가했다. 운영 환경에서는 여전히 bot 컨테이너 경로를 우선 사용한다.

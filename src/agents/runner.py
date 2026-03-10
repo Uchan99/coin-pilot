@@ -73,6 +73,8 @@ class AgentRunner:
             "market_context": market_context,
             "indicators": indicators,
             "llm_route": llm_route,
+            "rag_context": None,
+            "replay_mode": False,
             "analyst_decision": None,
             "guardian_decision": None,
             "final_decision": "REJECT",
