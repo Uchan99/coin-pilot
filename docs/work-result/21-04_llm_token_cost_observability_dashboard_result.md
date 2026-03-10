@@ -3,7 +3,7 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-상태: In Progress (Phase 1 + Phase 2 + Phase 2.1 Code Implemented)
+상태: Blocked (개인 계정 fallback 운영 중 / provider reconciliation은 account capability 제약으로 보류)
 완료 범위: Phase 1, Phase 2, Phase 2.1(코드 반영)
 선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
@@ -256,7 +256,7 @@
 | `llm_credit_snapshots` 행 수 | 0 | 0 | 0 | 0.0 |
 
 - 상태 판단:
-  - Phase 1 구현은 완료됐지만, `llm_credit_snapshots` 자동 수집/대조 고도화가 남아 있으므로 `21-04`는 `in_progress`를 유지한다.
+  - Phase 1 구현은 완료됐지만, provider 외부 비용 대조는 개인 계정 capability 제약으로 진행할 수 없어 현재는 `blocked`로 관리한다.
 
 ---
 
@@ -423,7 +423,7 @@ LIMIT 20;
   - `/opt/coin-pilot` 기준에서 `scripts/ops/llm_usage_cost_report.sh 24` 실행은 정상 동작했고, 최근 24시간 모델/route별 토큰/비용 리포트가 출력됐다.
   - 내부 원장 기준으로는 `anthropic`과 `openai` 모두 비용 분리가 가능하다.
   - 하지만 `llm_provider_cost_snapshots`는 여전히 `0 rows`이며 freshness 섹션도 비어 있어 외부 비용 대조(reconciliation)는 아직 불가하다.
-  - 따라서 `21-04`는 "운영 리포트 동작 확인 완료"까지는 도달했지만, 현재 문서 기준으로는 `in_progress` 유지가 맞다.
+  - 따라서 `21-04`는 "운영 리포트 동작 확인 완료"까지는 도달했지만, 개인 계정 기준에서는 provider reconciliation이 불가해 현재 문서 기준 상태는 `blocked`가 맞다.
 - 경로 주의:
   - 실행 위치가 `/opt/coin-pilot/deploy/cloud/oci`면 `scripts/ops/...` 상대경로가 맞지 않는다.
   - 권장 실행:
@@ -477,7 +477,7 @@ LIMIT 20;
 - 해석:
   - 내부 usage ledger 기반 토큰/비용 관측은 운영 가능 상태다.
   - 그러나 `provider_cost_usd`가 전부 0이고 snapshot 행이 없어서, 현재는 "route별 비용 추이 리포트는 가능, 외부 비용 대조는 미완료" 상태다.
-  - 따라서 `21-04`는 `done`이 아니라 **"상태 명확화 완료, `in_progress` 유지"** 로 보는 것이 맞다.
+  - 따라서 `21-04`는 `done`이 아니라 **"상태 명확화 완료, 개인 계정 capability 제약으로 `blocked`"** 로 보는 것이 맞다.
 - 다음 판정 조건:
   1) `LLM_COST_SNAPSHOT_ENABLED=true` 상태에서 최소 1개 provider snapshot row 생성
   2) freshness 결과에 provider별 최근 시각이 표시
@@ -512,3 +512,46 @@ LIMIT 20;
   - 성공 기준: 개인 계정 fallback 설명이 포함되고, 두 example 모두 동일한 provider 설정 필드 세트를 제공할 것
 - 증빙 명령:
   - `rg -n "LLM_COST_SNAPSHOT_(ENABLED|INTERVAL_MIN|LOOKBACK_HOURS|ANTHROPIC_|OPENAI_)" .env.example deploy/cloud/oci/.env.example`
+
+---
+
+## 19. 개인 계정 Fallback 운영 기준 확정 (2026-03-10)
+- 문제 정의:
+  - OpenAI/Anthropic 개인 계정 기준으로는 org/admin 비용 API 접근 권한이 없어
+    `llm_provider_cost_snapshots` 기반 외부 비용 대조를 계속 시도해도 실질적으로 수집이 불가능할 수 있다.
+  - 이 상태를 명확히 정의하지 않으면 `21-04`가 구현 미완인지, 계정 제약으로 보류인지 경계가 모호해진다.
+- 운영 정의:
+  - **개인 계정 fallback**이란, provider 외부 비용 snapshot은 비활성화하고
+    내부 `llm_usage_events` 원장만으로 route/provider/model별 토큰/추정 비용을 운영하는 모드다.
+  - 설정 기준:
+    - `LLM_USAGE_ENABLED=true`
+    - `LLM_COST_SNAPSHOT_ENABLED=false`
+- 영향/해석:
+  - 사용 가능한 지표:
+    - route별 호출 수
+    - input/output/total tokens
+    - 모델별/제공자별 추정 비용
+    - canary와 primary의 상대 비용 비교
+  - 사용 불가능한 지표:
+    - provider 청구서와의 exact reconciliation
+    - `llm_provider_cost_snapshots` freshness / delta 기반 대조
+- 정량 근거:
+
+| 항목 | 값 | 해석 |
+|---|---:|---|
+| 최근 24h 내부 비용 관측 provider 수 | 2 | `anthropic`, `openai` 모두 ledger 기반 관측 가능 |
+| 최근 24h 내부 비용 집계 행 수 | 5 | route/provider/model별 리포트 운영 가능 |
+| `llm_provider_cost_snapshots` 총 행 수 | 0 | 개인 계정 fallback 모드에서는 정상 |
+
+- 측정 기준:
+  - 기간: 최근 24시간
+  - 성공 기준:
+    1) `llm_usage_cost_report.sh 24`가 route/provider/model 비용 리포트를 출력할 것
+    2) `LLM_COST_SNAPSHOT_ENABLED=false` 상태에서 snapshot 0건을 정상으로 해석할 것
+- 증빙 명령:
+  - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
+  - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT count(*) FROM llm_provider_cost_snapshots;"`
+- 상태 판단:
+  - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
+  - 체크리스트 상태는 `blocked`로 관리한다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이다.
+  - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.
