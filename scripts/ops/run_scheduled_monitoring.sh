@@ -14,7 +14,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 LOG_ROOT="${COINPILOT_OPS_LOG_ROOT:-/var/log/coinpilot/ops}"
-LOCK_ROOT="${COINPILOT_OPS_LOCK_ROOT:-/tmp/coinpilot-ops-locks}"
+# lock 경로 기본값은 로그 경로 하위로 둔다.
+# 이유:
+# - root cron과 비root 수동 스모크가 서로 다른 경로를 쓰더라도 권한 모델이 일관된다.
+# - /tmp 전역 경로를 root가 먼저 만들면 비root가 lock 파일을 생성하지 못하는 문제가 생길 수 있다.
+LOCK_ROOT="${COINPILOT_OPS_LOCK_ROOT:-${LOG_ROOT}/locks}"
 TIMEOUT_SEC="${COINPILOT_OPS_TIMEOUT_SEC:-900}"
 
 usage() {

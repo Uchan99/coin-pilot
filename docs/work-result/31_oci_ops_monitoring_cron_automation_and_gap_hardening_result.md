@@ -5,7 +5,7 @@
 관련 계획서: docs/work-plans/31_oci_ops_monitoring_cron_automation_and_gap_hardening_plan.md
 상태: In Progress (Phase A/B Implemented)
 완료 범위: Phase A, Phase B
-관련 트러블슈팅(있다면): 없음
+관련 트러블슈팅(있다면): `docs/troubleshooting/31_scheduled_monitoring_runtime_path_and_loki_readiness_false_fail.md`
 
 ---
 
@@ -101,6 +101,17 @@
 ## 5. 운영 적용 메모
 - 이번 Phase는 host-side script/doc 변경만 포함한다.
 - OCI 적용 시 `git pull`만으로 충분하고 bot 재빌드는 불필요하다.
+
+## 5.1 OCI 1차 운영 검증 메모
+- 확인된 사실:
+  - `/etc/cron.d/coinpilot-monitoring` 설치와 `cron active`는 정상 확인됨
+  - root 기준 스모크에서 `ai-canary-24h`, `llm-usage-24h`는 `exit_code=0`
+  - `monitoring-t1h`는 첫 실행에서 사용자 입력 줄바꿈으로 `--automation-` 잘림 오타가 있었고, 두 번째 정상 실행에서는 Loki `/ready` empty 응답 때문에 false FAIL이 발생했다.
+  - 비root `/tmp` 스모크에서는 기본 lock 경로가 root 생성 디렉터리를 재사용해 `Permission denied`가 발생했다.
+- 조치:
+  - 관련 원인을 트러블슈팅 문서로 분리하고,
+  - 기본 lock 경로를 `${LOG_ROOT}/locks`로 변경,
+  - Loki query API success를 readiness fallback으로 인정하도록 보정했다.
 
 ## 6. README 동기화 여부
 - 이번 Phase는 main task `done`이 아니고 운영 예시/래퍼 추가 수준이므로 `README.md`는 동기화하지 않았다.

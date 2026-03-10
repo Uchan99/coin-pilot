@@ -302,14 +302,23 @@ check_loki_log_pipeline() {
   ready_response="$(curl -fsS "${LOKI_URL}/ready" 2>/dev/null || true)"
   if [[ "${ready_response}" == "ready" ]]; then
     pass "Loki readiness 확인(ready)"
-  else
-    fail "Loki readiness 실패 (${LOKI_URL}/ready): ${ready_response:-empty response}"
   fi
 
   local labels_response
   labels_response="$(
     curl -fsSG "${LOKI_URL}/loki/api/v1/label/service/values" 2>/dev/null || true
   )"
+  if [[ "${ready_response}" != "ready" ]]; then
+    # 일부 Loki 버전/프록시 조합에서는 /ready 응답 본문이 비거나 curl이 실패해도
+    # 실제 query API는 정상인 경우가 있다. 이런 경우 readiness만으로 FAIL 처리하면
+    # 운영 false fail이 되므로 query API 성공을 readiness fallback으로 인정한다.
+    if [[ -n "${labels_response}" ]] && grep -q '"status":"success"' <<<"${labels_response}"; then
+      pass "Loki readiness fallback 확인(query API success, /ready body=${ready_response:-empty})"
+    else
+      fail "Loki readiness 실패 (${LOKI_URL}/ready): ${ready_response:-empty response}"
+    fi
+  fi
+
   if [[ -z "${labels_response}" ]]; then
     warn "Loki service 라벨 조회 응답 없음 (${LOKI_URL})"
   elif ! grep -q '"status":"success"' <<<"${labels_response}"; then
