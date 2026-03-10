@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`
-상태: In Progress (Phase 1 offline replay 경로 구현 완료, 정적 검증 완료, 실제 replay 실측은 OCI 대상)
+상태: In Progress (Phase 1 offline replay 실측 완료, 기준 미달로 Phase 2 live canary 보류)
 
 ---
 
@@ -107,13 +107,12 @@ PYTHONPATH=. .venv/bin/python scripts/replay_ai_decision_rag.py --help
 
 ## 7. 측정 불가 사유 / 대체 지표 / 추후 계획
 - 측정 불가 사유:
-  - 이번 턴에서는 실제 replay를 DB 샘플에 대해 실행하지 않았다. replay는 실제 LLM 호출을 동반하므로 비용/지연/응답 편차가 발생하고, 현재 목표는 우선 "경로가 안전하게 구현됐는지" 확인하는 것이었다.
+  - 없음. 2026-03-11 OCI에서 실제 replay를 실행해 baseline vs RAG-on 비교 수치를 확보했다.
 - 대체 지표:
-  - 단위 테스트 4건으로 전략 레퍼런스 로드, RAG 블록 생성, BUY `signal_info` 기반 replay 복원 경로를 검증했다.
-  - CLI 도움말과 shell syntax 검증으로 ops 경로가 깨지지 않았음을 확인했다.
+  - 정적 검증(테스트 4건, py_compile, shell syntax, CLI help)과 함께 OCI replay 실측값을 사용한다.
 - 추후 측정 계획:
-  1. OCI에서 `docker compose ... exec -T bot ... python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30 | tee /tmp/ai_rag_replay.json` 실행
-  2. 최소 `N>=30`에서 `decision_changed_count`, `parse_fail_rate`, `p50 latency_ms`, `avg cost_usd`, `avg confidence delta` 비교
+  1. replay 표본을 `N>=30`까지 늘려 SIDEWAYS 편중을 완화
+  2. confidence 하락폭과 decision drift 원인을 케이스별로 분해
   3. 기준 통과 시에만 Phase 2 live canary Analyst 제한 주입 진행
 
 ### 7.1 런타임 호환성 메모 (2026-03-11)
@@ -127,25 +126,64 @@ PYTHONPATH=. .venv/bin/python scripts/replay_ai_decision_rag.py --help
   - 운영 OCI에서는 기존과 동일하게 bot 컨테이너 런타임을 유지한다.
   - 로컬 WSL 개발 환경에서는 CLI/진입점 smoke test는 가능하지만, 실제 replay 실측은 DB/봇 source of truth가 있는 OCI에서 수행하는 것을 기준으로 한다.
 
-## 8. 현재 단계 판단
-- 현재 상태:
-  - `28`은 아직 `done`이 아니다.
-  - Phase 1 replay 경로의 **코드 구현과 정적 검증**만 완료됐고, 실제 replay 실측은 아직 수행하지 않았다.
-- 아직 안 한 것:
-  - 실제 replay 결과 수집
-  - replay 기준 통과 여부 판정
-  - live canary Analyst 제한 주입
-- 다음 바로 실행할 검증 명령(OCI 기준):
+## 7.2 OCI replay 실측 결과 (2026-03-11)
+- 실행 명령:
 ```bash
 cd /opt/coin-pilot
 docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
 'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30' \
 | tee /tmp/ai_rag_replay.json
+```
+- 측정 기준:
+  - 기간: 최근 168시간 BUY `signal_info`
+  - 실제 확보 표본: `10`
+  - 비교 대상: baseline Analyst vs RAG-on Analyst
+- 실측 요약:
+  - `samples=10`
+  - `decision_changed_count=8`
+  - `baseline_parse_fail_count=0`
+  - `rag_parse_fail_count=0`
+  - `baseline_latency_p50_ms=6566.0`
+  - `rag_latency_p50_ms=5264.5`
+  - `baseline_avg_cost_usd=0.0054`
+  - `rag_avg_cost_usd=0.0061`
+  - `avg_confidence_delta=-22.4`
+- 계획 기준 대비 판정:
+  - `N>=30` 목표: 미달 (`10`)
+  - parse fail 증가 `+2%p` 이내: 통과 (`0 -> 0`)
+  - timeout 증가 `+2%p` 이내: 통과 (`0 -> 0`, replay 중 timeout 없음)
+  - `p50 latency +20%` 이내: 통과 (오히려 감소, `-19.8%`)
+  - `avg cost_usd +20%` 이내: 통과 (`+13.0%`)
+  - `avg_confidence -5pt` 이내: 실패 (`-22.4pt`)
+- 샘플 해석:
+  - 상위 5건 중 `decision_changed=True`가 `3/5`, 전체 `8/10`으로 decision drift가 컸다.
+  - 대표 패턴은 baseline `CONFIRM`이 RAG-on에서 `REJECT`로 바뀌고 confidence가 `-26~-30pt` 하락한 경우였다.
+  - 현재 replay 표본은 `SIDEWAYS` 중심이며, RAG가 전략/운영 규칙을 더 보수적으로 해석하면서 진입 신호를 과도하게 차단하는 경향이 확인됐다.
+- 현재 결론:
+  - Phase 1은 "오류율/지연/비용 측면의 안전성"은 확보했지만, confidence 하락과 decision drift가 커서 기준 미달이다.
+  - 따라서 **Phase 2 live canary Analyst 제한 주입은 보류**한다.
+
+## 8. 현재 단계 판단
+- 현재 상태:
+  - `28`은 아직 `done`이 아니다.
+  - Phase 1 replay 경로의 코드 구현/정적 검증/OCI 실측까지 완료됐지만, acceptance 기준을 충족하지 못했다.
+- 아직 안 한 것:
+  - live canary Analyst 제한 주입
+- 다음 바로 실행할 작업:
+```bash
+# 1) replay 표본 확대
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
+'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 336 --limit 50' \
+| tee /tmp/ai_rag_replay_336h.json
+
+# 2) confidence/decision drift 샘플 추출
 python3 - <<'PY'
 import json
 from pathlib import Path
-payload = json.loads(Path('/tmp/ai_rag_replay.json').read_text(encoding='utf-8'))
-print(payload['summary'])
+payload = json.loads(Path('/tmp/ai_rag_replay_336h.json').read_text(encoding='utf-8'))
+for row in payload["records"]:
+    if row["decision_changed"] or (row.get("confidence_delta") or 0) <= -10:
+        print(row["sample_id"], row["symbol"], row["regime"], row["decision_changed"], row["confidence_delta"])
 PY
 ```
 

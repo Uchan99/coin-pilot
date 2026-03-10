@@ -158,7 +158,7 @@
 - 2026-03-10: `31` OCI 2차 검증 완료. `/etc/cron.d/coinpilot-monitoring` + `cron active` 상태에서 root 기준 스모크를 재실행했고, `monitoring-t1h`는 `FAIL:0/WARN:0/exit_code=0`, `ai-canary-24h`/`llm-usage-24h`도 모두 `exit_code=0`으로 통과했다. 현재는 Phase A/B 검증 완료 상태이며, 남은 범위는 관측 갭 자동 판정(Phase C)이다.
 - 2026-03-10: `31` Phase C 1차 구현 반영. `check_24h_monitoring.sh`에 `LLM snapshot freshness(24h)`, `AI decision inactivity(6h)`, `scheduled monitoring heartbeat(24h)` 자동 판정을 추가했고, 개인 계정 fallback(21-04 blocked)과 충돌하지 않도록 `LLM_COST_SNAPSHOT_ENABLED=false`일 때는 INFO 처리하도록 고정했다. OCI 재검증은 다음 실행에서 수행한다.
 - 2026-03-10: `31` Phase C OCI 재검증 완료 및 마감(`done`). `t6h/t12h/t24h`와 `all --automation-mode` 실행에서 `FAIL:0/WARN:0`, `AI inactivity PASS(최근 6h 10건)`, `heartbeat 6개 PASS`, 개인 계정 fallback 기준 `LLM snapshot freshness INFO 처리`를 확인했다. README도 같은 변경 세트에서 동기화했다.
-- 2026-03-11: `28` 사용자 승인 후 착수(`in_progress`). live canary 표본 부족을 반영해 Phase 1을 offline replay로 전환했고, 전략/사례 2계층 RAG helper(`src/agents/ai_decision_rag.py`), BUY `signal_info` 기반 replay 샘플 복원기(`src/agents/ai_decision_replay.py`), replay CLI/ops 래퍼, Analyst 선택적 RAG 주입 경로를 구현했다. 정적 검증은 신규 테스트 `4 passed`, `py_compile`, shell syntax, CLI help 통과까지 완료했고, 실제 replay 실측은 source of truth가 있는 OCI에서 다음 단계로 수행한다.
+- 2026-03-11: `28` 사용자 승인 후 착수(`in_progress`). live canary 표본 부족을 반영해 Phase 1을 offline replay로 전환했고, 전략/사례 2계층 RAG helper(`src/agents/ai_decision_rag.py`), BUY `signal_info` 기반 replay 샘플 복원기(`src/agents/ai_decision_replay.py`), replay CLI/ops 래퍼, Analyst 선택적 RAG 주입 경로를 구현했다. 정적 검증은 신규 테스트 `4 passed`, `py_compile`, shell syntax, CLI help 통과까지 완료했고, 이어서 OCI replay 실측(`samples=10`, `decision_changed_count=8`, `avg_confidence_delta=-22.4`) 결과 confidence 하락과 decision drift가 커 Phase 2 live canary는 보류했다.
 
 ---
 
