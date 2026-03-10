@@ -150,6 +150,7 @@
 - 2026-03-10: 실거래 전환 요구사항 분리 문서화. 기존 `21_live_trading_transition_1m_krw_plan.md`의 범위를 보완하기 위해 `21-09_upbit_live_trading_dashboard_history_reconciliation_plan.md`를 추가했고, Upbit 실거래 전환 시 Dashboard/History/Reconciliation이 함께 바뀌는 점과 현재 우선순위(`21-04 -> 31` 선행 권장)를 명시했다.
 - 2026-03-10: `21-09` Stage A 구현 완료. 실거래 최소 데이터 계약으로 exchange 원장 테이블 4종(`exchange_account_snapshots`, `exchange_orders`, `exchange_fills`, `reconciliation_runs`)과 ORM/migration/init baseline을 추가했고, 테스트 3건을 통과했다.
 - 2026-03-10: `21-04` Phase 2.2 보강. provider 비용 API가 배열 bucket/POST body/최소 단위(cents) 응답을 반환하는 경우를 지원하도록 cost snapshot 파서를 확장했고, env/compose 예시와 테스트를 함께 보강해 `tests/utils/test_llm_usage.py` 14건 통과를 확인했다.
+- 2026-03-10: `21-04` env example 현실화 보정. 개인 계정 기준으로는 admin/org 비용 API를 바로 사용할 수 없다는 주석을 추가했고, `.env.example`/`deploy/cloud/oci/.env.example`의 cost snapshot 기본 주기를 24h로 조정했으며 Anthropic divisor 기본값을 100으로 수정했다.
 
 ---
 

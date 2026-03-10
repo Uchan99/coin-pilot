@@ -482,3 +482,33 @@ LIMIT 20;
   1) `LLM_COST_SNAPSHOT_ENABLED=true` 상태에서 최소 1개 provider snapshot row 생성
   2) freshness 결과에 provider별 최근 시각이 표시
   3) `ledger_cost_usd` vs `provider_cost_usd` 대조가 의미 있는 수준으로 출력
+
+---
+
+## 18. Env Example 현실화 보정 (2026-03-10)
+- 문제 정의:
+  - `.env.example`와 `deploy/cloud/oci/.env.example`의 cost snapshot 예시는 기능 필드가 완전하지 않았고,
+    개인 계정 운영자가 그대로 채우면 동작할 수 있는 것처럼 보일 여지가 있었다.
+  - 특히 OCI example은 `METHOD/BODY/ITEMS/DIVISOR` 필드가 누락되어 있었고,
+    Anthropic divisor 기본값도 `1`로 남아 있었다.
+- 영향:
+  - 개인 계정 사용자가 admin/org 권한 없이 cost snapshot을 활성화해도 `llm_provider_cost_snapshots = 0` 상태가 지속될 가능성이 높았다.
+  - Anthropic 응답이 cents 단위일 때 비용이 100배 크게 기록될 위험이 있었다.
+- 개선 내용:
+  - 두 example 파일 모두 "개인 계정은 기본적으로 disabled 유지" 주석 추가
+  - 기본 polling/lookback을 `1440분 / 24시간`으로 조정
+  - OCI example에 provider별 `METHOD/BODY/ITEMS/ITEM_VALUE/DIVISOR` 필드를 모두 추가
+  - Anthropic divisor 기본값을 `100`으로 수정
+- 정량 비교:
+
+| 항목 | Before | After | 변화량 |
+|---|---:|---:|---:|
+| OCI example cost snapshot 필드 수(provider당) | 3 | 8 | +5 |
+| 기본 polling/lookback | 60분 / 1h | 1440분 / 24h | 일 단위 API와 정합화 |
+| Anthropic divisor 기본값 | 1 | 100 | cents → USD 변환 정합화 |
+
+- 측정 기준:
+  - 비교 대상: `.env.example`, `deploy/cloud/oci/.env.example`
+  - 성공 기준: 개인 계정 fallback 설명이 포함되고, 두 example 모두 동일한 provider 설정 필드 세트를 제공할 것
+- 증빙 명령:
+  - `rg -n "LLM_COST_SNAPSHOT_(ENABLED|INTERVAL_MIN|LOOKBACK_HOURS|ANTHROPIC_|OPENAI_)" .env.example deploy/cloud/oci/.env.example`
