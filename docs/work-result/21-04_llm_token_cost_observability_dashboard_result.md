@@ -318,6 +318,53 @@
     - `scripts/ops/llm_credit_snapshot_collect.sh`: 이름은 유지, 내부 동작은 cost snapshot 수집으로 전환
 - 정량 증빙:
 
+## 16. Phase 2.2 구현 반영 (2026-03-10)
+- 문제 정의:
+  - 기존 cost snapshot 수집기는 `GET + 단일 value_json_path`만 지원해, 실제 provider 비용 API에서 흔한 배열 bucket 응답/POST body/최소 단위(cents) 반환을 다루기 어려웠다.
+  - 이 제약 때문에 운영 `.env`를 채워도 `llm_provider_cost_snapshots`를 실제 API 형식에 맞게 연결하기가 까다로웠다.
+- 구현 요약:
+  - `src/common/llm_usage.py`
+    - `CostSnapshotConfig`에 `method`, `body_template`, `items_json_path`, `item_value_json_path`, `value_divisor`를 추가했다.
+    - `fetch_llm_cost_value()`가 `GET/POST`, JSON body 템플릿, 배열 합산, 최소 단위 -> USD 환산(divisor)을 지원하도록 확장했다.
+  - 운영 env/compose 예시 보강:
+    - `.env.example`
+    - `deploy/cloud/oci/.env.example`
+    - `deploy/cloud/oci/docker-compose.prod.yml`
+  - 테스트 보강:
+    - `tests/utils/test_llm_usage.py`에 `POST + items sum + divisor` 케이스 추가
+- 효과/의미:
+  - provider 비용 API가 단일 scalar가 아니라 bucket list를 반환해도 route 원장과의 reconciliation 경로를 유지할 수 있다.
+  - 비용이 cents/lowest unit로 오더라도 `VALUE_DIVISOR` 설정만으로 USD 정규화가 가능하다.
+- 정량 증빙:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| cost snapshot 설정 필드 수(provider당) | 3 (`URL_TEMPLATE`, `VALUE_JSON_PATH`, `HEADERS_JSON`) | 8 (`+ METHOD/BODY_TEMPLATE/ITEMS_JSON_PATH/ITEM_VALUE_JSON_PATH/VALUE_DIVISOR`) | +5 | +166.7 |
+| cost snapshot 지원 HTTP method | GET만 | GET/POST | +1 | N/A |
+| cost snapshot 응답 해석 방식 | 단일 scalar | scalar + 배열합산 + divisor | +2 유형 | N/A |
+| `tests/utils/test_llm_usage.py` 통과 건수 | 10 | 14 | +4 | +40.0 |
+
+- OCI 적용 후 확인 명령:
+```bash
+cd /opt/coin-pilot
+git fetch origin
+git checkout pretrade
+git pull --ff-only origin pretrade
+
+cd /opt/coin-pilot/deploy/cloud/oci
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build bot
+
+cd /opt/coin-pilot
+bash scripts/ops/llm_credit_snapshot_collect.sh
+bash scripts/ops/llm_usage_cost_report.sh 24
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT created_at, provider, window_start, window_end, cost_usd, currency, source, note
+FROM llm_provider_cost_snapshots
+ORDER BY created_at DESC
+LIMIT 20;
+"
+```
+
 | 지표 | Before | After | 변화량(절대) | 변화율(%) |
 |---|---:|---:|---:|---:|
 | provider 외부 대조 저장 대상 테이블 수 | 1 (`llm_credit_snapshots`) | 2 (`+ llm_provider_cost_snapshots`) | +1 | +100.0 |

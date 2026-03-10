@@ -60,6 +60,11 @@ class CostSnapshotConfig:
     url_template: str
     value_json_path: str
     headers: Dict[str, str]
+    method: str = "GET"
+    body_template: str = ""
+    items_json_path: str = ""
+    item_value_json_path: str = ""
+    value_divisor: Decimal = Decimal("1")
     timeout_sec: float = 10.0
     source: str = "provider_cost_api"
     currency: str = "usd"
@@ -318,15 +323,31 @@ def _read_cost_snapshot_config(provider: str) -> Optional[CostSnapshotConfig]:
 
     headers_raw = os.getenv(f"{env_prefix}_HEADERS_JSON", "").strip()
     headers = _parse_headers_json(headers_raw)
+    method = os.getenv(f"{env_prefix}_METHOD", "GET").strip().upper() or "GET"
+    body_template = os.getenv(f"{env_prefix}_BODY_TEMPLATE", "").strip()
+    items_json_path = os.getenv(f"{env_prefix}_ITEMS_JSON_PATH", "").strip()
+    item_value_json_path = os.getenv(f"{env_prefix}_ITEM_VALUE_JSON_PATH", "").strip()
+    value_divisor_raw = os.getenv(f"{env_prefix}_VALUE_DIVISOR", "1").strip() or "1"
     timeout_sec = _to_float(os.getenv(f"{env_prefix}_TIMEOUT_SEC"), 10.0)
     source = os.getenv(f"{env_prefix}_SOURCE", "provider_cost_api").strip() or "provider_cost_api"
     currency = os.getenv(f"{env_prefix}_CURRENCY", "usd").strip() or "usd"
+    try:
+        value_divisor = Decimal(value_divisor_raw)
+        if value_divisor <= 0:
+            value_divisor = Decimal("1")
+    except Exception:
+        value_divisor = Decimal("1")
 
     return CostSnapshotConfig(
         provider=p,
         url_template=url_template,
         value_json_path=value_json_path,
         headers=headers,
+        method=method,
+        body_template=body_template,
+        items_json_path=items_json_path,
+        item_value_json_path=item_value_json_path,
+        value_divisor=value_divisor,
         timeout_sec=max(1.0, timeout_sec),
         source=source,
         currency=currency.lower(),
@@ -409,22 +430,56 @@ async def fetch_llm_cost_value(
         window_start=window_start,
         window_end=window_end,
     )
+    runtime_values = {
+        "START_UNIX": str(int(window_start.astimezone(timezone.utc).timestamp())),
+        "END_UNIX": str(int(window_end.astimezone(timezone.utc).timestamp())),
+        "START_ISO": window_start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "END_ISO": window_end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    resolved_body = _expand_env_placeholders(
+        _expand_runtime_placeholders(config.body_template, runtime_values)
+    )
 
     timeout = httpx.Timeout(config.timeout_sec)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.get(resolved_url, headers=config.headers)
+        request_kwargs: Dict[str, Any] = {"headers": config.headers}
+        if resolved_body:
+            try:
+                request_kwargs["json"] = json.loads(resolved_body)
+            except json.JSONDecodeError:
+                request_kwargs["content"] = resolved_body
+        response = await client.request(config.method, resolved_url, **request_kwargs)
         response.raise_for_status()
         payload = response.json()
 
-    value = _extract_json_path(payload, config.value_json_path)
-    cost = _to_decimal(value)
+    if config.items_json_path and config.item_value_json_path:
+        items = _extract_json_path(payload, config.items_json_path)
+        if not isinstance(items, list):
+            raise ValueError(
+                f"items path not found or not list: provider={config.provider}, "
+                f"path={config.items_json_path}, value={items!r}"
+            )
+        total = Decimal("0")
+        for item in items:
+            value = _extract_json_path(item, config.item_value_json_path)
+            parsed = _to_decimal(value)
+            if parsed is None:
+                continue
+            total += parsed
+        cost = total
+    else:
+        value = _extract_json_path(payload, config.value_json_path)
+        cost = _to_decimal(value)
+
     if cost is None:
         raise ValueError(
             f"cost path not found or not numeric: provider={config.provider}, "
-            f"path={config.value_json_path}, value={value!r}"
+            f"path={config.value_json_path}, value={locals().get('value')!r}"
         )
     if cost < 0:
         raise ValueError(f"negative cost is invalid: provider={config.provider}, value={cost}")
+    if config.value_divisor != Decimal("1"):
+        cost = cost / config.value_divisor
     return cost.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP), resolved_url
 
 
