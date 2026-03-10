@@ -205,3 +205,4 @@ scripts/ops/rule_funnel_regime_report.sh 72
 - 2026-03-11: OCI replay 실측 결과 `samples=10`, `decision_changed_count=8`, `avg_confidence_delta=-22.4`, `rag_avg_cost_usd +13.0%`, `rag_latency_p50_ms -19.8%`, parse fail `0->0`을 확인했다. 안전성(오류/지연/비용) 측면은 통과했지만 confidence 하락과 decision drift가 커서 Phase 2 live canary는 보류하고, 표본 확대 및 drift 원인 분해를 다음 단계로 남긴다.
 - 2026-03-11: drift 원인 분해 결과, 문제는 retrieval 양보다 prompt ordering/weighting에 가깝다고 판단해 후속 하위 작업 `28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_plan.md`를 분리했다.
 - 2026-03-11: `28-01` 구현 착수. 전략 요약 축소(`strategy:9 -> strategy:4` 목표), 과거 사례 우선 배치, Analyst 경계 문구 강화를 반영했고, 정적 검증(`tests 5 passed`, `py_compile`, shell syntax)을 완료했다. 다음 단계는 OCI replay 재측정이다.
+- 2026-03-11: `28-01` OCI replay 재측정 결과 `decision_changed_count=0`, `avg_confidence_delta=-2.8`, parse fail `0->0`을 확인했다. prompt drift는 해소된 것으로 판단하고, main 28의 다음 단계는 Phase 2 live canary 검토로 전환한다.

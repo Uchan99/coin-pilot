@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-11  
 **작성자**: Codex  
-**상태**: In Progress  
+**상태**: Done  
 **관련 계획 문서**: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`  
 **승인 정보**: 2026-03-11 사용자 승인 완료
 
@@ -125,4 +125,5 @@
   - 전략 요약 축소(`strategy:9 -> strategy:4` 목표)
   - 과거 사례 블록 선배치
   - Analyst 경계 문구 강화
-  - 단위 테스트/정적 검증 후 OCI replay 재측정 대기
+  - 단위 테스트/정적 검증 후 OCI replay 재측정 완료
+  - `decision_changed_count=0`, `avg_confidence_delta=-2.8`로 drift 기준 통과

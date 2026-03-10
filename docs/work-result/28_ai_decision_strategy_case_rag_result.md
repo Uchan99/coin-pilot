@@ -207,28 +207,49 @@ PY
 - 현재 단계 판단:
   - 코드 보정은 완료했고, 다음 단계는 같은 OCI replay를 다시 돌려 drift 완화 여부를 재측정하는 것이다.
 
+## 7.5 28-01 OCI replay 재측정 결과 (2026-03-11)
+- 관련 결과 문서:
+  - `docs/work-result/28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_result.md`
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
+'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30' \
+| tee /tmp/ai_rag_replay_v2.json
+```
+- 실측 요약:
+  - `samples=10`
+  - `decision_changed_count=0`
+  - `baseline_parse_fail_count=0`
+  - `rag_parse_fail_count=0`
+  - `baseline_latency_p50_ms=6525.5`
+  - `rag_latency_p50_ms=7590.0`
+  - `baseline_avg_cost_usd=0.0054`
+  - `rag_avg_cost_usd=0.0069`
+  - `avg_confidence_delta=-2.8`
+- 28 Phase 1 초기 replay 대비 변화:
+  - `decision_changed_count`: `8 -> 0`
+  - `avg_confidence_delta`: `-22.4 -> -2.8`
+  - parse fail: `0 -> 0`
+  - RAG average cost: `0.0061 -> 0.0069` (`+13.1%`)
+- 판정:
+  - drift/confidence 기준은 통과했다.
+  - parse fail도 증가하지 않았다.
+  - latency는 절대값 기준 관찰이 더 필요하지만, 최소한 "보수적 REJECT로 수렴하던 문제"는 해소됐다.
+- 현재 단계 판단:
+  - `28`은 여전히 `in_progress`
+  - 다만 **Phase 1 offline replay 기준으로는 live canary 검토가 가능해진 상태**다.
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
-  - Phase 1 replay 경로의 코드 구현/정적 검증/OCI 실측까지 완료됐지만, acceptance 기준을 충족하지 못했다.
+  - Phase 1 replay 경로의 코드 구현/정적 검증/OCI 1차/2차 실측까지 완료했다.
 - 아직 안 한 것:
   - live canary Analyst 제한 주입
 - 다음 바로 실행할 작업:
 ```bash
-# 1) replay 표본 확대
-docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
-'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 336 --limit 50' \
-| tee /tmp/ai_rag_replay_336h.json
-
-# 2) confidence/decision drift 샘플 추출
-python3 - <<'PY'
-import json
-from pathlib import Path
-payload = json.loads(Path('/tmp/ai_rag_replay_336h.json').read_text(encoding='utf-8'))
-for row in payload["records"]:
-    if row["decision_changed"] or (row.get("confidence_delta") or 0) <= -10:
-        print(row["sample_id"], row["symbol"], row["regime"], row["decision_changed"], row["confidence_delta"])
-PY
+# 1) canary Analyst 전용 RAG 주입 경로를 소규모로 활성화
+# 2) scripts/ops/ai_decision_canary_report.sh 24 로 confirm/reject/latency/cost 추적
 ```
 
 ## 9. 리스크 / 가정 / 미확정 사항

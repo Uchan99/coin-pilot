@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_plan.md`
-상태: In Progress (코드 보정/정적 검증 완료, OCI replay 재측정 대기)
+상태: Done
 
 ---
 
@@ -94,15 +94,49 @@ bash -n scripts/ops/replay_ai_decision_rag.sh
 - `py_compile`: 통과
 - `scripts/ops/replay_ai_decision_rag.sh`: shell syntax 통과
 
-## 7. 측정 불가 사유 / 대체 지표 / 추후 계획
-- 측정 불가 사유:
-  - 이번 턴에서는 OCI replay 재측정을 아직 수행하지 않았다.
-- 대체 지표:
-  - 전략 라인 수 목표(`9 -> 4`)와 정적 검증 통과를 우선 확인했다.
-- 추후 측정 계획:
-  1. OCI에서 동일 replay(`--hours 168 --limit 30`)를 다시 실행
-  2. `decision_changed_count`, `avg_confidence_delta`, parse fail, latency/cost를 Phase 1 결과와 비교
-  3. 기준 통과 시에만 live canary 여부 재검토
+## 7. OCI 재측정 결과
+- 실행 환경:
+  - 2026-03-11 OCI bot 컨테이너
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc \
+'cd /app && PYTHONPATH=/app python /app/scripts/replay_ai_decision_rag.py --hours 168 --limit 30' \
+| tee /tmp/ai_rag_replay_v2.json
+```
+- 측정 기준:
+  - 기간: 최근 168시간
+  - 실제 표본: `10`
+  - 비교 대상: baseline Analyst vs prompt-ordering/weighting 보정 후 RAG-on Analyst
+- 실측 요약:
+  - `samples=10`
+  - `decision_changed_count=0`
+  - `baseline_parse_fail_count=0`
+  - `rag_parse_fail_count=0`
+  - `baseline_latency_p50_ms=6525.5`
+  - `rag_latency_p50_ms=7590.0`
+  - `baseline_avg_cost_usd=0.0054`
+  - `rag_avg_cost_usd=0.0069`
+  - `avg_confidence_delta=-2.8`
+- Before / After (28 Phase 1 대비):
+| 항목 | Before | After | 변화량 |
+|---|---:|---:|---:|
+| `decision_changed_count` | 8 | 0 | -8 |
+| `decision_changed_rate` | 80.0% | 0.0% | -80.0%p |
+| `avg_confidence_delta` | -22.4 | -2.8 | +19.6 |
+| `rag_latency_p50_ms` | 5264.5 | 7590.0 | +2325.5 (+44.2%) |
+| `rag_avg_cost_usd` | 0.0061 | 0.0069 | +0.0008 (+13.1%) |
+| `rag_parse_fail_count` | 0 | 0 | 0 |
+- 판정:
+  - `decision_changed_count / samples <= 30%`: 통과 (`0.0%`)
+  - `avg_confidence_delta >= -5`: 통과 (`-2.8`)
+  - parse fail 증가 없음: 통과 (`0 -> 0`)
+  - cost 악화 `+20%` 이내: 통과 (`+13.1%`)
+  - latency 악화 `+20%` 이내: 실패 (`+44.2%`)
+- 해석:
+  - 이번 보정은 drift/confidence 문제를 사실상 해소했다.
+  - 다만 latency는 baseline 대비가 아니라 이전 RAG 버전 대비 증가했고, 현재 absolute p50도 약 `7.6s` 수준이라 live canary에서 추가 관찰이 필요하다.
+  - 따라서 이 하위 작업(`28-01`)은 "prompt drift 완화" 목적 기준으로는 완료로 본다.
 
 ## 8. OCI 재검증 방법
 ```bash
@@ -142,4 +176,4 @@ PY
   - 사유: `28` main task는 아직 `done`이 아니며, 이번 변경은 하위 보정 단계다.
 - `remaining_work_master_checklist.md`:
   - `28` 상태를 계속 `in_progress`로 유지
-  - 최근 로그에 `28-01` prompt ordering/weighting 보정 착수 및 정적 검증 완료를 추가
+  - 최근 로그에 `28-01` prompt ordering/weighting 보정 및 OCI replay 재측정 결과를 추가
