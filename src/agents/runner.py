@@ -1,8 +1,10 @@
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
 from langgraph.graph import StateGraph, END
+from src.agents.ai_decision_rag import build_ai_decision_rag_context
 from src.agents.state import AgentState
 from src.agents.analyst import market_analyst_node
 from src.agents.guardian import risk_guardian_node
@@ -43,6 +45,97 @@ def create_agent_graph():
     
     return workflow.compile()
 
+
+def is_canary_rag_enabled(llm_route: Dict[str, Any] | None) -> bool:
+    """
+    live RAG 주입은 canary Analyst에만 제한한다.
+
+    왜 route_label까지 같이 보는가:
+    - `AI_DECISION_RAG_CANARY_ENABLED=true`만으로는 primary 경로까지 같이 켜질 위험이 있다.
+    - 28-02의 목적은 live 운영 영향 반경을 최소화하는 것이므로,
+      canary route가 아닌 경우에는 무조건 비활성으로 고정한다.
+    """
+    if not isinstance(llm_route, dict):
+        return False
+    route_label = str(llm_route.get("route_label") or "").strip().lower()
+    if route_label != "canary":
+        return False
+    raw = (os.getenv("AI_DECISION_RAG_CANARY_ENABLED", "false") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+async def build_live_canary_rag_context(
+    *,
+    symbol: str,
+    strategy_name: str,
+    market_context: Dict[str, Any] | list[Any] | None,
+    indicators: Dict[str, Any] | None,
+    llm_route: Dict[str, Any] | None,
+) -> Dict[str, Any] | None:
+    """
+    live canary용 RAG 컨텍스트를 생성한다.
+
+    설계 의도:
+    - replay와 달리 live 경로에서는 "RAG 생성 실패" 자체가 거래 거절 원인이 되면 안 된다.
+    - 따라서 컨텍스트 생성은 runner에서 미리 시도하고, 실패하면 빈 컨텍스트 + fallback status로
+      내려보내 기존 Analyst 경로를 그대로 사용하게 한다.
+    """
+    if not is_canary_rag_enabled(llm_route):
+        return None
+
+    regime = str((indicators or {}).get("regime") or "UNKNOWN")
+    raw_lookback = (os.getenv("AI_DECISION_RAG_CASE_LOOKBACK_DAYS", "30") or "30").strip()
+    try:
+        lookback_days = max(1, int(raw_lookback))
+    except ValueError:
+        lookback_days = 30
+
+    try:
+        rag_context = await build_ai_decision_rag_context(
+            symbol=symbol,
+            regime=regime,
+            strategy_name=strategy_name,
+            lookback_days=lookback_days,
+        )
+        return {
+            **rag_context,
+            "status": "enabled",
+        }
+    except Exception as exc:
+        print(
+            "[AI Decision RAG] canary RAG context generation failed. "
+            f"Fallback to baseline analyst. symbol={symbol} error={exc}"
+        )
+        return {
+            "text": "",
+            "source_summary": [],
+            "status": "fallback",
+            "error": str(exc),
+        }
+
+
+def format_model_used(llm_route: Dict[str, Any] | None, rag_status: str = "disabled") -> str:
+    """
+    decision 로그의 model_used를 운영 해석용 라벨까지 포함해 포맷한다.
+
+    왜 여기서 suffix를 붙이는가:
+    - 28-02에서는 canary 모델 자체는 동일하지만 RAG on/off/fallback이 달라질 수 있다.
+    - `agent_decisions.model_used`만 봐도 RAG 실험 표본을 1차 구분할 수 있어야
+      `ai_decision_canary_report.sh`에서 즉시 운영 비교가 가능하다.
+    """
+    if not llm_route:
+        return "unknown"
+    provider = (llm_route.get("provider") or "unknown").strip().lower()
+    model = (llm_route.get("model") or "unknown").strip()
+    route_label = (llm_route.get("route_label") or "unknown").strip().lower()
+    suffix = route_label
+    if route_label == "canary":
+        if rag_status == "enabled":
+            suffix = "canary-rag"
+        elif rag_status == "fallback":
+            suffix = "canary-rag-fallback"
+    return f"{provider}:{model} ({suffix})"
+
 class AgentRunner:
     """AI 에이전트 실행 및 결과 관리 클래스"""
     
@@ -65,6 +158,14 @@ class AgentRunner:
             market_context=market_context,
             indicators=indicators,
         )
+        rag_context = await build_live_canary_rag_context(
+            symbol=symbol,
+            strategy_name=strategy_name,
+            market_context=market_context,
+            indicators=indicators,
+            llm_route=llm_route,
+        )
+        rag_status = str((rag_context or {}).get("status") or "disabled")
 
         initial_state = {
             "messages": [],
@@ -73,7 +174,7 @@ class AgentRunner:
             "market_context": market_context,
             "indicators": indicators,
             "llm_route": llm_route,
-            "rag_context": None,
+            "rag_context": rag_context,
             "replay_mode": False,
             "analyst_decision": None,
             "guardian_decision": None,
@@ -118,7 +219,7 @@ class AgentRunner:
                 market_context=market_context,
                 boundary_violation=boundary_violation,
                 boundary_terms=boundary_terms,
-                model_used=self._format_model_used(llm_route),
+                model_used=format_model_used(llm_route, rag_status=rag_status),
             )
             
             return is_approved, reasoning
@@ -144,7 +245,7 @@ class AgentRunner:
                 "AI Analysis Timed Out (Conservative Fallback)", None,
                 indicators=indicators,
                 market_context=market_context,
-                model_used=self._format_model_used(llm_route),
+                model_used=format_model_used(llm_route, rag_status=rag_status),
             )
             return False, "AI Analysis Timed Out (Conservative Fallback: REJECT)"
         except Exception as e:
@@ -169,18 +270,9 @@ class AgentRunner:
                 f"AI Error: {str(e)}", None,
                 indicators=indicators,
                 market_context=market_context,
-                model_used=self._format_model_used(llm_route),
+                model_used=format_model_used(llm_route, rag_status=rag_status),
             )
             return False, f"AI Analysis Error: {str(e)}"
-
-    @staticmethod
-    def _format_model_used(llm_route: Dict[str, Any] | None) -> str:
-        if not llm_route:
-            return "unknown"
-        provider = (llm_route.get("provider") or "unknown").strip().lower()
-        model = (llm_route.get("model") or "unknown").strip()
-        route_label = (llm_route.get("route_label") or "unknown").strip().lower()
-        return f"{provider}:{model} ({route_label})"
 
     async def _log_decision(
         self,

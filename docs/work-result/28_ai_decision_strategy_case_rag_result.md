@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`
-상태: In Progress (Phase 1 offline replay 실측 완료, 기준 미달로 Phase 2 live canary 보류)
+상태: In Progress (Phase 1 offline replay 통과, Phase 2 live canary 코드 반영 후 OCI 관측 대기)
 
 ---
 
@@ -240,15 +240,29 @@ docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compo
   - `28`은 여전히 `in_progress`
   - 다만 **Phase 1 offline replay 기준으로는 live canary 검토가 가능해진 상태**다.
 
+## 7.6 28-02 live canary 제한 주입 구현 (2026-03-11)
+- 관련 계획/결과:
+  - `docs/work-plans/28-02_ai_decision_rag_live_canary_limited_rollout_plan.md`
+  - `docs/work-result/28-02_ai_decision_rag_live_canary_limited_rollout_result.md`
+- 반영 내용:
+  - canary Analyst에만 RAG를 시도하는 env 스위치 `AI_DECISION_RAG_CANARY_ENABLED` 추가
+  - RAG 생성 실패 시 baseline Analyst 경로로 자동 fallback
+  - `agent_decisions.model_used`를 `canary-rag` / `canary-rag-fallback`으로 구분 가능하게 보강
+  - `llm_usage_events.meta.rag_status` 기록 및 `scripts/ops/ai_decision_canary_report.sh`에 rag status usage breakdown 추가
+  - `.env.example`, `deploy/cloud/oci/.env.example`에 canary RAG env 예시 추가
+- 현재 단계 판단:
+  - 코드 구현과 정적 검증은 완료
+  - 아직 OCI에서 24h/72h live canary 실측을 수행하지 않았으므로 `28`은 계속 `in_progress`
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
   - Phase 1 replay 경로의 코드 구현/정적 검증/OCI 1차/2차 실측까지 완료했다.
 - 아직 안 한 것:
-  - live canary Analyst 제한 주입
+  - Phase 2 live canary 24h/72h 실측
 - 다음 바로 실행할 작업:
 ```bash
-# 1) canary Analyst 전용 RAG 주입 경로를 소규모로 활성화
+# 1) AI_DECISION_RAG_CANARY_ENABLED=true 반영 후 bot 재빌드
 # 2) scripts/ops/ai_decision_canary_report.sh 24 로 confirm/reject/latency/cost 추적
 ```
 

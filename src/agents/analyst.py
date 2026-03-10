@@ -247,6 +247,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
     model = str(llm_route.get("model") or "unknown")
     replay_mode = bool(state.get("replay_mode"))
     rag_enabled = bool((state.get("rag_context") or {}).get("text"))
+    rag_status = str((state.get("rag_context") or {}).get("status") or ("enabled" if rag_enabled else "disabled"))
     route_name = "ai_decision_analyst_replay" if replay_mode else "ai_decision_analyst"
 
     try:
@@ -285,6 +286,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
                 "strategy_name": state.get("strategy_name"),
                 "replay_mode": replay_mode,
                 "rag_enabled": rag_enabled,
+                "rag_status": rag_status,
                 "rag_source_summary": (state.get("rag_context") or {}).get("source_summary", []),
             },
         )
@@ -305,6 +307,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
                 "strategy_name": state.get("strategy_name"),
                 "replay_mode": replay_mode,
                 "rag_enabled": rag_enabled,
+                "rag_status": rag_status,
             },
         )
 
@@ -354,6 +357,7 @@ async def market_analyst_node(state: AgentState) -> Dict[str, Any]:
                 "total_tokens": usage_capture.usage.total_tokens,
             },
             "rag_enabled": rag_enabled,
+            "rag_status": rag_status,
             "rag_source_summary": (state.get("rag_context") or {}).get("source_summary", []),
         }
     }

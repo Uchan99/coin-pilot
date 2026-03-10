@@ -206,3 +206,4 @@ scripts/ops/rule_funnel_regime_report.sh 72
 - 2026-03-11: drift 원인 분해 결과, 문제는 retrieval 양보다 prompt ordering/weighting에 가깝다고 판단해 후속 하위 작업 `28-01_ai_decision_rag_prompt_ordering_and_weighting_tuning_plan.md`를 분리했다.
 - 2026-03-11: `28-01` 구현 착수. 전략 요약 축소(`strategy:9 -> strategy:4` 목표), 과거 사례 우선 배치, Analyst 경계 문구 강화를 반영했고, 정적 검증(`tests 5 passed`, `py_compile`, shell syntax)을 완료했다. 다음 단계는 OCI replay 재측정이다.
 - 2026-03-11: `28-01` OCI replay 재측정 결과 `decision_changed_count=0`, `avg_confidence_delta=-2.8`, parse fail `0->0`을 확인했다. prompt drift는 해소된 것으로 판단하고, main 28의 다음 단계는 Phase 2 live canary 검토로 전환한다.
+- 2026-03-11: `28-02` 하위 계획을 승인 후 착수했다. canary Analyst 전용 RAG env 스위치, RAG 실패 fallback, `canary-rag`/`canary-rag-fallback` 관측 라벨, canary report의 `rag_status` usage breakdown을 구현하고 OCI live 관측 단계로 넘긴다.
