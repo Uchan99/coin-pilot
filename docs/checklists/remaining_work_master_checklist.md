@@ -167,6 +167,8 @@
 - 2026-03-11: `28-02` 구현 완료. canary Analyst 전용 RAG env 스위치(`AI_DECISION_RAG_CANARY_ENABLED`), RAG 실패 fallback, `canary-rag`/`canary-rag-fallback` model_used 라벨, `llm_usage_events.meta.rag_status`, `ai_decision_canary_report.sh`의 rag status usage breakdown을 반영했다. 현재는 OCI에서 24h/72h live canary 관측만 남은 상태다.
 - 2026-03-11: `28-02` OCI live 관측에서 compose env passthrough gap을 확인했다. `.env`에는 `AI_DECISION_RAG_CANARY_ENABLED=true`가 존재했지만 `coinpilot-bot` 런타임 env에는 주입되지 않아 `canary-rag` 표본이 0건이었다. `28-03` fix plan/troubleshooting을 생성했고, 다음 단계는 `docker-compose.prod.yml`의 bot env passthrough 보정이다.
 - 2026-03-11: `21-10` 구현 완료. 주문 목표 계산과 RiskManager 하드 캡 검증을 동일 정책으로 정렬했고, synthetic 기준 `0.9×1.2` 배율 조합에서 목표 주문금액이 `216,000 -> 200,000`, 고변동성(`vol_multiplier=0.5`)에서는 `216,000 -> 100,000`으로 정렬되어 하드 캡 초과 목표 생성 구조를 제거했다. 검증은 신규 sizing 정렬 테스트 `3 passed`, 기존 포지션 사이징 회귀 포함 `5 passed`까지 통과했으며, DB-backed risk regression은 로컬 PostgreSQL 미기동으로 `ConnectionRefusedError(127.0.0.1:5432)`가 발생해 후속 환경 검증으로 이관한다.
+- 2026-03-11: `21-10` OCI 반영 후 초기 모니터링 전환. `coinpilot-bot` 재배포 시각(`2026-03-11T11:27:08.885805878Z`) 이후 `rule_funnel_events stage='risk_reject' AND reason_code='max_per_order'`는 `0건`, `trading_history side='BUY'`도 `0건`이어서 동일 오류 패턴은 재현되지 않았다. 현재는 post-fix 운영 표본이 쌓일 때까지 모니터링 상태로 유지한다.
+- 2026-03-12: `31-01` 검토 결과 정리. `21-10` invariant는 시간 경과형/외부 의존형 운영 이슈가 아니라 배포 후 정합성 검증 성격이 강해, 상시 cron 편입 대신 24~72시간 수동 재확인 후 종료하는 방식으로 정리했다.
 
 ---
 

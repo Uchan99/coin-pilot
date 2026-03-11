@@ -172,3 +172,4 @@ ORDER BY 1,2,3;
 - 2026-03-11: 사용자 질문을 계기로 신규 하위 계획 생성. 초기 상태는 `Approval Pending`.
 - 2026-03-11: 사용자 승인 후 구현 단계로 전환. `max_per_order` 의미를 유지한 채 주문 목표 계산과 하드 캡 검증을 동일 정책으로 정렬하는 방향으로 확정.
 - 2026-03-11: 구현 완료. 주문 목표 계산식을 `기준자산 × max_per_order × volatility_multiplier × min(position_size_ratio × symbol_multiplier, 1.0)`로 정렬하고, 신규 sizing 정렬 테스트(`3 passed`) 및 포지션 사이징 회귀 포함(`5 passed`) 검증 결과를 남겼다.
+- 2026-03-11: OCI 반영 후 초기 모니터링 전환. bot 재배포 시각 이후 `max_per_order` 신규 reject 0건, 신규 BUY 0건을 확인했고 동일 오류 패턴 미재현 상태에서 운영 표본 추가 관측 단계로 전환했다.

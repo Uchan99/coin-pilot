@@ -142,9 +142,20 @@ env PYTHONPATH=. .venv/bin/pytest -q tests/test_risk.py tests/test_risk_manager_
 - 실제 손익 개선 여부는 별도 전략 품질/리스크 정책 검증으로 판단해야 한다.
 - 후속으로는 `29-01/30` 문서에서 `max_per_order` 병목을 재해석할 때, "정렬 전 운영 구간"과 "정렬 후 운영 구간"을 구분해 봐야 한다.
 
+### OCI 반영 후 초기 모니터링 상태
+- `2026-03-11T11:27:08.885805878Z` 재배포 이후 초기 확인 결과:
+  - `rule_funnel_events`의 `stage='risk_reject' AND reason_code='max_per_order'` 신규 row: `0건`
+  - `trading_history side='BUY'` 신규 row: `0건`
+- 해석:
+  - 정렬 전 구간에서 반복되던 `요청 213944 > 한도 198096` 패턴은 재배포 이전 데이터였다.
+  - 재배포 직후 동일 오류 패턴은 재현되지 않았으며, 현재는 **운영 표본 대기 기반 모니터링 단계**로 전환한다.
+- 후속 확인 기준:
+  - post-fix 구간에서 새 `rule_pass`/`BUY` 표본이 쌓일 때 `target_amount <= dynamic_cap` 유지 여부 재점검
+  - post-fix 구간 `max_per_order` reject 재발 시, old path 잔존 여부를 즉시 재조사
+  - 이 확인은 상시 cron이 아니라 **배포 후 24~72시간 수동 재확인**으로 수행한다.
+
 ## 7. README 동기화 확인
 - 이번 변경 세트에서 [README.md](/home/syt07203/workspace/coin-pilot/README.md)를 함께 갱신했다.
 - 반영 내용:
   - 포지션 사이징 설명을 `3중 캡 + 동적 하드 캡 정렬 로직` 기준으로 수정
   - 현재 백로그 상태에서 `28`을 `in_progress`로 동기화
-
