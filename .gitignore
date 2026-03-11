@@ -210,3 +210,10 @@ minikube
 debug_import.py
 scripts/cloud/oci_retry.env
 n8n_recover.tgz
+
+# Portfolio / sensitive ops docs
+docs/portfolio/
+docs/runbooks/
+docs/memory/
+docs/backup/
+docs/security/
