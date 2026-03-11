@@ -327,19 +327,27 @@ async def bot_loop():
                                 # 2) cash_cap: 현재 가용 현금(수수료 버퍼 제외)
                                 # 3) exposure_cap: 총 노출 한도 잔여분
                                 # 위 세 값을 min으로 제한해, 비중 의도를 유지하면서 잔고 부족/과노출을 동시에 방지합니다.
+                                #
+                                # 중요:
+                                # - target_cap 자체가 `max_per_order` 의미를 넘지 않도록 RiskManager helper를 통해 계산합니다.
+                                # - 즉, 레짐/심볼 배율은 "하드 캡 안에서 얼마를 채울지"만 조정하고,
+                                #   앞단에서 21.6% 같은 초과 목표를 만들지 않습니다.
                                 regime_ratio = Decimal(str(
                                     config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
                                 ))
-                                # 심볼별 배율은 "레짐 비중" 위에 곱해 최종 타깃 비중을 만든다.
-                                # 이렇게 하면 기존 리스크 정책(3중 캡/min, max_per_order, max_total_exposure)은
-                                # 그대로 유지하면서, 심볼 구성만 운영 의도대로 재배분할 수 있다.
                                 symbol_multiplier = Decimal(str(
                                     config.get_symbol_position_multiplier(symbol)
                                 ))
-                                effective_ratio = regime_ratio * symbol_multiplier
-                                target_invest_amount = (
-                                    reference_equity * risk_manager.max_per_order * effective_ratio
+                                sizing_plan = await risk_manager.build_target_order_sizing(
+                                    reference_equity=reference_equity,
+                                    regime_ratio=regime_ratio,
+                                    symbol_multiplier=symbol_multiplier,
                                 )
+                                raw_effective_ratio = sizing_plan["raw_effective_ratio"]
+                                effective_ratio = sizing_plan["effective_ratio"]
+                                volatility_multiplier = sizing_plan["volatility_multiplier"]
+                                target_invest_amount = sizing_plan["target_invest_amount"]
+                                dynamic_max_order_amount = sizing_plan["max_order_amount"]
 
                                 cash_cap = balance * (Decimal("1") - risk_manager.fee_buffer)
                                 current_exposure = await risk_manager.get_total_exposure(session)
@@ -443,7 +451,10 @@ async def bot_loop():
                                                     "entry_config": regime_entry_config,
                                                     "position_size_ratio": float(regime_ratio),
                                                     "symbol_position_multiplier": float(symbol_multiplier),
+                                                    "raw_effective_position_ratio": float(raw_effective_ratio),
                                                     "effective_position_ratio": float(effective_ratio),
+                                                    "volatility_position_multiplier": float(volatility_multiplier),
+                                                    "dynamic_max_order_amount": float(dynamic_max_order_amount),
                                                 }
                                                 metrics.ai_requests.inc()
                                                 success = await executor.execute_order(

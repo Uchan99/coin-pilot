@@ -79,6 +79,79 @@ class RiskManager:
             print(f"[RiskManager] Redis Error (Volatility): {e}")
             return 1.0 # Fallback
 
+    def normalize_position_sizing_ratio(
+        self,
+        regime_ratio: Decimal,
+        symbol_multiplier: Decimal,
+    ) -> Tuple[Decimal, Decimal]:
+        """
+        레짐 비중과 심볼 배율을 합친 "목표 주문 비율"을 정규화합니다.
+
+        why:
+        - `max_per_order`는 "종목당 최대 허용 비중"이어야 하므로,
+          앞단 주문 목표 계산이 이 의미를 조용히 초과하면 안 됩니다.
+        - 따라서 레짐/심볼 배율은 "캡 안에서 얼마까지 채울 것인가"를 나타내는
+          조정 계수로만 사용하고, 1.0을 넘는 순간에는 하드 캡을 넘지 않도록 clamp합니다.
+
+        returns:
+        - raw_ratio: 레짐 비중 * 심볼 배율의 원래 값
+        - capped_ratio: 0~1 범위로 제한된 실제 적용 비율
+        """
+        raw_ratio = regime_ratio * symbol_multiplier
+        if raw_ratio <= 0:
+            return raw_ratio, Decimal("0")
+        return raw_ratio, min(raw_ratio, Decimal("1"))
+
+    async def get_dynamic_max_order_amount(
+        self,
+        reference_equity: Decimal,
+    ) -> Tuple[Decimal, Decimal]:
+        """
+        현재 기준자산과 변동성 상태를 반영한 "실제 단일 주문 하드 캡"을 계산합니다.
+
+        why:
+        - 앞단 주문 목표 계산과 뒷단 `check_order_validity()`가 같은 기준을 사용해야
+          Rule Funnel의 `max_per_order` reject를 설계 mismatch가 아닌 실제 리스크 차단으로 해석할 수 있습니다.
+        """
+        vol_multiplier = Decimal(str(await self.get_volatility_multiplier()))
+        base_max_amount = reference_equity * self.max_per_order
+        max_order_amount = base_max_amount * vol_multiplier
+        return max_order_amount, vol_multiplier
+
+    async def build_target_order_sizing(
+        self,
+        reference_equity: Decimal,
+        regime_ratio: Decimal,
+        symbol_multiplier: Decimal,
+    ) -> Dict[str, Decimal]:
+        """
+        주문 목표 금액 계산에 필요한 값을 한 번에 구성합니다.
+
+        policy:
+        - 하드 캡 = `reference_equity * max_per_order * vol_multiplier`
+        - 목표 주문금액 = `하드 캡 * capped_ratio`
+        - `capped_ratio = min(regime_ratio * symbol_multiplier, 1.0)`
+
+        tradeoff:
+        - 1.0 초과 배율은 더 이상 "하드 캡 돌파"가 아니라 "우선순위를 높여 캡까지 채움"을 의미합니다.
+        - 이로써 종목 재배분 의도는 유지하면서도, `max_per_order`의 의미는 흐려지지 않습니다.
+        """
+        raw_ratio, capped_ratio = self.normalize_position_sizing_ratio(
+            regime_ratio=regime_ratio,
+            symbol_multiplier=symbol_multiplier,
+        )
+        max_order_amount, vol_multiplier = await self.get_dynamic_max_order_amount(
+            reference_equity=reference_equity
+        )
+        target_invest_amount = max_order_amount * capped_ratio
+        return {
+            "raw_effective_ratio": raw_ratio,
+            "effective_ratio": capped_ratio,
+            "volatility_multiplier": vol_multiplier,
+            "max_order_amount": max_order_amount,
+            "target_invest_amount": target_invest_amount,
+        }
+
     async def get_daily_state(self, session: AsyncSession) -> DailyRiskState:
         """
         오늘의 리스크 상태를 DB에서 가져오거나 새로 생성합니다.
@@ -269,15 +342,17 @@ class RiskManager:
             state.is_trading_halted = True
             return False, f"일일 최대 손실 한도(-{self.max_daily_loss*100}%)에 도달하여 거래를 중단합니다."
 
-        # 6. 단일 주문 한도 확인 (기준자산 * 주문비중 * 변동성 배율)
-        vol_multiplier = await self.get_volatility_multiplier()
-        base_max_amount = reference_equity * self.max_per_order
-        max_order_amount = base_max_amount * Decimal(str(vol_multiplier))
+        # 6. 단일 주문 한도 확인
+        # 앞단 주문 목표 계산과 정확히 같은 "동적 하드 캡"을 사용해야
+        # max_per_order reject가 sizing 정책 mismatch가 아닌 실제 초과 주문만 의미하게 됩니다.
+        max_order_amount, vol_multiplier = await self.get_dynamic_max_order_amount(
+            reference_equity=reference_equity
+        )
         
         if amount > max_order_amount:
             msg = f"단일 주문 한도({self.max_per_order*100}%)를 초과했습니다."
-            if vol_multiplier < 1.0:
-                msg += f" (고변동성으로 인해 비중 {vol_multiplier*100:.0f}% 축소 적용됨)"
+            if vol_multiplier < Decimal("1"):
+                msg += f" (고변동성으로 인해 비중 {float(vol_multiplier)*100:.0f}% 축소 적용됨)"
             msg += f" (요청: {amount:.0f}, 한도: {max_order_amount:.0f})"
             return False, msg
 

@@ -1,6 +1,5 @@
 import os
 import pytest_asyncio
-import asyncio
 from datetime import datetime, timezone
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -17,7 +16,8 @@ os.environ["REDIS_PORT"] = "6379"
 # (docker exec로 생성한 coinpilot_test DB 사용)
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/coinpilot_test"
 
-@pytest_asyncio.fixture(scope="session")
+
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
     """테스트용 DB 엔진 생성 및 스키마 초기화"""
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=pool.NullPool)

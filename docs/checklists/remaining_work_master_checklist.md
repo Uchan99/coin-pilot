@@ -43,6 +43,7 @@
 ---
 
 ## 3) 최근 업데이트 로그
+- 2026-03-11: `21-10_position_sizing_and_risk_cap_alignment_plan.md`를 신규 등록했다. `max_per_order` 병목이 실제 리스크 정책인지, 주문 목표 계산(`regime_ratio * symbol_multiplier`)과 RiskManager 하드 캡(`vol_multiplier`) 불일치에서 생긴 설계 mismatch인지 분리 검증하는 작업이며, 현재 상태는 `Approval Pending`이다.
 - 2026-03-01: 단일 마스터 체크리스트 파일 생성(우선순위 1~6 초기 반영).
 - 2026-03-01: 21-05 상태를 `in_progress`로 설정(기능은 동작, 컨테이너 패널 운영 가독성/안정화 후 마감 예정).
 - 2026-03-01: 24 상태를 `in_progress`로 전환(사용자 승인 후 구현 착수).
@@ -165,6 +166,7 @@
 - 2026-03-11: `28-01` OCI replay 재측정 완료. `samples=10`, `decision_changed_count=0`, `avg_confidence_delta=-2.8`, parse fail `0->0`, `baseline_latency_p50_ms=6525.5`, `rag_latency_p50_ms=7590.0`, `baseline_avg_cost_usd=0.0054`, `rag_avg_cost_usd=0.0069`를 확인했다. prompt drift는 해소됐고 main `28`의 다음 단계는 Phase 2 live canary 소규모 주입 검토다.
 - 2026-03-11: `28-02` 구현 완료. canary Analyst 전용 RAG env 스위치(`AI_DECISION_RAG_CANARY_ENABLED`), RAG 실패 fallback, `canary-rag`/`canary-rag-fallback` model_used 라벨, `llm_usage_events.meta.rag_status`, `ai_decision_canary_report.sh`의 rag status usage breakdown을 반영했다. 현재는 OCI에서 24h/72h live canary 관측만 남은 상태다.
 - 2026-03-11: `28-02` OCI live 관측에서 compose env passthrough gap을 확인했다. `.env`에는 `AI_DECISION_RAG_CANARY_ENABLED=true`가 존재했지만 `coinpilot-bot` 런타임 env에는 주입되지 않아 `canary-rag` 표본이 0건이었다. `28-03` fix plan/troubleshooting을 생성했고, 다음 단계는 `docker-compose.prod.yml`의 bot env passthrough 보정이다.
+- 2026-03-11: `21-10` 구현 완료. 주문 목표 계산과 RiskManager 하드 캡 검증을 동일 정책으로 정렬했고, synthetic 기준 `0.9×1.2` 배율 조합에서 목표 주문금액이 `216,000 -> 200,000`, 고변동성(`vol_multiplier=0.5`)에서는 `216,000 -> 100,000`으로 정렬되어 하드 캡 초과 목표 생성 구조를 제거했다. 검증은 신규 sizing 정렬 테스트 `3 passed`, 기존 포지션 사이징 회귀 포함 `5 passed`까지 통과했으며, DB-backed risk regression은 로컬 PostgreSQL 미기동으로 `ConnectionRefusedError(127.0.0.1:5432)`가 발생해 후속 환경 검증으로 이관한다.
 
 ---
 
