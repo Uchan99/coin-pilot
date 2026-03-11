@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-11  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Completed (2026-03-12)  
 **관련 계획 문서**: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`, `docs/work-plans/28-02_ai_decision_rag_live_canary_limited_rollout_plan.md`  
 **관련 장애 문서**: `docs/troubleshooting/28-03_ai_decision_rag_canary_env_passthrough_gap.md`
 
@@ -98,3 +98,4 @@
 
 ## 10. 변경 이력
 - 2026-03-11: plan 생성. OCI 관측 결과 `.env`에는 값이 있지만 bot 컨테이너 env에 `AI_DECISION_RAG_*`가 누락된 문제를 compose passthrough gap으로 정의했다.
+- 2026-03-12: `deploy/cloud/oci/docker-compose.prod.yml`의 `bot.environment`에 `AI_DECISION_RAG_CANARY_ENABLED`, `AI_DECISION_RAG_CASE_LOOKBACK_DAYS` passthrough를 추가하고, result/troubleshooting/checklist를 동기화했다.

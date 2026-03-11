@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28-02_ai_decision_rag_live_canary_limited_rollout_plan.md`
-상태: In Progress (코드 구현 및 정적 검증 완료, OCI live 관측 대기)
+상태: In Progress (코드 구현 및 정적 검증 완료, OCI env wiring fix 완료, post-redeploy live 관측 대기)
 
 ---
 
@@ -102,17 +102,31 @@ timeout 20s bash -lc 'PYTHONPATH=. .venv/bin/pytest -q tests/test_agents.py'
 
 ## 7. 측정 불가 사유 / 대체 지표 / 추후 계획
 - 측정 불가 사유:
-  - 아직 OCI에서 `AI_DECISION_RAG_CANARY_ENABLED=true`를 켜고 24h/72h live canary 관측을 수행하지 않았다.
+  - 2026-03-11 1차 OCI 관측에서는 `AI_DECISION_RAG_CANARY_ENABLED=true`가 `.env`에만 있고 `coinpilot-bot` runtime env에는 주입되지 않아, 실제 live canary RAG 표본이 생성되지 않았다.
 - 대체 지표:
   - 관련 테스트 9건
   - `py_compile`
   - canary report shell syntax
 - 추후 측정 계획:
-  1. OCI에서 env 반영 후 bot 재빌드
+  1. `28-03` compose env passthrough fix 반영 후 bot 재빌드
   2. `scripts/ops/ai_decision_canary_report.sh 24`
   3. `scripts/ops/llm_usage_cost_report.sh 24`
   4. `agent_decisions.model_used`의 `canary-rag` 표본 확인
   5. 24h / 72h 기준 `parse_fail`, `timeout`, `confidence`, `latency`, `cost` 비교
+
+## 7.1 OCI env passthrough gap 및 보정
+- 관련 계획/결과/장애 문서:
+  - `docs/work-plans/28-03_ai_decision_rag_canary_env_passthrough_fix_plan.md`
+  - `docs/work-result/28-03_ai_decision_rag_canary_env_passthrough_fix_result.md`
+  - `docs/troubleshooting/28-03_ai_decision_rag_canary_env_passthrough_gap.md`
+- 문제:
+  - OCI `.env`에는 `AI_DECISION_RAG_CANARY_ENABLED=true`, `AI_DECISION_RAG_CASE_LOOKBACK_DAYS=30`이 있었지만, `docker exec coinpilot-bot env`에는 해당 키가 보이지 않았다.
+  - 24h live 관측도 `openai:gpt-4o-mini (canary)` + `rag_status=disabled`만 보여 실제 RAG canary가 켜지지 않은 상태였다.
+- 조치:
+  - `deploy/cloud/oci/docker-compose.prod.yml`의 `bot.environment`에 두 env passthrough를 추가했다.
+- 적용 결과:
+  - 재배포 후 `docker exec coinpilot-bot env | grep ...`에서 두 키가 모두 보이는 것을 확인했다.
+  - 직후에는 post-redeploy canary 표본이 아직 없어서 `canary-rag`는 `0건`이지만, 현재는 live 관측이 가능한 런타임 상태다.
 
 ## 8. OCI 적용 및 검증 방법
 ```bash

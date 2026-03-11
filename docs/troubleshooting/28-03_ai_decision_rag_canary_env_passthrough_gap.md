@@ -37,9 +37,11 @@ scripts/ops/ai_decision_canary_report.sh 24
   - 최근 24h `canary-rag` 표본 `0건`
   - 최근 24h `rag_status=enabled|fallback` analyst 호출 `0건`
 - after:
-  - 계획 단계. 아직 수정 전
+  - `docker-compose.prod.yml` bot env passthrough `0 -> 2`
+  - 컨테이너 env 기준 `AI_DECISION_RAG_CANARY_ENABLED`, `AI_DECISION_RAG_CASE_LOOKBACK_DAYS` 주입 확인
+  - post-redeploy 직후 `canary-rag` 표본은 아직 `0건`이지만, runtime env wiring은 복구됨
 - 측정 기준:
-  - 기간: 최근 24시간
+  - 기간: before = 2026-03-11 최근 24h 관측, after = 2026-03-12 재배포 직후
   - 성공 기준: post-restart 이후 `canary-rag` 또는 `canary-rag-fallback` 1건 이상
 
 ## 4. 원인 분석
@@ -49,6 +51,13 @@ scripts/ops/ai_decision_canary_report.sh 24
 ## 5. 대응 방향
 - compose env passthrough를 추가하고 bot를 재배포한다.
 - post-restart 표본만 대상으로 `agent_decisions.model_used`와 `llm_usage_events.meta.rag_status`를 재검증한다.
+
+## 5.1 적용 결과
+- `deploy/cloud/oci/docker-compose.prod.yml`의 `bot.environment`에 아래 2개 키를 추가했다.
+  - `AI_DECISION_RAG_CANARY_ENABLED`
+  - `AI_DECISION_RAG_CASE_LOOKBACK_DAYS`
+- OCI 재배포 후 `docker exec coinpilot-bot env | grep ...`에서 두 키가 모두 보이는 것을 확인했다.
+- 따라서 현재 상태는 "기능 미주입"이 아니라 "표본 대기"다.
 
 ## 6. 재발 방지
 - canary/live 기능 추가 시 `.env.example` 수정뿐 아니라 `docker-compose.prod.yml` passthrough 여부를 반드시 같이 검증한다.

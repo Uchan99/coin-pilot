@@ -254,6 +254,23 @@ docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compo
   - 코드 구현과 정적 검증은 완료
   - 아직 OCI에서 24h/72h live canary 실측을 수행하지 않았으므로 `28`은 계속 `in_progress`
 
+## 7.7 28-03 OCI env passthrough fix (2026-03-12)
+- 관련 계획/결과:
+  - `docs/work-plans/28-03_ai_decision_rag_canary_env_passthrough_fix_plan.md`
+  - `docs/work-result/28-03_ai_decision_rag_canary_env_passthrough_fix_result.md`
+  - `docs/troubleshooting/28-03_ai_decision_rag_canary_env_passthrough_gap.md`
+- 확인된 문제:
+  - OCI `.env`에는 `AI_DECISION_RAG_CANARY_ENABLED=true`, `AI_DECISION_RAG_CASE_LOOKBACK_DAYS=30`이 있었지만, `coinpilot-bot` 런타임 env에는 전달되지 않았다.
+  - 따라서 `28-02` 구현이 들어간 상태에서도 실제 운영 DB에는 `canary-rag`/`canary-rag-fallback` 표본이 `0건`이었다.
+- 조치:
+  - `deploy/cloud/oci/docker-compose.prod.yml`의 `bot.environment`에 두 env passthrough를 추가했다.
+- 적용 결과:
+  - 재배포 후 `docker exec coinpilot-bot env`에서 두 env가 모두 보이는 것을 확인했다.
+  - post-redeploy 직후에는 canary 표본 자체가 아직 없어 `canary-rag`는 `0건`이지만, 현재는 live canary RAG 관측이 가능한 상태다.
+- 현재 단계 판단:
+  - `28`은 계속 `in_progress`
+  - 남은 작업은 env wiring fix가 아니라, post-redeploy `canary-rag`/`canary-rag-fallback` 실표본 24h/72h 관측이다.
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
