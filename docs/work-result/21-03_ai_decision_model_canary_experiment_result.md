@@ -318,6 +318,30 @@ docker exec coinpilot-bot env | grep -E 'CANARY|AI_DECISION|OPENAI|ANTHROPIC'
 | post-restart `agent_decisions` 신규 건수 | 0 | 0 | 0 | 0.0 |
 | 24h canary report 내 OpenAI 모델 집계 건수 | 0 | 0 | 0 | 0.0 |
 
+## 13. 현재 운영 상태 정리 (2026-03-12)
+- 현재 상태:
+  - `21-03`은 구현 이슈가 아니라 표본 부족 상태다.
+  - 최근 운영 관측에서 canary 경로 자체는 활성화되어 있으나, post-redeploy 기준 신규 canary 표본은 여전히 작아 성능 판정까지는 불가하다.
+- 운영 해석:
+  - 본 작업은 현재 **monitoring-only** 성격으로 유지한다.
+  - `28`의 live canary RAG 관측과 같은 세션에서 함께 확인하는 것이 가장 효율적이다.
+- 현재 확인용 명령:
+```bash
+cd /opt/coin-pilot
+scripts/ops/ai_decision_canary_report.sh 24
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT model_used, count(*) AS total, avg(confidence) AS avg_confidence
+FROM agent_decisions
+WHERE created_at >= now() - interval '24 hours'
+GROUP BY model_used
+ORDER BY total DESC, model_used;
+"
+```
+- 종료 기준:
+  - 모델별 표본 `N>=20`
+  - parse fail/timeout 악화 `+2%p` 이내
+  - confirm/reject 분포 및 confidence 비교가 가능할 것
+
 - 24h 모델별 집계(2026-03-04 관측 시점):
 
 | model_used | total | confirm_count | reject_count |

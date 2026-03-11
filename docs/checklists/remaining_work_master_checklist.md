@@ -170,6 +170,7 @@
 - 2026-03-11: `21-10` 구현 완료. 주문 목표 계산과 RiskManager 하드 캡 검증을 동일 정책으로 정렬했고, synthetic 기준 `0.9×1.2` 배율 조합에서 목표 주문금액이 `216,000 -> 200,000`, 고변동성(`vol_multiplier=0.5`)에서는 `216,000 -> 100,000`으로 정렬되어 하드 캡 초과 목표 생성 구조를 제거했다. 검증은 신규 sizing 정렬 테스트 `3 passed`, 기존 포지션 사이징 회귀 포함 `5 passed`까지 통과했으며, DB-backed risk regression은 로컬 PostgreSQL 미기동으로 `ConnectionRefusedError(127.0.0.1:5432)`가 발생해 후속 환경 검증으로 이관한다.
 - 2026-03-11: `21-10` OCI 반영 후 초기 모니터링 전환. `coinpilot-bot` 재배포 시각(`2026-03-11T11:27:08.885805878Z`) 이후 `rule_funnel_events stage='risk_reject' AND reason_code='max_per_order'`는 `0건`, `trading_history side='BUY'`도 `0건`이어서 동일 오류 패턴은 재현되지 않았다. 현재는 post-fix 운영 표본이 쌓일 때까지 모니터링 상태로 유지한다.
 - 2026-03-12: `31-01` 검토 결과 정리. `21-10` invariant는 시간 경과형/외부 의존형 운영 이슈가 아니라 배포 후 정합성 검증 성격이 강해, 상시 cron 편입 대신 24~72시간 수동 재확인 후 종료하는 방식으로 정리했다.
+- 2026-03-12: `21-03`과 `28`은 모두 추가 구현보다 운영 표본 대기 기반의 monitoring-only 상태로 정리했다. 두 작업은 `scripts/ops/ai_decision_canary_report.sh 24`, `agent_decisions.model_used`, `llm_usage_events.meta.rag_status`를 같은 세션에서 함께 확인하면 되고, `21-10`은 이와 별도로 24~72시간 수동 재확인 후 종료하는 post-deploy verification으로 유지한다.
 
 ---
 

@@ -271,6 +271,46 @@ docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compo
   - `28`은 계속 `in_progress`
   - 남은 작업은 env wiring fix가 아니라, post-redeploy `canary-rag`/`canary-rag-fallback` 실표본 24h/72h 관측이다.
 
+## 7.8 현재 운영 상태 정리 (2026-03-12)
+- post-redeploy 관측 결과:
+  - `coinpilot-bot` 런타임 env에는 `AI_DECISION_RAG_CANARY_ENABLED=true`, `AI_DECISION_RAG_CASE_LOOKBACK_DAYS=30`이 정상 주입된다.
+  - 다만 재배포 이후 시각 기준 `agent_decisions`에는 primary 1건만 관측됐고, `canary-rag` / `canary-rag-fallback` 표본은 아직 `0건`이다.
+  - `llm_usage_events route='ai_decision_analyst'` 기준 `rag_status=enabled|fallback` 표본도 아직 `0건`이다.
+- 해석:
+  - `28-03` env passthrough 문제는 해결됐다.
+  - 현재 남은 범위는 추가 구현이 아니라 **post-redeploy canary 표본 대기 기반 monitoring-only**다.
+  - 따라서 `28`은 `done`으로 닫지 않고 `in_progress`를 유지하되, `21-03`와 함께 같은 관측 세션에서 모니터링한다.
+- 현재 확인용 명령:
+```bash
+docker inspect -f '{{.State.StartedAt}}' coinpilot-bot
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT model_used, count(*) AS total, avg(confidence) AS avg_confidence
+FROM agent_decisions
+WHERE created_at >= now() - interval '24 hours'
+GROUP BY model_used
+ORDER BY total DESC, model_used;
+"
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  provider,
+  model,
+  COALESCE(meta->>'rag_status',
+    CASE WHEN COALESCE(meta->>'rag_enabled','false')='true' THEN 'enabled' ELSE 'disabled' END
+  ) AS rag_status,
+  count(*) AS total_calls
+FROM llm_usage_events
+WHERE created_at >= now() - interval '24 hours'
+  AND route = 'ai_decision_analyst'
+GROUP BY 1,2,3
+ORDER BY 1,2,3;
+"
+```
+- 종료 기준:
+  - post-redeploy 구간에서 `canary-rag` 또는 `canary-rag-fallback` 표본 확보
+  - parse fail 증가 `+2%p` 이내
+  - confidence delta `-5pt` 이내
+  - latency/cost 증가가 운영 허용 범위 내일 것
+
 ## 8. 현재 단계 판단
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
