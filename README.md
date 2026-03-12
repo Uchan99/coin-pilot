@@ -231,6 +231,7 @@ Slash Command:
 최근 운영 변경(요약):
 - 포지션 사이징/노출 한도 20%/100% 기반(3중 캡 + 동적 하드 캡 정렬 로직 적용)
 - AI 경계 재판단 처리 정책 개선 및 모니터링 보정
+- 대시보드 UI/freshness/stale 운영 표준(22) 확정: 화면 8개 inventory, freshness 상태 5종, `23` acceptance checklist 고정
 
 ## 보안 점검
 배포/환경변수 변경 후 반드시 실행:
@@ -252,7 +253,7 @@ Slash Command:
 4. `30` 전략 피드백 자동화(Spec-First, 승인형 배포) (`in_progress`)
 5. `31` OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 (`done`)
 6. `28` AI Decision 전략문서/과거사례 기반 RAG 보강 (`in_progress`)
-7. `22` 대시보드 가독성/실시간성 표준화(Spec-First) (`todo`)
+7. `22` 대시보드 가독성/실시간성 표준화(Spec-First) (`done`)
 8. `23` Next.js 점진 이관 (`blocked`)
 
 ## 관련 문서
