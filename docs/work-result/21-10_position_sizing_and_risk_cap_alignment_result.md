@@ -159,3 +159,54 @@ env PYTHONPATH=. .venv/bin/pytest -q tests/test_risk.py tests/test_risk_manager_
 - 반영 내용:
   - 포지션 사이징 설명을 `3중 캡 + 동적 하드 캡 정렬 로직` 기준으로 수정
   - 현재 백로그 상태에서 `28`을 `in_progress`로 동기화
+
+## 8. OCI 수동 재확인 완료 (2026-03-13)
+- 실행 명령:
+```bash
+BOT_STARTED_AT="$(docker inspect -f '{{.State.StartedAt}}' coinpilot-bot)"
+echo "$BOT_STARTED_AT"
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT created_at, symbol, reason_code, reason
+FROM rule_funnel_events
+WHERE created_at >= TIMESTAMPTZ '$BOT_STARTED_AT'
+  AND stage = 'risk_reject'
+  AND reason_code = 'max_per_order'
+ORDER BY created_at DESC;
+"
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  created_at,
+  symbol,
+  side,
+  signal_info->>'target_invest_amount' AS target_invest_amount,
+  signal_info->>'dynamic_max_order_amount' AS dynamic_max_order_amount
+FROM trading_history
+WHERE created_at >= TIMESTAMPTZ '$BOT_STARTED_AT'
+  AND side = 'BUY'
+ORDER BY created_at DESC
+LIMIT 20;
+"
+```
+- 운영 관측 결과:
+  - bot started_at: `2026-03-11T17:58:27.013798457Z`
+  - post-fix `risk_reject(max_per_order)`: `0건`
+  - post-fix `BUY`: `3건`
+  - 세 BUY row 모두 `dynamic_max_order_amount=198095.900745174` 기록
+  - `target_invest_amount`는 DB `signal_info`에 저장되지 않아 값이 비어 있음
+- 측정 불가 사유 / 대체 지표 / 추후 계획:
+  - 측정 불가 사유:
+    - 현재 `signal_info`에는 `dynamic_max_order_amount`는 저장되지만 `target_invest_amount`는 저장하지 않아, 운영 DB만으로 `target_amount <= dynamic_cap`를 직접 비교할 수 없다.
+  - 대체 지표:
+    - post-fix 구간 실제 BUY 3건이 발생했음에도 `max_per_order` reject가 `0건`이라는 점을 운영 invariant 대체 지표로 사용한다.
+  - 추후 계획:
+    - 향후 동일 invariant를 더 강하게 감사해야 하면 `signal_info` 또는 별도 audit row에 `target_invest_amount`를 저장하는 후속 계측 작업을 검토한다.
+- 결론:
+  - `21-10`의 **post-deploy 수동 재확인 단계는 종료**한다.
+  - 근거는 post-fix 운영 BUY 표본 `3건` 발생 후에도 `max_per_order` 재발이 `0건`이기 때문이다.
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| post-fix `BUY` 표본 수 | 0 | 3 | +3 | 측정 불가(분모 0) |
+| post-fix `risk_reject(max_per_order)` | 0 | 0 | 0 | 0.0 |
+| `dynamic_max_order_amount` 저장 BUY row 수 | 0 | 3 | +3 | 측정 불가(분모 0) |
+| `target_invest_amount` 저장 BUY row 수 | 0 | 0 | 0 | 0.0 |

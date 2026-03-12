@@ -253,10 +253,10 @@ Slash Command:
 
 1. `21-03` AI Decision 카나리 실험 (`in_progress`)
 2. `21-04` LLM 토큰/비용 관측 대시보드 (`blocked`)
-3. `29-01` BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 (`in_progress`)
-4. `30` 전략 피드백 자동화(Spec-First, 승인형 배포) (`in_progress`)
+3. `29-01` BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 (`done`)
+4. `30` 전략 피드백 자동화(Spec-First, 승인형 배포) (`done`)
 5. `31` OCI 운영 모니터링 스크립트 크론 자동화 + 관측 갭 보강 (`done`)
-6. `28` AI Decision 전략문서/과거사례 기반 RAG 보강 (`in_progress`)
+6. `28` AI Decision 전략문서/과거사례 기반 RAG 보강 (`done`)
 7. `22` 대시보드 가독성/실시간성 표준화(Spec-First) (`done`)
 8. `23` Next.js 점진 이관 (`blocked`)
 

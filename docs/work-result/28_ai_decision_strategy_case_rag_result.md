@@ -3,7 +3,7 @@
 작성일: 2026-03-11
 작성자: Codex
 관련 계획서: `docs/work-plans/28_ai_decision_strategy_case_rag_plan.md`
-상태: In Progress (Phase 1 offline replay 통과, Phase 2 live canary 코드 반영 후 OCI 관측 대기)
+상태: Done (Phase 1 offline replay + Phase 2 live canary 관측 완료)
 
 ---
 
@@ -311,7 +311,7 @@ ORDER BY 1,2,3;
   - confidence delta `-5pt` 이내
   - latency/cost 증가가 운영 허용 범위 내일 것
 
-## 8. 현재 단계 판단
+## 8. 현재 단계 판단 (2026-03-12 당시)
 - 현재 상태:
   - `28`은 아직 `done`이 아니다.
   - Phase 1 replay 경로의 코드 구현/정적 검증/OCI 1차/2차 실측까지 완료했다.
@@ -335,10 +335,72 @@ ORDER BY 1,2,3;
   - Phase 2에서 canary에 주입할 때 `AI_CANARY_PERCENT`를 그대로 사용할지, 별도 RAG canary env를 둘지
   - Guardian까지 확장할지 여부
 
-## 10. README / 체크리스트 동기화
+## 10. README / 체크리스트 동기화 (2026-03-12 당시)
 - `README.md`:
   - 미반영
   - 사유: `28`은 아직 `done`이 아니고 Phase 1 구현만 완료됐다.
 - `remaining_work_master_checklist.md`:
   - `28` 상태를 `in_progress`로 반영
   - 본 결과 문서 링크를 추가 완료
+
+## 11. Phase 2 live canary 운영 관측 업데이트 (2026-03-13)
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+scripts/ops/ai_decision_canary_report.sh 72
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  model_used,
+  count(*) AS total,
+  count(*) FILTER (WHERE decision='CONFIRM') AS confirm_count,
+  round(100.0 * count(*) FILTER (WHERE decision='CONFIRM') / nullif(count(*),0), 2) AS confirm_rate_pct,
+  count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') AS parse_fail_count,
+  count(*) FILTER (WHERE reasoning ILIKE '%timed out%') AS timeout_count,
+  round(avg(confidence)::numeric, 2) AS avg_confidence
+FROM agent_decisions
+WHERE created_at >= now() - interval '72 hours'
+GROUP BY model_used
+ORDER BY total DESC, model_used;
+"
+```
+- live 관측 결과:
+  - `primary=130`, `canary-rag=16`, `canary=6`
+  - `canary-rag` parse fail `0`, timeout `0`
+  - `avg_confidence`: `primary 48.13`, `canary-rag 50.94`
+  - analyst usage:
+    - `anthropic disabled`: `130 calls`, `7129.84ms`, `$0.005588`
+    - `openai enabled`: `16 calls`, `3975.25ms`, `$0.000563`
+- 종료 기준 판정:
+  - post-redeploy `canary-rag` 표본 확보: 충족 (`16`)
+  - parse fail 증가 `+2%p` 이내: 충족 (`0 -> 0`)
+  - confidence delta `-5pt` 이내: 충족 (`+2.81pt`)
+  - latency/cost 증가 운영 허용 범위: 충족 (둘 다 감소)
+- 해석:
+  - `28-03` 이후 live canary-rag 경로는 실제로 적재되고 있다.
+  - replay에서 보였던 "과보수적 REJECT drift"는 live 경로에서 parse fail/timeout/latency/cost 악화로 이어지지 않았다.
+  - confirm rate는 아직 `0%`로 보수적이지만, 이는 72시간 `16건` 표본과 시장 상태 영향을 감안하면 "중단"보다 "제한 rollout 기준 충족"으로 해석하는 편이 맞다.
+- before / after:
+  - before(2026-03-12): post-redeploy `canary-rag=0`
+  - after(2026-03-13): post-redeploy `canary-rag=16`
+- 결론:
+  - `28`은 **done**으로 전환한다.
+  - 남은 것은 구현/실험 설계가 아니라, `21-03` 전체 model canary 실험과 분리된 일반 운영 관측이다.
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| post-redeploy `canary-rag` 표본 | 0 | 16 | +16 | 측정 불가(분모 0) |
+| `canary-rag` parse fail 건수 | 0 | 0 | 0 | 0.0 |
+| `canary-rag` timeout 건수 | 0 | 0 | 0 | 0.0 |
+| avg_confidence(`canary-rag - primary`) | 미측정 | +2.81pt | 신규 확인 | 측정 불가 |
+| avg_latency_ms(`canary-rag`) | 미측정 | 3975.25 | 신규 확인 | 측정 불가 |
+| avg_cost_usd(`canary-rag`) | 미측정 | 0.000563 | 신규 확인 | 측정 불가 |
+
+## 12. README / 체크리스트 동기화 업데이트 (2026-03-13)
+- `README.md`:
+  - main task `28`을 `done`으로 동기화했다.
+- `remaining_work_master_checklist.md`:
+  - `28` 상태를 `done`으로 전환했다.
+- 검증 명령:
+```bash
+rg -n "28.*done|AI Decision 전략문서/과거사례 기반 RAG 보강" README.md docs/checklists/remaining_work_master_checklist.md
+```

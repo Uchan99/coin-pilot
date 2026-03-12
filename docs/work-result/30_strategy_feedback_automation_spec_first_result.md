@@ -3,7 +3,7 @@
 작성일: 2026-03-10
 작성자: Codex
 관련 계획서: `docs/work-plans/30_strategy_feedback_automation_spec_first_plan.md`
-상태: In Progress (Phase 1 분석기/ops report 구현 완료, OCI 런타임 호환성 보정 포함)
+상태: Done (Phase 1 분석기/ops report 구현 + Phase 2 OCI 운영 게이트 재평가 완료)
 
 ---
 
@@ -166,8 +166,78 @@ bash scripts/ops/strategy_feedback_gate.sh 7 14 30
 
 ## 8. README / 체크리스트 동기화
 - `README.md`:
-  - 미반영
-  - 사유: `30`은 아직 `done`이 아니고 Phase 1만 구현됨
+  - 2026-03-13 기준 `30` 상태를 `done`으로 동기화했다.
 - `remaining_work_master_checklist.md`:
-  - `30` 상태를 `in_progress`로 반영
-  - 본 결과 문서와 OCI 런타임 호환성 트러블슈팅 링크를 추가 완료
+  - 2026-03-13 기준 `30` 상태를 `done`으로 동기화했다.
+  - 본 결과 문서와 OCI 런타임 호환성 트러블슈팅 링크를 유지했다.
+
+## 9. Phase 2 OCI 운영 재평가 (2026-03-13)
+- 실행 명령:
+```bash
+bash scripts/ops/strategy_feedback_report.sh 7 14 30
+bash scripts/ops/strategy_feedback_gate.sh 7 14 30
+```
+- 실제 판정:
+  - `gate_result=discard`
+  - `approval_tier=strong_approval`
+  - `sell_samples=20`
+  - `ai_decisions=622`
+  - `bull_rule_pass=0`
+- 핵심 수치:
+  - `avg_realized_pnl_pct=-0.1389`
+  - `profit_factor=0.8857`
+  - `max_drawdown_pct=19.7283`
+  - `ai_reject_rate_pct=96.6238`
+  - `llm_cost_usd=2.273118`
+  - `llm_cost_delta_pct=null` (`provider_snapshot_count=0`)
+
+### 9.1 Before / After 정량 증빙 (2026-03-10 -> 2026-03-13)
+| 항목 | Before (2026-03-10) | After (2026-03-13) | 변화량 |
+|---|---:|---:|---:|
+| `gate_result` | `discard` | `discard` | 유지 |
+| `approval_tier` | `reviewable` | `strong_approval` | +1 단계 |
+| `sell_samples` | 16 | 20 | +4 |
+| `ai_decisions` | 544 | 622 | +78 |
+| `bull_rule_pass` | 0 | 0 | 0 |
+| `avg_realized_pnl_pct` | -0.6369 | -0.1389 | +0.4980%p |
+| `profit_factor` | 0.5807 | 0.8857 | +0.3050 |
+| `ai_reject_rate_pct` | 96.8750 | 96.6238 | -0.2512%p |
+| `llm_cost_usd` | 0.862175 | 2.273118 | +1.410943 |
+| `provider_snapshot_count` | 0 | 0 | 0 |
+
+### 9.2 운영 해석
+- `SELL >= 20`이 되어 표본 게이트는 `strong_approval`까지 올라갔다.
+- 그러나 최종 `gate_result`는 여전히 `discard`다.
+  - 이유 1: `avg_realized_pnl_pct < 0`
+  - 이유 2: `profit_factor < 1.0`
+- 동시에 `hold_reasons`도 유지됐다.
+  - `provider cost snapshot 누락`
+  - `BULL rule_pass 부족`
+- 의미:
+  - 자동 분석기와 게이트 정책은 운영 표본 증가 후에도 일관되게 동작한다.
+  - 현재 전략 상태에서는 "표본이 늘었으니 추천안을 내자"가 아니라 "표본은 충족했지만 KPI 미달이므로 폐기"가 자동으로 반환된다.
+  - 이는 `30`의 목표였던 승인형 분석/게이트 자동화 PoC를 운영 기준으로 입증한다.
+
+## 10. 측정 불가 사유 / 대체 지표 / 추후 계획 (2026-03-13 업데이트)
+- 측정 불가 사유:
+  - `llm_provider_cost_snapshots`가 여전히 `0건`이라 provider reconciliation 기반 비용 증감률(`llm_cost_delta_pct`)은 계산할 수 없다.
+- 대체 지표:
+  - 내부 usage ledger 기준 `llm_cost_usd=2.273118`, `ai_decisions=622`까지는 운영 집계 가능하다.
+  - 게이트는 비용 delta가 비어 있어도 `discard`/`hold` 사유를 분리해 반환한다.
+- 추후 계획:
+  1. `21-04`가 재개되면 provider cost snapshot을 연결해 cost gate를 완전 활성화한다.
+  2. `BULL rule_pass` 표본이 확보되면 `30` 분석 입력의 regime 병목 해석 품질을 높인다.
+  3. 이후 후속 스트림에서는 Discord 주간 리포트 통합 또는 승인 워크플로우 자동화를 별도 범위로 다룬다.
+
+## 11. 최종 상태 판정 (2026-03-13)
+- 완료 항목:
+  1. 전략 피드백 분석기 구현
+  2. ops report/gate 스크립트 구현
+  3. OCI 런타임 호환성 보정
+  4. 운영 데이터 기준 `hold|reviewable|strong_approval`, `recommend|hold|discard` 판정 검증
+- 잔여 운영 한계:
+  - provider cost snapshot 누락
+  - `BULL rule_pass` 표본 부족
+- 최종 결론:
+  - 위 두 항목은 `30` 구현 미완료가 아니라 입력 데이터/운영 표본 한계다.
+  - 따라서 `30`은 `done`으로 전환하고, 후속 분석 고도화는 별도 스트림에서 이어간다.

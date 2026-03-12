@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-08  
 **작성자**: Codex  
-**상태**: In Progress (Phase 1 로컬 구현 + OCI 운영 적재 확인 완료)  
+**상태**: Done (Phase 1 구현 + Phase 2 OCI 운영 관측/주간 리포트 경로 검증 완료)  
 **관련 계획서**: `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md`
 
 ---
@@ -209,11 +209,10 @@ ORDER BY created_at DESC;
 
 ## 8. README / 체크리스트 동기화
 - `README.md`:
-  - 미반영
-  - 사유: `29-01`은 아직 `done`이 아니고 Phase 1 구현만 완료되어 README 동기화 조건(major completed)에 해당하지 않음
+  - 2026-03-13 기준 `29-01` 상태를 `done`으로 동기화했다.
 - `remaining_work_master_checklist.md`:
-  - `29-01` 상태를 `in_progress`로 반영
-  - 본 결과 문서 링크를 추가 완료
+  - 2026-03-13 기준 `29-01` 상태를 `done`으로 동기화했다.
+  - 본 결과 문서 링크를 유지했다.
 
 ## 8.1 Weekly Exit Report 포맷 보정 메모 (2026-03-09)
 - 확인 결과:
@@ -242,7 +241,7 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m n8n
     OCI n8n UI에 workflow import/수동 반영 후 Active 상태를 다시 확인해야 한다.
   - 2026-03-09 01:04 KST 수동 실행에서는 Discord 메시지에 `제안`, `Rule Funnel`, `Rule Funnel 제안` 3개 필드가 실제 표시되는 것을 확인했다.
 
-## 8.2 현재 단계 판정 (2026-03-09)
+## 8.2 현재 단계 판정 (2026-03-09 당시)
 - 구현/운영 검증 완료 항목:
   1. `rule_funnel_events` 스키마/런타임 계측 반영
   2. OCI 운영 적재 확인
@@ -252,8 +251,8 @@ docker compose --env-file .env -f docker-compose.prod.yml logs --since=5m n8n
   - `BULL` 표본 확보
   - `ai_prefilter_reject` / `ai_guardrail_block` / `ai_confirm` / `ai_reject` 운영 표본 확보
 - 해석:
-  - 현재 `29-01`은 추가 구현보다 운영 관측이 남은 상태다.
-  - 따라서 본 스트림은 `in_progress`를 유지하되, 신규 구현 포커스는 다음 우선순위 작업(`30`)으로 이동 가능하다.
+  - 당시 기준으로는 추가 구현보다 운영 관측이 남은 상태였다.
+  - 따라서 `in_progress`를 유지하고, 신규 구현 포커스는 다음 우선순위 작업(`30`)으로 이동했다.
 - 정량 근거:
   - 최근 72시간 Rule Funnel:
     - `SIDEWAYS rule_pass=21`
@@ -288,3 +287,83 @@ PYTHONPATH=. .venv/bin/pytest -q tests/analytics/test_rule_funnel.py tests/analy
   - 4 passed
 - 후속 확인 계획:
   - 다음 OCI 이벤트부터 `risk_other` 대신 `max_per_order`로 적재되는지 `scripts/ops/rule_funnel_regime_report.sh 24`로 재확인
+
+## 10. Phase 2 OCI 운영 관측 업데이트 (2026-03-13)
+- 해결 여부:
+  - `29-01`의 본래 목표였던 "레짐별 Rule/Risk/AI 퍼널 상시 조회"와 "기존 Weekly Exit Report 경로 증분 확장"은 운영 기준으로 충족됐다.
+  - 최근 72시간 운영 데이터에서 `rule_pass`, `risk_reject`, `ai_prefilter_reject`, `ai_guardrail_block`, `ai_confirm`, `ai_reject` 6개 stage가 모두 실제 적재되는 것을 확인했다.
+- 핵심 관측:
+  - 레짐 범위:
+    - `SIDEWAYS`와 `BEAR`에서 실제 이벤트가 누적됐다.
+    - `BULL`은 최근 72시간 표본 `0건`이었다.
+  - 72시간 전체 이벤트 수:
+    - before(2026-03-08 초기 적재 확인): `4건`
+    - after(2026-03-13 운영 관측): `934건`
+    - 변화량: `+930건` (`+23,250%`)
+  - 운영 stage coverage:
+    - before: `2개 stage` (`rule_pass`, `risk_reject`)
+    - after: `6개 stage` (`rule_pass`, `risk_reject`, `ai_prefilter_reject`, `ai_guardrail_block`, `ai_confirm`, `ai_reject`)
+    - 변화량: `+4개 stage`
+
+### 10.1 72시간 운영 퍼널 정량 증빙
+| 항목 | Before (2026-03-08 초기 적재) | After (2026-03-13 최근 72h) | 변화량 |
+|---|---:|---:|---:|
+| 총 `rule_funnel_events` 관측 건수 | 4 | 934 | +930 |
+| 운영에서 실제 관측된 stage 수 | 2 | 6 | +4 |
+| 운영에서 실제 관측된 regime 수 | 1 (`SIDEWAYS`) | 2 (`SIDEWAYS`, `BEAR`) | +1 |
+| `SIDEWAYS rule_pass` | 2 | 458 | +456 |
+| `SIDEWAYS risk_reject` | 2 | 215 | +213 |
+| `SIDEWAYS ai_guardrail_block` | 0 | 92 | +92 |
+| `SIDEWAYS ai_reject` | 0 | 145 | +145 |
+| `SIDEWAYS ai_confirm` | 0 | 6 | +6 |
+| `BEAR rule_pass` | 0 | 8 | +8 |
+| `BEAR ai_prefilter_reject` | 0 | 3 | +3 |
+| `BEAR ai_guardrail_block` | 0 | 2 | +2 |
+| `BEAR ai_reject` | 0 | 3 | +3 |
+
+### 10.2 최근 72시간 운영 해석
+- `SIDEWAYS`:
+  - `rule_pass=458`
+  - `risk_reject=215`
+  - `ai_guardrail_block=92`
+  - `ai_reject=145`
+  - `ai_confirm=6`
+  - `confirm_per_rule_pass=0.0131`
+- `BEAR`:
+  - `rule_pass=8`
+  - `ai_prefilter_reject=3`
+  - `ai_guardrail_block=2`
+  - `ai_reject=3`
+  - `confirm_per_rule_pass=0.0000`
+- Top reason code:
+  - `SIDEWAYS risk_reject / max_per_order = 215`
+  - `SIDEWAYS ai_guardrail_block / symbol_cooldown = 92`
+  - `SIDEWAYS ai_reject / boundary_violation = 59`
+  - `SIDEWAYS ai_reject / guardian_warning = 51`
+- 결론:
+  - 이제 "어느 단계에서 막혔는지"는 운영 SQL/스크립트만으로 직접 분해 가능하다.
+  - 따라서 `29-01`의 해결 대상은 완료됐다.
+  - 반면 `BULL` 표본 부족은 관측성 결함이 아니라 최근 72시간 시장 노출 문제이므로, 후속 전략 평가(`30`) 입력으로 넘긴다.
+
+## 11. 측정 불가 사유 / 대체 지표 / 추후 계획 (2026-03-13 업데이트)
+- 측정 불가 사유:
+  - 최근 72시간에 `BULL` 표본이 없어 "BULL에서 어떤 stage가 병목인가"를 직접 계산할 수 없다.
+- 대체 지표:
+  - `BEAR`, `SIDEWAYS`에서는 6개 stage가 모두 운영 적재되어 퍼널 분해 자체는 정상 동작함을 확인했다.
+  - `SIDEWAYS confirm_per_rule_pass=0.0131`, `reject_per_rule_pass=0.3166`으로 Rule 대비 Risk/AI 차단 비율을 계량화할 수 있다.
+- 추후 측정 계획:
+  1. `scripts/ops/rule_funnel_regime_report.sh 72`를 주간 운영 점검에 계속 사용한다.
+  2. `BULL` 표본이 생기면 동일 리포트로 `rule_pass -> ai_confirm` 전환율을 바로 비교한다.
+  3. `30`의 전략 피드백 분석에서 `max_per_order`, `symbol_cooldown`, `boundary_violation` 비중을 주요 원인 후보로 사용한다.
+
+## 12. 최종 상태 판정 (2026-03-13)
+- 완료 항목:
+  1. `rule_funnel_events` 스키마/런타임 계측 운영 반영
+  2. 레짐별 퍼널 조회 스크립트 운영 검증
+  3. Weekly Exit Report 증분 확장 및 Discord 표시 검증
+  4. 자동 수정 금지, 승인형 제안-only 정책 유지
+- 잔여 관측 사항:
+  - `BULL` 표본 부족은 남아 있지만, 이는 구현 미완료가 아니라 시장 표본 부족이다.
+- 최종 결론:
+  - `29-01`은 `done`으로 전환한다.
+  - 후속 해석과 전략 조정은 `30` 스트림에서 계속 진행한다.

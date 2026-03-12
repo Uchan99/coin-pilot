@@ -379,6 +379,75 @@ ORDER BY total DESC, model_used;
 | `anthropic:claude-haiku-4-5-20251001 (primary)` | 13 | 1 | 7.69 | 1 | 0 |
 | `openai:gpt-4o-mini (canary)` | 5 | 0 | 0.00 | 0 | 0 |
 
+## 14. Phase 3.1 운영 관측 업데이트 (2026-03-13)
+- 해결/판정 대상:
+  - `21-03`의 OpenAI canary가 충분한 표본으로 쌓였는지, 그리고 `28`의 live canary-rag rollout이 시작된 뒤에도 모델 canary 해석이 가능한지 재확인
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+scripts/ops/ai_decision_canary_report.sh 72
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  model_used,
+  count(*) AS total,
+  count(*) FILTER (WHERE decision='CONFIRM') AS confirm_count,
+  round(100.0 * count(*) FILTER (WHERE decision='CONFIRM') / nullif(count(*),0), 2) AS confirm_rate_pct,
+  count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') AS parse_fail_count,
+  count(*) FILTER (WHERE reasoning ILIKE '%timed out%') AS timeout_count,
+  round(avg(confidence)::numeric, 2) AS avg_confidence
+FROM agent_decisions
+WHERE created_at >= now() - interval '72 hours'
+GROUP BY model_used
+ORDER BY total DESC, model_used;
+"
+```
+- 운영 관측 결과:
+  - `primary=130`
+  - `openai canary-rag=16`
+  - `openai canary=6`
+  - 오류:
+    - `primary parse_fail=0`, `timeout=1`
+    - `canary-rag parse_fail=0`, `timeout=0`
+    - `canary parse_fail=0`, `timeout=0`
+  - confidence:
+    - `primary=48.13`
+    - `canary-rag=50.94`
+    - `canary=61.67`
+- 해석:
+  - 72시간 기준 OpenAI 경로 전체 표본은 `22건(= canary 6 + canary-rag 16)`으로 늘었다.
+  - 다만 `21-03` 본래 목적은 **모델 canary 비교**이고, 현재 OpenAI 표본 중 `16건`은 `28`의 RAG live canary가 섞인 `canary-rag`다.
+  - 따라서 "OpenAI provider 경로가 실제로 돌고 있다"는 점은 충분히 확인됐지만, **비RAG model-only canary 표본은 여전히 `6건`**이라 `21-03` 자체를 `done`으로 닫기에는 부족하다.
+- before / after 해석:
+  - before(2026-03-09 72h): `primary=25`, `canary=6`
+  - after(2026-03-13 72h): `primary=130`, `canary=6`, `canary-rag=16`
+  - 변화량:
+    - OpenAI route 총표본: `6 -> 22` (`+16`)
+    - model-only canary 표본: `6 -> 6` (`0`)
+    - canary-rag 표본: `0 -> 16` (`+16`)
+- 측정 기준:
+  - 기간: 최근 72시간
+  - 표본 수: 총 152건 (`primary 130`, `canary-rag 16`, `canary 6`)
+  - 성공 기준:
+    1. OpenAI route가 실제로 적재될 것
+    2. parse fail/timeout가 급증하지 않을 것
+  - `done` 기준:
+    - **model-only canary** 기준 표본 `N>=20`
+    - parse fail/timeout 악화 `+2%p` 이내
+    - confirm/reject 분포 비교 가능
+- 결론:
+  - `21-03`은 여전히 **monitoring-only / in_progress**가 맞다.
+  - 이유는 "OpenAI route 자체"가 아니라 **비RAG model-only canary 표본 부족** 때문이다.
+  - 즉시 추가 구현보다, 현재는 `28` 결과와 분리해서 model-only canary가 더 쌓이는지 관찰하는 것이 우선이다.
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 72h primary 표본 | 25 | 130 | +105 | +420.0 |
+| 72h OpenAI route 총표본(`canary + canary-rag`) | 6 | 22 | +16 | +266.7 |
+| 72h model-only canary 표본 | 6 | 6 | 0 | 0.0 |
+| 72h canary-rag 표본 | 0 | 16 | +16 | 측정 불가(분모 0) |
+| 72h primary timeout 건수 | 0 | 1 | +1 | 측정 불가(분모 0) |
+| 72h OpenAI route parse fail 건수 | 0 | 0 | 0 | 0.0 |
+
 - 추가 관측:
   - `avg_confidence`:
     - primary `54.08`
