@@ -173,6 +173,7 @@
 - 2026-03-12: `21-03`과 `28`은 모두 추가 구현보다 운영 표본 대기 기반의 monitoring-only 상태로 정리했다. 두 작업은 `scripts/ops/ai_decision_canary_report.sh 24`, `agent_decisions.model_used`, `llm_usage_events.meta.rag_status`를 같은 세션에서 함께 확인하면 되고, `21-10`은 이와 별도로 24~72시간 수동 재확인 후 종료하는 post-deploy verification으로 유지한다.
 - 2026-03-12: `22` 계획을 최신 운영 기준에 맞게 보강했다. `21-03/28 monitoring-only`, `21-04 blocked`, `21-10 manual verification`을 시작 조건에 반영했고, 현재 Streamlit 구현의 실제 freshness/stale 불일치(`cache ttl=30s`, `auto-refresh 10~300s`, `Market bot status stale=120s`)를 spec 입력으로 고정했다. 상태는 승인 전이므로 `todo` 유지.
 - 2026-03-12: 사용자 승인 후 `22`를 완료(`done`) 처리했다. 화면 8개 inventory, freshness 계약 10개, stale/manual 상태 5종, `23` acceptance checklist를 `docs/work-result/22_dashboard_readability_and_live_data_reliability_result.md`에 확정했고, `23` 계획/README/Charter를 같은 변경 세트에서 동기화했다.
+- 2026-03-12: `31-02` 하위 작업을 완료했다. WSL에서 OCI 운영 명령과 브라우저 접근을 표준화하기 위해 `scripts/ops/oci_remote_exec.sh`, `scripts/ops/oci_tunnel.sh`, `deploy/cloud/oci/ops/oci_access.env.example`를 추가했고, runbook/README/Charter를 같은 기준으로 동기화했다.
 
 ---
 
