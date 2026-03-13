@@ -3,7 +3,11 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
+<<<<<<< HEAD
 상태: Blocked (개인 계정 fallback 운영 중 / provider reconciliation은 account capability 제약으로 보류)
+=======
+상태: Done (개인 계정 fallback accepted / provider reconciliation은 account capability 제약으로 후속 분리)
+>>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)
 완료 범위: Phase 1, Phase 2, Phase 2.1(코드 반영)
 선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
@@ -551,7 +555,56 @@ LIMIT 20;
 - 증빙 명령:
   - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
   - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT count(*) FROM llm_provider_cost_snapshots;"`
+<<<<<<< HEAD
 - 상태 판단:
   - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
   - 체크리스트 상태는 `blocked`로 관리한다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이다.
   - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.
+=======
+  - 상태 판단:
+  - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
+  - 2026-03-10 당시에는 체크리스트 상태를 `blocked`로 관리했다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이었다.
+  - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.
+
+---
+
+## 20. 최종 상태 재정의: Fallback Accepted Done (2026-03-14)
+- 문제 정의:
+  - `21-04`는 구현/운영 기준으로 이미 내부 usage observability를 달성했는데도, provider reconciliation capability 부재 때문에 backlog에서 계속 `blocked`로 남아 있었다.
+  - 이 상태는 "구현 미완료"와 "외부 계정 capability 후속 과제"를 한 항목에 섞어 해석하게 만들었다.
+- 최종 판단:
+  - `21-04`의 메인 목표는 개인 계정 환경에서도 route/provider/model 단위 내부 usage observability를 운영 가능하게 만드는 것이었고, 이 목표는 이미 달성됐다.
+  - `llm_provider_cost_snapshots` 기반 provider reconciliation은 **후속 capability 의존 항목**으로 분리하는 것이 맞다.
+  - 따라서 `21-04`는 `blocked`가 아니라 **`done (fallback accepted)`** 으로 종료한다.
+
+- 정량 근거 요약:
+
+| 항목 | 값 | 해석 |
+|---|---:|---|
+| 최근 24h 내부 비용 관측 provider 수 | 2 | `anthropic`, `openai` 모두 내부 원장 관측 가능 |
+| 최근 24h 내부 비용 집계 행 수 | 5 | route/provider/model 리포트 운영 가능 |
+| `llm_provider_cost_snapshots` 총 행 수 | 0 | 개인 계정 fallback 모드에서는 정상 |
+| fallback 운영 모드 설정 | `LLM_USAGE_ENABLED=true`, `LLM_COST_SNAPSHOT_ENABLED=false` | 운영 기준 확정 완료 |
+
+- Before / After 최종 상태 전환:
+
+| 항목 | Before | After | 변화량 |
+|---|---:|---:|---:|
+| `21-04` backlog 상태 | `blocked` | `done` | +1 상태 |
+| 구현 목표 해석 | 구현 미완처럼 읽힘 | fallback 운영 기준 완료 | 해석 명확화 |
+| provider reconciliation 위치 | 같은 task 안 미완료 | capability 후속 범위로 분리 | 범위 분리 |
+
+- 측정 기준:
+  - 기간: 2026-03-10까지의 OCI 운영 검증 결과 + 2026-03-14 문서 재판정
+  - 성공 기준:
+    1. 내부 usage observability가 운영 가능 상태일 것
+    2. 개인 계정 fallback 기준이 명시돼 있을 것
+    3. provider reconciliation이 외부 capability 의존 후속 범위로 분리 가능할 것
+- 증빙 명령:
+  - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
+  - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT provider, count(*) FROM llm_usage_events GROUP BY provider ORDER BY provider;"`
+  - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT count(*) FROM llm_provider_cost_snapshots;"`
+
+- README / 체크리스트 동기화:
+  - 2026-03-14 기준 README와 master checklist에서 `21-04`를 `done`으로 동기화했다.
+>>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)

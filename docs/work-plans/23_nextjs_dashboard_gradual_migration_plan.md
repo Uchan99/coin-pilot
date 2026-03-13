@@ -71,7 +71,8 @@
    - 기준: 최근 24h 기준 표본 30건 이상에서 primary/canary 분포 및 오류율 보고 가능
    - 검증: `scripts/ops/ai_decision_canary_report.sh 24`
 2. 21-04 관측성 안정화(현상 유지 모드 포함)
-   - 기준: usage 집계 정상 + 오류 이벤트 24h 0건
+   - 기준: usage 집계 정상 + fallback 운영 기준 확정
+   - 비고: provider reconciliation(`llm_provider_cost_snapshots`)은 org/admin account capability 후속 범위이며, `23` 착수 blocker로 보지 않는다.
    - 검증: `scripts/ops/llm_usage_cost_report.sh 24` + `SELECT ... FROM llm_usage_events WHERE status='error' ...`
 3. 28 전략문서/과거사례 RAG 보강 설계 승인
    - 기준: 실험 범위/측정 지표/중단 조건 정의 완료
@@ -166,3 +167,7 @@
 - 2026-03-05: AI 기능과 Backend 도메인 책임 경계를 명시해 프론트 이관과 AI 로직 변경 트랙을 분리.
 - 2026-03-05: 23 착수 선행 과업(21-03/21-04/28/22/29)을 명시하고, 선행 기준 미충족 시 23 상태를 `blocked`로 유지하는 게이트를 추가.
 - 2026-03-12: 22 spec이 결과 문서로 확정됨에 따라, 23의 22 선행 게이트를 plan 본문이 아니라 `docs/work-result/22_dashboard_readability_and_live_data_reliability_result.md` 산출물 기준으로 참조하도록 보정했다.
+<<<<<<< HEAD
+=======
+- 2026-03-14: `99-06` 정리에 따라 `21-04` 선행 게이트를 "관측성 안정화(현상 유지 모드 포함)"로 재명시했다. provider reconciliation은 개인 계정 capability 후속 범위로 분리하고, `23`의 실질 blocker 해석은 `21-03` 등 잔여 선행 과업 중심으로 정리한다.
+>>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)
