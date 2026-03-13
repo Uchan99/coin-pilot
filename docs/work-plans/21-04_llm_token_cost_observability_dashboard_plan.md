@@ -155,7 +155,4 @@
 - 2026-03-05: 사용자 재승인 후 Phase 2 구현 착수. `LLM_CREDIT_SNAPSHOT_*` env 기반 provider API 수집, scheduler 주기 실행, one-shot 수집 스크립트(`scripts/ops/llm_credit_snapshot_collect.sh`), 리포트 snapshot freshness 구간을 계획 범위에 추가.
 - 2026-03-05: Phase 2.1 계획 보정. provider 공식 API의 balance endpoint 의존을 제거하고, `LLM_COST_SNAPSHOT_*` env 기반 구간 비용 수집(`llm_provider_cost_snapshots`)으로 전환해 route 원장(`llm_usage_events`)과 비용 합계를 대조하는 방식으로 변경.
 - 2026-03-10: Phase 2.2 구현 범위 추가. 실제 provider 비용 API 연결성을 높이기 위해 cost snapshot 수집기에 `HTTP method`, `body template`, `배열 bucket 합산`, `최소 단위(divisor)` 지원을 추가한다.
-<<<<<<< HEAD
-=======
 - 2026-03-14: `99-06` 메타 정리에 따라 계획 상태를 `Done (Fallback Accepted)`로 전환했다. 개인 계정 기준에서는 내부 usage observability 운영과 fallback 기준 확정이 완료 조건이며, provider reconciliation은 org/admin account capability 확보 시 재개 가능한 후속 범위로 분리한다.
->>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)

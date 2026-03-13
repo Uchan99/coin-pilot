@@ -3,11 +3,7 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md
-<<<<<<< HEAD
-상태: Blocked (개인 계정 fallback 운영 중 / provider reconciliation은 account capability 제약으로 보류)
-=======
 상태: Done (개인 계정 fallback accepted / provider reconciliation은 account capability 제약으로 후속 분리)
->>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)
 완료 범위: Phase 1, Phase 2, Phase 2.1(코드 반영)
 선반영/추가 구현: 있음(Phase 2 OCI 운영 검증/실계정 endpoint 연결은 후속)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
@@ -555,13 +551,7 @@ LIMIT 20;
 - 증빙 명령:
   - `cd /opt/coin-pilot && scripts/ops/llm_usage_cost_report.sh 24`
   - `docker exec -u postgres coinpilot-db psql -d coinpilot -c "SELECT count(*) FROM llm_provider_cost_snapshots;"`
-<<<<<<< HEAD
 - 상태 판단:
-  - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
-  - 체크리스트 상태는 `blocked`로 관리한다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이다.
-  - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.
-=======
-  - 상태 판단:
   - 개인 계정 기준으로는 `21-04`를 **"내부 usage observability 완료, provider reconciliation은 account capability로 보류"** 상태로 운영한다.
   - 2026-03-10 당시에는 체크리스트 상태를 `blocked`로 관리했다. 이는 구현 실패가 아니라 **외부 provider 비용 API를 사용할 계정 capability가 없어 더 진행할 수 없다는 뜻**이었다.
   - 따라서 실제 org/admin 권한 확보 전까지는 현재 수준에서 멈춰도 무방하다.
@@ -607,4 +597,3 @@ LIMIT 20;
 
 - README / 체크리스트 동기화:
   - 2026-03-14 기준 README와 master checklist에서 `21-04`를 `done`으로 동기화했다.
->>>>>>> 4a1862d (docs(ops): sync OCI verification results and realign 21-04/23 gates)

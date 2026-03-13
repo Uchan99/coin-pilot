@@ -483,3 +483,60 @@ ORDER BY total DESC, model_used;
   2) parse_fail/timeout 악화가 primary 대비 `+2%p` 이내
   3) confirm/reject 분포 해석이 가능한 수준의 표본 확보
   4) 최소 2개 이상 심볼에서 canary 표본 확보
+
+## 15. Phase 3.2 운영 관측 업데이트 (2026-03-14)
+- 목표:
+  - `21-03`의 model-only canary 표본이 실제로 누적되고 있는지 재확인
+  - `28`의 canary-rag 표본 증가와 분리해, 비RAG 모델 비교가 가능한지 판정
+
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+scripts/ops/ai_decision_canary_report.sh 72
+```
+
+- 운영 관측 요약:
+  - `primary=178`
+  - `canary-rag=33`
+  - `model-only canary=3`
+  - parse fail:
+    - primary `2`
+    - canary-rag `1`
+    - canary `0`
+  - timeout:
+    - primary `1`
+    - canary-rag `0`
+    - canary `0`
+
+- 해석:
+  - OpenAI route 자체는 충분히 살아 있다.
+  - 그러나 `21-03` 종료 기준은 **model-only canary `N>=20`** 이고, 이번 72h에서는 오히려 `6 -> 3`으로 줄었다.
+  - 현재 OpenAI 표본 대부분은 `28`의 live RAG 주입(`canary-rag=33`)에서 나오므로, `21-03`의 순수 모델 비교 근거로는 사용할 수 없다.
+  - 따라서 `21-03`은 여전히 **monitoring-only / in_progress**가 맞다.
+
+| 지표 | Before (2026-03-13 72h) | After (2026-03-14 72h) | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 72h primary 표본 | 130 | 178 | +48 | +36.9 |
+| 72h OpenAI route 총표본(`canary + canary-rag`) | 22 | 36 | +14 | +63.6 |
+| 72h model-only canary 표본 | 6 | 3 | -3 | -50.0 |
+| 72h canary-rag 표본 | 16 | 33 | +17 | +106.3 |
+| 72h primary parse fail 건수 | 0 | 2 | +2 | 측정 불가(분모 0) |
+| 72h OpenAI route parse fail 건수 | 0 | 1 | +1 | 측정 불가(분모 0) |
+
+- symbol breakdown:
+  - model-only canary:
+    - `KRW-DOGE=2`
+    - `KRW-ETH=1`
+  - canary-rag:
+    - `KRW-SOL=8`
+    - `KRW-XRP=8`
+    - `KRW-BTC=7`
+    - `KRW-ETH=6`
+    - `KRW-DOGE=4`
+
+- 결론:
+  - `21-03`은 `done` 전환 불가
+  - 다음 판단 기준은 그대로 유지:
+    1) **model-only canary `N>=20`**
+    2) parse_fail/timeout 악화 `+2%p` 이내
+    3) 최소 2개 이상 심볼 분산 확보
