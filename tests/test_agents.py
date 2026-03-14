@@ -69,8 +69,10 @@ async def test_agent_runner_low_confidence_rejection():
 @pytest.mark.asyncio
 async def test_agent_runner_timeout_fallback():
     """AI 호출 타임아웃 시 보수적 거절(REJECT) 시나리오 테스트"""
-    
-    with patch.object(runner.graph, "ainvoke", new_callable=AsyncMock) as mock_invoke:
+
+    with patch.object(runner.graph, "ainvoke", new_callable=AsyncMock) as mock_invoke, \
+         patch("src.agents.runner.log_llm_usage_event", new_callable=AsyncMock) as mock_usage_log, \
+         patch("src.agents.runner.AgentRunner._log_decision", new_callable=AsyncMock) as mock_log:
         import asyncio
         mock_invoke.side_effect = asyncio.TimeoutError()
         
@@ -80,3 +82,5 @@ async def test_agent_runner_timeout_fallback():
         
         assert is_approved is False
         assert "Timed Out" in reasoning
+        assert mock_usage_log.called
+        assert mock_log.called

@@ -258,6 +258,50 @@ ORDER BY total DESC;
   - 재기동 후 `agent_decisions` 신규 건수가 0건이라 canary 분포(특히 OpenAI 경로) 평가는 아직 유보 상태.
 - 정량 관측(운영 로그 기반):
 
+---
+
+## 12. Phase 3 로컬 회귀 검증 보강 (2026-03-15)
+
+### 12.1 문제 정의
+- 증상:
+  - `tests/test_agents.py::test_agent_runner_timeout_fallback`가 완료되지 않고 20~30초 제한에서 멈췄다.
+- 영향:
+  - `21-03` 카나리 라우팅의 timeout fallback 회귀를 로컬에서 빠르게 검증할 수 없었다.
+- 재현 조건:
+  - timeout 경로에서 `log_llm_usage_event()`와 `_log_decision()`이 실제 구현으로 실행되는 상태에서 테스트를 돌릴 때
+- 원인:
+  - timeout fallback 경로가 Phase 1 이후 usage logging과 decision logging을 추가로 호출하도록 바뀌었지만, 기존 테스트는 해당 의존성을 mock하지 않았다.
+
+### 12.2 수정 내용
+- 변경 파일:
+  - `tests/test_agents.py`
+- 변경 사항:
+  - timeout fallback 테스트에 `log_llm_usage_event`와 `AgentRunner._log_decision` AsyncMock을 추가해, 테스트가 DB/외부 부수효과 없이 timeout 분기만 검증하도록 보정했다.
+
+### 12.3 정량 검증
+- 측정 기준:
+  - 성공: timeout fallback 단일 테스트가 제한 시간 내 종료되고, timeout 처리 후 usage/decision logging 호출도 함께 검증할 것
+- 실행 명령:
+```bash
+timeout 20s bash -lc 'PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_agents.py -k timeout_fallback'
+timeout 30s bash -lc 'PYTHONPATH=. .venv/bin/python -m pytest -q tests/agents/test_factory_canary.py'
+timeout 30s bash -lc 'PYTHONPATH=. .venv/bin/python -m pytest -q tests/agents/test_runner_canary_rag.py'
+```
+- Before / After 비교표:
+
+| 지표 | Before | After | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| timeout fallback 선택 테스트 완료 여부(성공=1, 실패=0) | 0 | 1 | +1 | +100.0 |
+| timeout fallback 선택 테스트 제한시간 내 종료 여부(20초 기준) | 0 | 1 | +1 | +100.0 |
+| 21-03 관련 회귀 테스트 통과 수 | 8 | 9 | +1 | +12.5 |
+
+### 12.4 현재 상태
+- 코드/테스트 회귀 검증은 복구됐다.
+- 다만 main task `21-03`의 완료 조건인 운영 표본 관측(N>=20, 24h 비교)은 이 로컬 환경에서 OCI 접근 정보가 없어 아직 수행하지 못했다.
+- 따라서 다음 단계의 완료 판정은 `scripts/ops/oci_remote_exec.sh`를 통한 OCI 운영 기록(`agent_decisions`, `llm_usage_events`) 기준으로만 진행해야 한다.
+- 이 섹션의 로컬 pytest 결과는 timeout fallback 회귀 여부를 확인한 보조 증빙일 뿐, `21-03` 완료 증빙으로 사용하지 않는다.
+- 따라서 작업 상태는 계속 `in_progress`로 유지한다.
+
 ## 12. Phase 2.1 운영 관측 업데이트 (2026-03-09)
 - 해결/판정 대상:
   - 카나리 실험이 실제로 비활성화된 상태인지, 아니면 단순 표본 부족으로 마감 판정이 불가능한 상태인지 재확인

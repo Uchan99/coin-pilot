@@ -97,6 +97,8 @@
 - 운영 체크:
   - 모델별 지표(건수/CONFIRM률/REJECT률/timeout/boundary_audit) 24h 비교
   - 모델별 비용 추정(토큰/호출수 기반) 산출
+  - 완료 판정용 운영 증빙은 OCI source of truth 기준으로만 수집한다.
+  - WSL/로컬 pytest는 코드 회귀 확인용 보조 검증일 뿐, `21-03` 완료 증빙으로 사용하지 않는다.
 
 ## 7. 성공/중단 기준 (실험 게이트)
 - 성공 기준(24h 1차):
@@ -136,3 +138,5 @@
 - 2026-03-04: Phase 1 구현 완료(카나리 라우팅/모델 기록/운영 집계 스크립트/기본 테스트 통과), 운영 관찰 단계로 전환.
 - 2026-03-04: OCI 운영 관측 중 env projection 누락 이슈를 확인해 `deploy/cloud/oci/docker-compose.prod.yml` 보정 후 재배포. 관련 트러블슈팅 문서 `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` 연결.
 - 2026-03-04: 카나리 표본 판정 기준을 "모델별 최소 표본 N>=20 확보 후 분포 비교"로 명시하고, 표본 부족 시 `in_progress` 유지 정책을 확정.
+- 2026-03-15: 로컬 회귀 검증 중 timeout fallback 테스트가 실제 DB/usage logging 경로를 타며 멈추는 것을 확인했다. 운영 관찰 단계는 유지하되, 테스트 harness를 현재 코드 경로에 맞게 보정해 회귀 검증 가능 상태를 복구한다.
+- 2026-03-15: 다음 운영 관찰 단계의 판정 근거는 OCI 원격 실행 결과만 사용하기로 명시했다. WSL/로컬 검증은 보조 회귀 확인으로만 취급한다.
