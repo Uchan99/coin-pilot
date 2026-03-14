@@ -1,7 +1,7 @@
 # Remaining Work Master Checklist
 
 작성일: 2026-03-01  
-최종 수정일: 2026-03-14  
+최종 수정일: 2026-03-15  
 목적: 우선순위 기준 남은 main 작업의 단일 추적 문서  
 관련 계획: `docs/work-plans/25_remaining_work_master_checklist_and_agents_workflow_update_plan.md`
 
@@ -19,6 +19,7 @@
 
 | Priority | ID | 작업 | 상태 | 시작 조건 | 완료 조건 | 검증 명령/확인 | Plan | Result/TS |
 |---|---|---|---|---|---|---|---|---|
+| 9 | 32 | 프로젝트 전주기 Runbook 문서화 | done | 사용자 승인 + 저장소 전수 검토 범위 확정 | `docs/portfolio/study/32_*` 개인 학습용 비공개 문서 + index/result 작성 완료, 전수 검증 근거 확보 | `rg -n "docs/portfolio/study/32_|개인 학습용 비공개|private study" docs/work-plans/32_project_end_to_end_runbook_documentation_plan.md docs/work-result/32_project_end_to_end_runbook_documentation_result.md` + 결과 문서의 coverage 검증 섹션 확인 | `docs/work-plans/32_project_end_to_end_runbook_documentation_plan.md` | `docs/work-result/32_project_end_to_end_runbook_documentation_result.md` |
 | 1 | 21-03 | AI Decision 카나리 실험 | in_progress | 24 최소 기능 반영 후 | 카나리 기간 동안 승인율/거절율/오류율/비용 비교 리포트 확보 | `scripts/ops/ai_decision_canary_report.sh 24` + `agent_decisions.model_used` 모델 혼재 확인 | `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md` | `docs/work-result/21-03_ai_decision_model_canary_experiment_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 2 | 21-04 | LLM 토큰/비용 관측 대시보드 | done | 21-03 실험 데이터 구조 확정 | 개인 계정 fallback 기준으로 내부 usage observability 운영 가능 상태 확정 + provider reconciliation은 org/admin 계정 capability 후속 범위로 분리 | `scripts/ops/llm_usage_cost_report.sh 24` + `scripts/ops/llm_credit_snapshot_collect.sh` + `SELECT route, provider, model, count(*) FROM llm_usage_events GROUP BY 1,2,3;` + `SELECT provider, count(*) FROM llm_provider_cost_snapshots GROUP BY 1;` | `docs/work-plans/21-04_llm_token_cost_observability_dashboard_plan.md` | `docs/work-result/21-04_llm_token_cost_observability_dashboard_result.md`, `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md` |
 | 3 | 29-01 | BULL 레짐 Rule Funnel 관측성 강화 + 주기 점검 자동화 | done | 29 baseline 지표 고정 | 레짐별 Rule/Risk/AI 퍼널 지표 상시 조회 + 7일(주 1회) 자동 리포트 + 기존 Weekly Exit Report 증분 확장 + 자동 수정 금지(승인형 제안만) 운영 기준 확정 | `scripts/ops/rule_funnel_regime_report.sh 72` + 주간 리포트 로그 누적 확인 + 퍼널 SQL 검증 | `docs/work-plans/29-01_bull_regime_rule_funnel_observability_and_review_automation_plan.md` | `docs/work-result/29-01_bull_regime_rule_funnel_observability_and_review_automation_result.md` |
@@ -45,6 +46,9 @@
 
 ## 3) 최근 업데이트 로그
 - 2026-03-11: `21-10_position_sizing_and_risk_cap_alignment_plan.md`를 신규 등록했다. `max_per_order` 병목이 실제 리스크 정책인지, 주문 목표 계산(`regime_ratio * symbol_multiplier`)과 RiskManager 하드 캡(`vol_multiplier`) 불일치에서 생긴 설계 mismatch인지 분리 검증하는 작업이며, 현재 상태는 `Approval Pending`이다.
+- 2026-03-14: `32_project_end_to_end_runbook_documentation_plan.md`를 신규 등록했다. 프로젝트 기획/아키텍처/전략/AI/데이터/배포/운영/테스트/향후 로드맵을 초보자 설명까지 포함한 runbook 세트로 정리하는 작업이며, 현재 상태는 `Approval Pending`이다.
+- 2026-03-14: `32` 사용자 승인 후 상태를 `in_progress`로 전환했다. 목표는 저장소 전수 검토 기반의 종합 runbook 세트 작성과 최종 coverage 검증이다.
+- 2026-03-15: `32` 산출물을 개인 학습용 비공개 문서로 재정의했다. `docs/portfolio/study/32_*`로 이동하고, `docs/runbooks/`는 다시 완전 ignore 정책으로 복원했으며, README에서는 공개 링크를 제거했다.
 - 2026-03-01: 단일 마스터 체크리스트 파일 생성(우선순위 1~6 초기 반영).
 - 2026-03-01: 21-05 상태를 `in_progress`로 설정(기능은 동작, 컨테이너 패널 운영 가독성/안정화 후 마감 예정).
 - 2026-03-01: 24 상태를 `in_progress`로 전환(사용자 승인 후 구현 착수).
