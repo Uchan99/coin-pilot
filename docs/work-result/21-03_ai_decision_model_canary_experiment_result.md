@@ -181,6 +181,7 @@ ORDER BY total DESC;
 
 ### 5.3 런타임/운영 반영 확인(선택)
 - 확인 방법:
+  - `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc 'echo AI_DECISION_PRIMARY_PROVIDER=$AI_DECISION_PRIMARY_PROVIDER; echo AI_DECISION_PRIMARY_MODEL=$AI_DECISION_PRIMARY_MODEL; echo AI_CANARY_ENABLED=$AI_CANARY_ENABLED; echo AI_CANARY_PROVIDER=$AI_CANARY_PROVIDER; echo AI_CANARY_MODEL=$AI_CANARY_MODEL; echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT'`
   - `scripts/ops/ai_decision_canary_report.sh 24`
   - `agent_decisions.model_used` 모델 혼재 여부 확인
 - 결과:
@@ -196,7 +197,7 @@ ORDER BY total DESC;
 
 ## 6. 배포/운영 확인 체크리스트(필수)
 1) OCI `.env`에 `OPENAI_API_KEY`와 `AI_CANARY_*` 값 설정
-2) `docker compose ... up -d --build bot` 반영 후 `bot` 로그에서 startup 이상 유무 확인
+2) `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml up -d --build bot` 반영 후 `bot` 로그에서 startup 이상 유무 확인
 3) `scripts/ops/ai_decision_canary_report.sh 24`로 모델별 분포/오류율 확인
 
 ---
@@ -301,6 +302,30 @@ timeout 30s bash -lc 'PYTHONPATH=. .venv/bin/python -m pytest -q tests/agents/te
 - 따라서 다음 단계의 완료 판정은 `scripts/ops/oci_remote_exec.sh`를 통한 OCI 운영 기록(`agent_decisions`, `llm_usage_events`) 기준으로만 진행해야 한다.
 - 이 섹션의 로컬 pytest 결과는 timeout fallback 회귀 여부를 확인한 보조 증빙일 뿐, `21-03` 완료 증빙으로 사용하지 않는다.
 - 따라서 작업 상태는 계속 `in_progress`로 유지한다.
+
+### 12.5 OCI 운영 확인 명령 기준 통일
+- 운영 확인 시 compose env 파일은 저장소 루트 `.env`가 아니라 `deploy/cloud/oci/.env`를 사용한다.
+- 권장 실행 예시:
+```bash
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc '
+echo AI_DECISION_PRIMARY_PROVIDER=$AI_DECISION_PRIMARY_PROVIDER
+echo AI_DECISION_PRIMARY_MODEL=$AI_DECISION_PRIMARY_MODEL
+echo AI_CANARY_ENABLED=$AI_CANARY_ENABLED
+echo AI_CANARY_PROVIDER=$AI_CANARY_PROVIDER
+echo AI_CANARY_MODEL=$AI_CANARY_MODEL
+echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT
+'
+scripts/ops/ai_decision_canary_report.sh 24
+scripts/ops/ai_decision_canary_report.sh 72
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT model_used, count(*) AS total
+FROM agent_decisions
+WHERE created_at >= now() - interval '24 hours'
+GROUP BY model_used
+ORDER BY total DESC;
+"
+```
 
 ## 12. Phase 2.1 운영 관측 업데이트 (2026-03-09)
 - 해결/판정 대상:
@@ -584,3 +609,120 @@ scripts/ops/ai_decision_canary_report.sh 72
     1) **model-only canary `N>=20`**
     2) parse_fail/timeout 악화 `+2%p` 이내
     3) 최소 2개 이상 심볼 분산 확보
+
+## 16. Phase 3.3 OCI 운영 관측 업데이트 (2026-03-15)
+- 목표:
+  - `deploy/cloud/oci/.env` 기준의 실제 운영 env 주입 상태를 재확인한다.
+  - 24h/72h 실측으로 OpenAI canary 경로의 표본, 오류율, 지연, 비용을 다시 판정한다.
+
+- 실행 명령:
+```bash
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc '
+echo AI_DECISION_PRIMARY_PROVIDER=$AI_DECISION_PRIMARY_PROVIDER
+echo AI_DECISION_PRIMARY_MODEL=$AI_DECISION_PRIMARY_MODEL
+echo AI_CANARY_ENABLED=$AI_CANARY_ENABLED
+echo AI_CANARY_PROVIDER=$AI_CANARY_PROVIDER
+echo AI_CANARY_MODEL=$AI_CANARY_MODEL
+echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT
+'
+scripts/ops/ai_decision_canary_report.sh 24
+scripts/ops/ai_decision_canary_report.sh 72
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  model_used,
+  count(*) AS total,
+  count(*) FILTER (WHERE decision='CONFIRM') AS confirm_count,
+  count(*) FILTER (WHERE decision='REJECT') AS reject_count,
+  round(100.0 * count(*) FILTER (WHERE decision='CONFIRM') / nullif(count(*),0), 2) AS confirm_rate_pct,
+  count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') AS parse_fail_count,
+  round(100.0 * count(*) FILTER (WHERE reasoning LIKE '분석가 출력 검증 실패:%') / nullif(count(*),0), 2) AS parse_fail_rate_pct,
+  count(*) FILTER (WHERE reasoning ILIKE '%timed out%') AS timeout_count,
+  round(100.0 * count(*) FILTER (WHERE reasoning ILIKE '%timed out%') / nullif(count(*),0), 2) AS timeout_rate_pct
+FROM agent_decisions
+WHERE created_at >= now() - interval '24 hours'
+GROUP BY model_used
+ORDER BY total DESC;
+"
+docker exec -u postgres coinpilot-db psql -d coinpilot -c "
+SELECT
+  provider,
+  model,
+  count(*) AS total_calls,
+  round(avg(latency_ms)::numeric, 2) AS avg_latency_ms,
+  round(avg(estimated_cost_usd)::numeric, 6) AS avg_cost_usd
+FROM llm_usage_events
+WHERE created_at >= now() - interval '24 hours'
+  AND route = 'ai_decision_analyst'
+  AND feature = 'ai_decision'
+GROUP BY provider, model
+ORDER BY total_calls DESC;
+"
+```
+
+- 운영 관측 결과:
+  - env 주입:
+    - `AI_DECISION_PRIMARY_PROVIDER=anthropic`
+    - `AI_DECISION_PRIMARY_MODEL=claude-haiku-4-5-20251001`
+    - `AI_CANARY_ENABLED=true`
+    - `AI_CANARY_PROVIDER=openai`
+    - `AI_CANARY_MODEL=gpt-4o-mini`
+    - `AI_CANARY_PERCENT=20`
+  - 24h:
+    - `primary=23`, `openai canary-rag=3`
+    - confirm rate:
+      - `primary=4.35%` (`1/23`)
+      - `canary-rag=0.00%` (`0/3`)
+    - parse fail / timeout:
+      - 둘 다 `0`
+    - analyst usage:
+      - `primary latency=6565.13ms`, `avg_cost_usd=0.005394`
+      - `openai latency=3539.67ms`, `avg_cost_usd=0.000563`
+  - 72h:
+    - `primary=130`, `openai canary-rag=33`
+    - confirm rate:
+      - `primary=2.31%` (`3/130`)
+      - `canary-rag=0.00%` (`0/33`)
+    - parse fail:
+      - `primary=2` (`1.54%`)
+      - `canary-rag=1` (`3.03%`)
+    - timeout:
+      - `primary=1` (`0.77%`)
+      - `canary-rag=0` (`0.00%`)
+    - analyst usage:
+      - `primary latency=7035.72ms`, `avg_cost_usd=0.005536`
+      - `openai latency=4066.55ms`, `avg_cost_usd=0.000565`
+
+- 해석:
+  - 카나리 env 주입과 OpenAI 경로 활성화는 확실히 정상이다.
+  - 24h 기준 canary 표본은 `3`건뿐이라, 계획의 최소 표본 `N>=20`을 충족하지 못했다.
+  - 72h 기준 OpenAI 경로 표본은 `33`건으로 충분하지만, 라벨이 `canary-rag`라서 `21-03`의 순수 model-only canary 비교와는 해석이 다르다.
+  - 오류율은 72h 기준 parse fail 차이가 `+1.49%p`(`3.03 - 1.54`)로 허용선 `+2%p` 이내이고, timeout은 오히려 primary보다 낮다.
+  - 비용과 지연은 OpenAI 경로가 유의미하게 유리하다.
+    - 24h cost delta: `0.005394 - 0.000563 = 0.004831 USD/call` 절감
+    - 24h latency delta: `6565.13 - 3539.67 = 3025.46 ms` 단축
+    - 72h cost delta: `0.005536 - 0.000565 = 0.004971 USD/call` 절감
+    - 72h latency delta: `7035.72 - 4066.55 = 2969.17 ms` 단축
+
+- Before / After 비교표:
+
+| 지표 | Before (2026-03-14 72h) | After (2026-03-15 72h) | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| 72h primary 표본 | 178 | 130 | -48 | -27.0 |
+| 72h OpenAI route 총표본(`canary-rag`) | 33 | 33 | 0 | 0.0 |
+| 72h OpenAI parse fail rate | 3.03% 추정 전 단계 | 3.03% | 유지 | 0.0 |
+| 72h OpenAI timeout rate | 0.00% | 0.00% | 0.00%p | 0.0 |
+| 24h OpenAI avg cost per call | 미측정 | 0.000563 | 신규 측정 | 측정 불가 |
+| 24h OpenAI avg latency | 미측정 | 3539.67ms | 신규 측정 | 측정 불가 |
+
+- 결론:
+  - `21-03`은 여전히 `in_progress`가 맞다.
+  - 이유:
+    1) 완료 게이트인 24h canary 표본 `N>=20` 미달 (`3`)
+    2) 72h 표본은 충분하지만 `canary-rag`로 관측되어 순수 model-only canary 완료 증빙으로 단정하기 어렵다.
+  - 다만 즉시 롤백 신호는 없다.
+    - parse fail / timeout 악화가 임계 `+2%p`를 넘지 않았고,
+    - 비용/지연 이점은 분명하다.
+  - 다음 단계:
+    1) `AI_DECISION_RAG_CANARY_ENABLED` 영향과 분리된 model-only canary 표본을 별도로 더 확보
+    2) 24h window에서 OpenAI model-only 또는 해석 가능한 canary 표본 `N>=20` 재측정

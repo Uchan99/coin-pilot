@@ -41,7 +41,7 @@
 
 ## 3. 재현/관측 정보
 - 재현 절차:
-  1) `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT'`
+  1) `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc 'echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT'`
   2) `scripts/ops/llm_usage_smoke_and_compare.sh 1`
   3) `scripts/ops/ai_decision_canary_report.sh 24`
 - 입력/데이터:
@@ -106,7 +106,7 @@
 
 ## 7. 검증
 - 실행 명령/절차:
-  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT; echo CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=$CHAT_PREMIUM_REVIEW_TIMEOUT_SEC'`
+  - `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc 'echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT; echo CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=$CHAT_PREMIUM_REVIEW_TIMEOUT_SEC'`
   - `scripts/ops/llm_usage_smoke_and_compare.sh 1`
   - `scripts/ops/ai_decision_canary_report.sh 24`
 - 결과:
@@ -127,7 +127,7 @@
   - `scripts/ops/llm_usage_smoke_and_compare.sh`
   - `scripts/ops/ai_decision_canary_report.sh`
 - 재현 명령:
-  - `docker compose --env-file .env -f docker-compose.prod.yml exec -T bot sh -lc 'echo LLM_PROVIDER=$LLM_PROVIDER; echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT; echo CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=$CHAT_PREMIUM_REVIEW_TIMEOUT_SEC'`
+  - `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml exec -T bot sh -lc 'echo LLM_PROVIDER=$LLM_PROVIDER; echo AI_CANARY_PERCENT=$AI_CANARY_PERCENT; echo CHAT_PREMIUM_REVIEW_TIMEOUT_SEC=$CHAT_PREMIUM_REVIEW_TIMEOUT_SEC'`
   - `scripts/ops/llm_usage_smoke_and_compare.sh 1`
 
 - Before/After 비교표:
@@ -152,6 +152,7 @@
     - env projection 확인
     - usage smoke 1회 실행
     - canary report 확인
+    - compose 실행 시 env 파일은 `deploy/cloud/oci/.env`를 명시
   - OCI 환경에서 `rg` 미설치 가정하고 `grep -E` 대체 명령을 runbook에 유지.
 - 문서 반영:
   - plan/result 업데이트 여부: YES

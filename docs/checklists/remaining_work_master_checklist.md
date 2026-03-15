@@ -85,6 +85,7 @@
 - 2026-03-04: 21-04 운영 hotfix 반영. `llm_usage_smoke_and_compare.sh` 시작 단계의 `python -c` 따옴표 충돌(`SyntaxError`)을 수정해 smoke 절차가 정상 진행되도록 보정.
 - 2026-03-04: 21-03/21-04 운영 관측 이슈를 `21-06` 트러블슈팅으로 분리 기록. compose env projection 누락/스크립트 quoting 오류를 수정하고, 결과 문서에 정량 Before/After를 추가.
 - 2026-03-04: 21-03/21-04 문서 상태 동기화 완료. 21-03은 표본 부족으로 관찰 지속, 21-04는 Phase 1 구현 완료 + Phase 2(credit snapshot 자동수집) 대기로 `in_progress` 유지.
+- 2026-03-15: 21-03 OCI 실측 반영. `deploy/cloud/oci/.env` 기준 env 주입과 OpenAI route 활성은 정상 확인됐고 비용/지연 이점도 관측됐지만, 24h canary 표본은 `3`건에 불과하고 72h 표본도 `canary-rag` 중심이라 완료 게이트를 충족하지 못해 `in_progress`를 유지한다.
 - 2026-03-04: 99-01 신규 메타 계획 등록(결과/트러블슈팅 문서의 문제 정의/정량 증빙 의무화, 현재 `Approval Pending`).
 - 2026-03-04: 99-01 사용자 승인 후 정책 반영 착수(`in_progress`) 및 AGENTS/Charter/템플릿/README 동기화.
 - 2026-03-04: 99-01 구현 및 결과 문서 작성 완료(`done`).
