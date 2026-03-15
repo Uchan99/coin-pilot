@@ -14,6 +14,9 @@ dist/
 downloads/
 eggs/
 .eggs/
+# Keep Next.js dashboard source modules in git despite generic lib/ rule.
+!frontend/next-dashboard/lib/
+!frontend/next-dashboard/lib/**
 lib/
 lib64/
 parts/
