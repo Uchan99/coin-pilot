@@ -167,6 +167,25 @@ services:
       UPBIT_SECRET_KEY: ${UPBIT_SECRET_KEY:?UPBIT_SECRET_KEY is required}
       DASHBOARD_ACCESS_PASSWORD: ${DASHBOARD_ACCESS_PASSWORD:?DASHBOARD_ACCESS_PASSWORD is required}
 
+  next-dashboard:
+    <<: *app_security
+    build:
+      context: ../../..
+      dockerfile: deploy/docker/dashboard-next.Dockerfile
+    image: coinpilot-dashboard-next:dev
+    container_name: coinpilot-dashboard-next
+    restart: unless-stopped
+    depends_on:
+      bot:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      BOT_API_BASE_URL: ${BOT_API_BASE_URL:-http://bot:8000}
+      COINPILOT_API_SHARED_SECRET: ${COINPILOT_API_SHARED_SECRET:-}
+      # Next.js 공식 예열 포트/호스트 바인딩은 보존하고 컨테이너 내부는 3000을 유지한다.
+      # 외부 노출은 운영 터널링(127.0.0.1:3001)으로 제한한다.
+
   n8n:
     <<: *app_security
     image: n8nio/n8n:1.123.17

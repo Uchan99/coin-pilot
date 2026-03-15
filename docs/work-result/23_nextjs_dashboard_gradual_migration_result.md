@@ -75,11 +75,15 @@
 10) `frontend/next-dashboard/app/system/page.js`
 11) `frontend/next-dashboard/app/globals.css`
 12) `deploy/docker/dashboard-next.Dockerfile`
-13) `docs/work-result/23_nextjs_dashboard_gradual_migration_result.md`
+13) `deploy/cloud/oci/docker-compose.prod.yml` (`next-dashboard` 서비스, 포트 `127.0.0.1:3001`)
+14) `docs/runbooks/18_wsl_oci_local_cloud_operations_master_runbook.md` (next-dashboard 원샷/포트 고정 가이드 보강)
+15) `docs/portfolio/study/32_deployment_operations_monitoring_runbook.md` (`next-dashboard` 서비스/포트 반영)
+16) `docs/work-result/23_nextjs_dashboard_gradual_migration_result.md`
 
 ### 3.2 수정
 1) `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`
 2) `docs/checklists/remaining_work_master_checklist.md`
+3) `deploy/cloud/oci/docker-compose.prod.yml`
 
 ## 4. 검증 결과
 ### 4.1 정적 검증
@@ -119,6 +123,19 @@
   - Next.js 앱 골격과 read-only MVP는 시작됐다.
 - 다음 단계:
   1) 의존성 설치 및 `npm run lint` / `npm run build` 검증
-  2) compose에 next-dashboard 서비스 연결
+  2) compose에 `next-dashboard` 서비스 연결 및 원샷 재기동 검증
   3) Overview/System 수치와 Streamlit 화면 비교
   4) 이후 Market/Risk/History 탭 점진 이관
+
+## 7. 23-1 운영 기동(OCI) 반영
+
+- 적용 커맨드:
+  - `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml up -d --build --no-deps next-dashboard`
+  - `docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml ps`
+  - `docker logs --tail 80 coinpilot-dashboard-next`
+  - `curl -I http://127.0.0.1:3001`
+
+- 결과:
+  - 포트 충돌 없이 `next-dashboard`는 `127.0.0.1:3001`에 바인딩.
+  - 기존 `dashboard`(`127.0.0.1:8501`), `grafana`(`127.0.0.1:3000`), `n8n`(`127.0.0.1:5678`) 매핑은 유지.
+  - 로그/헬스 응답에서 Next.js 기동 성공(메인 페이지 200/ready) 상태를 확인.

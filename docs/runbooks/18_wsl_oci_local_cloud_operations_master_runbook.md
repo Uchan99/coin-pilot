@@ -62,12 +62,14 @@ ssh -i "C:\Users\syt07\.ssh\ssh-key-2026-02-24.key" \
   -L 18501:127.0.0.1:8501 \
   -L 15678:127.0.0.1:5678 \
   -L 13000:127.0.0.1:3000 \
+  -L 13001:127.0.0.1:3001 \
   -L 19090:127.0.0.1:9090 \
   ubuntu@168.107.40.180
 ```
 
 브라우저 접속:
 - Dashboard: `http://localhost:18501`
+- Next.js Dashboard(MVP): `http://localhost:13001`
 - n8n: `http://localhost:15678`
 - Grafana: `http://localhost:13000`
 - Prometheus: `http://localhost:19090`
@@ -116,9 +118,18 @@ scripts/ops/oci_tunnel.sh dashboard grafana
 
 기본 포트:
 - Dashboard: `localhost:18501 -> OCI 8501`
+- Next.js Dashboard: `localhost:13001 -> OCI 3001`
 - n8n: `localhost:15678 -> OCI 5678`
 - Grafana: `localhost:13000 -> OCI 3000`
 - Prometheus: `localhost:19090 -> OCI 9090`
+
+원샷(one-shot) 배포:
+- `next-dashboard`만 빠르게 교체/검증할 때는 빌드 + 재기동을 한 번에 실행하는 방식으로 처리한다.
+```bash
+cd /opt/coin-pilot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml up -d --build --no-deps next-dashboard
+```
+동일 포트(`127.0.0.1:3001`)를 쓰므로, 기존 `dashboard`/`grafana`/`n8n` 바인딩(`8501/3000/5678`)은 그대로 유지된다.
 
 ---
 
@@ -130,15 +141,16 @@ scripts/ops/oci_tunnel.sh dashboard grafana
 3. `coinpilot-collector`
 4. `coinpilot-bot`
 5. `coinpilot-dashboard`
-6. `coinpilot-n8n`
-7. `coinpilot-prometheus`
-8. `coinpilot-grafana`
-9. `coinpilot-node-exporter` (호스트 리소스 메트릭)
-10. `coinpilot-cadvisor` (컨테이너 리소스 메트릭)
-11. `coinpilot-container-map` (컨테이너 ID↔서비스명 매핑 메트릭 생성)
-12. `coinpilot-loki` (로그 저장/조회 백엔드)
-13. `coinpilot-promtail-targets` (컨테이너 로그 파일 symlink 타깃 생성)
-14. `coinpilot-promtail` (로그 수집 에이전트)
+6. `coinpilot-dashboard-next` (Phase 1 read-only MVP)
+7. `coinpilot-n8n`
+8. `coinpilot-prometheus`
+9. `coinpilot-grafana`
+10. `coinpilot-node-exporter` (호스트 리소스 메트릭)
+11. `coinpilot-cadvisor` (컨테이너 리소스 메트릭)
+12. `coinpilot-container-map` (컨테이너 ID↔서비스명 매핑 메트릭 생성)
+13. `coinpilot-loki` (로그 저장/조회 백엔드)
+14. `coinpilot-promtail-targets` (컨테이너 로그 파일 symlink 타깃 생성)
+15. `coinpilot-promtail` (로그 수집 에이전트)
 
 자동복구:
 - systemd unit: `coinpilot-compose.service`
