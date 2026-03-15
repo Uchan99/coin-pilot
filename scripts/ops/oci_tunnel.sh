@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # 목적:
-# - WSL/로컬에서 OCI 운영 UI(dashboard/grafana/n8n/prometheus)에 접근할 때
+# - WSL/로컬에서 OCI 운영 UI(dashboard/grafana/n8n/prometheus/next-dashboard)에 접근할 때
 #   SSH -L 옵션을 매번 수동으로 치지 않도록 표준 프로파일을 제공한다.
 # - CLI 접근(oci_remote_exec.sh)과 브라우저 접근(oci_tunnel.sh)의 env 파일을 동일하게 맞춘다.
 
@@ -15,7 +15,7 @@ ENV_FILE="${OCI_REMOTE_ACCESS_ENV_FILE:-${DEFAULT_ENV_FILE}}"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/ops/oci_tunnel.sh [--env-file <path>] [all|dashboard|n8n|grafana|prometheus]...
+  scripts/ops/oci_tunnel.sh [--env-file <path>] [all|dashboard|n8n|grafana|next-dashboard|prometheus]...
 
 Examples:
   scripts/ops/oci_tunnel.sh all
@@ -25,6 +25,7 @@ Default local ports:
   dashboard  -> localhost:18501 -> OCI 127.0.0.1:8501
   n8n        -> localhost:15678 -> OCI 127.0.0.1:5678
   grafana    -> localhost:13000 -> OCI 127.0.0.1:3000
+  next-dashboard -> localhost:13001 -> OCI 127.0.0.1:3001
   prometheus -> localhost:19090 -> OCI 127.0.0.1:9090
 EOF
 }
@@ -82,6 +83,7 @@ add_profile() {
       add_profile dashboard
       add_profile n8n
       add_profile grafana
+      add_profile next-dashboard
       add_profile prometheus
       ;;
     dashboard)
@@ -95,6 +97,10 @@ add_profile() {
     grafana)
       FORWARDS+=(-L "${OCI_TUNNEL_LOCAL_GRAFANA_PORT:-13000}:127.0.0.1:${OCI_TUNNEL_REMOTE_GRAFANA_PORT:-3000}")
       PROFILE_LABELS+=("grafana:${OCI_TUNNEL_LOCAL_GRAFANA_PORT:-13000}->3000")
+      ;;
+    next-dashboard)
+      FORWARDS+=(-L "${OCI_TUNNEL_LOCAL_NEXT_DASHBOARD_PORT:-13001}:127.0.0.1:${OCI_TUNNEL_REMOTE_NEXT_DASHBOARD_PORT:-3001}")
+      PROFILE_LABELS+=("next-dashboard:${OCI_TUNNEL_LOCAL_NEXT_DASHBOARD_PORT:-13001}->3001")
       ;;
     prometheus)
       FORWARDS+=(-L "${OCI_TUNNEL_LOCAL_PROMETHEUS_PORT:-19090}:127.0.0.1:${OCI_TUNNEL_REMOTE_PROMETHEUS_PORT:-9090}")
