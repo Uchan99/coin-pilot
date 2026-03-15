@@ -2,9 +2,9 @@
 
 **작성일**: 2026-02-27  
 **작성자**: Codex  
-**상태**: Approval Pending  
+**상태**: Approved  
 **관련 계획 문서**: `docs/work-plans/22_dashboard_readability_and_live_data_reliability_plan.md`, `docs/work-plans/21-05_oci_infra_resource_monitoring_grafana_plan.md`, `docs/work-plans/23-01_frontend_backend_repository_split_timing_plan.md`  
-**승인 정보**: 승인자 / 승인 시각 / 승인 코멘트
+**승인 정보**: 사용자 / 2026-03-15 / "f23 브랜치 새로 생성 후 이동완료했어. 진행해줘."
 
 ---
 
@@ -66,20 +66,24 @@
 - 의미:
   - 프론트 이관(23)과 AI 로직 변경(21-03/21-04/28)을 분리해 리스크를 낮춘다.
 
-## 3.2 23 착수 선행 과업(이관보다 우선)
+## 3.2 착수 게이트 재정의(Phase별)
+### Phase 1에 필요한 최소 게이트
+1. 22 spec 산출물 확정
+   - 기준: `docs/work-result/22_dashboard_readability_and_live_data_reliability_result.md`의 4개 산출물 승인 완료
+2. 기존 조회 API/데이터 계약 재사용 가능성 확인
+   - 기준: Next.js가 기존 bot/mobile API 또는 읽기 전용 BFF를 통해 Overview/Health를 재현할 수 있을 것
+
+### Phase 2~3에 유지되는 운영 게이트
 1. 21-03 카나리 관측 마감
    - 기준: 최근 24h 기준 표본 30건 이상에서 primary/canary 분포 및 오류율 보고 가능
-   - 검증: `scripts/ops/ai_decision_canary_report.sh 24`
+   - 의미: AI monitoring-only 카드/해석 규칙을 운영 화면으로 격상하기 전 완료 필요
 2. 21-04 관측성 안정화(현상 유지 모드 포함)
    - 기준: usage 집계 정상 + fallback 운영 기준 확정
-   - 비고: provider reconciliation(`llm_provider_cost_snapshots`)은 org/admin account capability 후속 범위이며, `23` 착수 blocker로 보지 않는다.
-   - 검증: `scripts/ops/llm_usage_cost_report.sh 24` + `SELECT ... FROM llm_usage_events WHERE status='error' ...`
-3. 28 전략문서/과거사례 RAG 보강 설계 승인
-   - 기준: 실험 범위/측정 지표/중단 조건 정의 완료
-4. 22 spec 산출물 확정
-   - 기준: `docs/work-result/22_dashboard_readability_and_live_data_reliability_result.md`의 4개 산출물(화면별 우선순위/Freshness 계약/Stale UX/23 acceptance checklist) 승인 완료
-5. 29 전략 평가/핫픽스 의사결정 완료
-   - 기준: 레짐 전환 백테스트 결과 및 핫픽스 적용/보류 결론 문서화 완료
+   - 비고: provider reconciliation(`llm_provider_cost_snapshots`)은 org/admin account capability 후속 범위이며, `23`의 초기 MVP blocker로 보지 않는다.
+3. 28 전략문서/과거사례 RAG 보강 결과 고정
+   - 기준: monitoring-only/diagnostic 배치 기준이 더 이상 흔들리지 않을 것
+4. 29 전략 평가/핫픽스 의사결정 완료
+   - 기준: Strategy/Risk 화면에서 보여줄 운영 해석 기준이 확정될 것
 
 ## 4. OCI 용량/운영 가능성 검토(사전 판단)
 - 현재 관측값(사용자 제공):
@@ -92,14 +96,15 @@
 
 ## 5. 단계별 실행 계획 (예정)
 ### Phase 0: 선행 과업 완료(비이관 트랙)
-1. 21-03/21-04/28/22/29 선행 기준 충족 여부 점검
-2. 미충족 항목은 23 착수 보류(`blocked`) 유지
+1. `22` 산출물과 기존 조회 API 계약 점검
+2. 운영 전환 게이트(`21-03/21-04/28/29`)는 별도로 추적하되, Phase 1 기반 구축은 병행 착수 가능
 
 ### Phase 1: 기반 구축 (Read-only MVP)
 1. Next.js 앱 골격 생성(App Router 기준)
 2. 인증/접근 정책(기존 대시보드와 동일 레벨) 정렬
 3. Overview/Health 읽기 전용 페이지 우선 이관
 4. 22번 spec(가독성/freshness/stale 규약) 수용 기준 반영
+5. 기존 mobile/bot 조회 API를 재사용하는 서버 fetch 계층 또는 최소 BFF 구성
 
 ### Phase 2: 핵심 탭 점진 이관
 1. Market/Risk/History 탭 이관
@@ -168,3 +173,5 @@
 - 2026-03-05: 23 착수 선행 과업(21-03/21-04/28/22/29)을 명시하고, 선행 기준 미충족 시 23 상태를 `blocked`로 유지하는 게이트를 추가.
 - 2026-03-12: 22 spec이 결과 문서로 확정됨에 따라, 23의 22 선행 게이트를 plan 본문이 아니라 `docs/work-result/22_dashboard_readability_and_live_data_reliability_result.md` 산출물 기준으로 참조하도록 보정했다.
 - 2026-03-14: `99-06` 정리에 따라 `21-04` 선행 게이트를 "관측성 안정화(현상 유지 모드 포함)"로 재명시했다. provider reconciliation은 개인 계정 capability 후속 범위로 분리하고, `23`의 실질 blocker 해석은 `21-03` 등 잔여 선행 과업 중심으로 정리한다.
+- 2026-03-15: 사용자 승인 후 상태를 `Approved`로 전환했다.
+- 2026-03-15: `23` 전체를 `21-03` 완료까지 막는 대신, Phase 1(Next.js 골격 + Overview/Health read-only MVP)은 즉시 착수 가능하도록 게이트를 재정의했다. 운영 전환 Phase만 기존 `21-03/21-04/28/29` 게이트를 유지한다.
