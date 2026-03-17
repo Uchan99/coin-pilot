@@ -1,7 +1,7 @@
 const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").replace(/\/+$/, "");
   const API_SECRET = process.env.COINPILOT_API_SHARED_SECRET || "";
   const API_TIMEOUT_MS = 5000;
-  const SHARED_SECRET_HEADER = "x-coinpilot-api-shared-secret";
+  const SHARED_SECRET_HEADER = "X-Api-Secret";
 
   function headers() {
     const h = { accept: "application/json" };
