@@ -37,7 +37,12 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
         fetchApiJson("/api/mobile/pnl"),
         fetchApiJson("/api/mobile/risk"),
       ]);
-      const positions = Array.isArray(positionsRes?.positions) ? positionsRes.positions : (Array.isArray(positionsRes) ? positionsRes : []);
+      // API 응답은 {"ok", "generated_at", "data": {...}} 구조 — data 내부에서 추출
+      const posData = positionsRes?.data || {};
+      const pnlData = pnlRes?.data || {};
+      const riskData = riskRes?.data || {};
+
+      const positions = Array.isArray(posData?.positions) ? posData.positions : (Array.isArray(posData) ? posData : []);
       const holdings = positions.map((item) => ({
         symbol: item.symbol,
         quantity: Number(item.quantity) || 0,
@@ -49,14 +54,15 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
       return {
         metrics: {
           totalValuationKrw: holdings.reduce((a, h) => a + h.valuation_krw, 0),
-          cashKrw: Number(pnlRes?.cash_krw || 0),
-          dailyTotalPnlKrw: Number(pnlRes?.daily_pnl_krw || 0),
-          tradeCount: holdings.length,
-          buyCount: holdings.filter((h) => h.quantity > 0).length,
+          cashKrw: Number(pnlData?.cash_krw || 0),
+          dailyTotalPnlKrw: Number(pnlData?.daily_total_pnl_krw || 0),
+          tradeCount: Number(pnlData?.trade_count || 0),
+          buyCount: Number(pnlData?.buy_count || 0),
         },
-        riskLevel: riskRes?.risk_level || "UNKNOWN",
-        riskFlags: riskRes?.risk_flags || [],
+        riskLevel: riskData?.risk_level || "UNKNOWN",
+        riskFlags: riskData?.flags || riskData?.risk_flags || [],
         holdings,
+        // generated_at는 최상위에 있음
         ...freshnessStatus(positionsRes?.generated_at || pnlRes?.generated_at || riskRes?.generated_at),
       };
     } catch (error) {
@@ -73,11 +79,14 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
   export async function getSystemSnapshot() {
     try {
       const statusRes = await fetchApiJson("/api/mobile/status");
+      // API 응답은 {"ok", "generated_at", "data": {...}} 구조
+      const d = statusRes?.data || {};
       return {
-        overallStatus: statusRes?.overall_status || "UNKNOWN",
-        riskLevel: statusRes?.risk_level || "UNKNOWN",
-        riskFlags: [statusRes?.overall_status, statusRes?.risk_level, statusRes?.status].filter(Boolean).map(String),
-        components: statusRes?.components || {},
+        overallStatus: d?.overall_status || "UNKNOWN",
+        riskLevel: d?.risk_level || "UNKNOWN",
+        riskFlags: d?.risk_flags || [d?.overall_status, d?.risk_level].filter(Boolean).map(String),
+        components: d?.components || {},
+        // generated_at는 최상위에 있음
         ...freshnessStatus(statusRes?.generated_at),
       };
     } catch (error) {
