@@ -42,19 +42,22 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
       const pnlData = pnlRes?.data || {};
       const riskData = riskRes?.data || {};
 
-      const positions = Array.isArray(posData?.positions) ? posData.positions : (Array.isArray(posData) ? posData : []);
+      // positions 엔드포인트: data.holdings 배열, data.cash_krw, data.total_valuation_krw
+      const positions = Array.isArray(posData?.holdings) ? posData.holdings : [];
       const holdings = positions.map((item) => ({
         symbol: item.symbol,
         quantity: Number(item.quantity) || 0,
-        avg_price: Number(item.avg_price ?? item.avgPrice) || 0,
-        current_price: Number(item.current_price ?? item.currentPrice) || 0,
-        valuation_krw: Number(item.valuation_krw ?? item.valuation) || 0,
-        unrealized_pnl_krw: Number(item.unrealized_pnl_krw ?? item.pnl) || 0,
+        avg_price: Number(item.avg_price) || 0,
+        current_price: Number(item.current_price) || 0,
+        valuation_krw: Number(item.valuation_krw) || 0,
+        unrealized_pnl_krw: Number(item.unrealized_pnl_krw) || 0,
+        unrealized_pnl_pct: item.unrealized_pnl_pct != null ? Number(item.unrealized_pnl_pct) : null,
       }));
       return {
         metrics: {
-          totalValuationKrw: holdings.reduce((a, h) => a + h.valuation_krw, 0),
-          cashKrw: Number(pnlData?.cash_krw || 0),
+          // 총 평가액과 현금은 positions 응답에서, PnL/거래 수는 pnl 응답에서 가져옴
+          totalValuationKrw: Number(posData?.total_valuation_krw || 0),
+          cashKrw: Number(posData?.cash_krw || 0),
           dailyTotalPnlKrw: Number(pnlData?.daily_total_pnl_krw || 0),
           tradeCount: Number(pnlData?.trade_count || 0),
           buyCount: Number(pnlData?.buy_count || 0),
