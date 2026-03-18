@@ -17,9 +17,14 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# 비root 사용자로 실행 — 컨테이너 탈출 시 권한 최소화
+RUN addgroup --system --gid 1001 app \
+    && adduser --system --uid 1001 --ingroup app app
 
+COPY --from=builder --chown=app:app /app/.next/standalone ./
+COPY --from=builder --chown=app:app /app/.next/static ./.next/static
+COPY --from=builder --chown=app:app /app/public ./public
+
+USER app
 EXPOSE 3000
 CMD ["node", "server.js"]

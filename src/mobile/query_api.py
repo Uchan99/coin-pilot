@@ -112,7 +112,10 @@ async def _check_db_health() -> tuple[str, str | None]:
             await session.execute(text("SELECT 1"))
         return "UP", None
     except Exception as exc:  # pragma: no cover - 운영환경 의존
-        return "DOWN", str(exc)
+        # 내부 예외 상세는 로그에만 남기고 API 응답에는 일반 메시지만 반환
+        import logging
+        logging.getLogger(__name__).warning("DB health check failed: %s", exc)
+        return "DOWN", "Connection failed"
 
 
 async def _check_redis_health() -> tuple[str, str | None]:
@@ -122,7 +125,9 @@ async def _check_redis_health() -> tuple[str, str | None]:
         await client.aclose()
         return "UP", None
     except Exception as exc:  # pragma: no cover - 운영환경 의존
-        return "DOWN", str(exc)
+        import logging
+        logging.getLogger(__name__).warning("Redis health check failed: %s", exc)
+        return "DOWN", "Connection failed"
 
 
 async def _check_n8n_health() -> tuple[str, str | None]:
@@ -141,7 +146,9 @@ async def _check_n8n_health() -> tuple[str, str | None]:
             except Exception as exc:  # pragma: no cover - 운영환경 의존
                 last_error = str(exc)
 
-    return "DOWN", last_error or "unknown"
+    import logging
+    logging.getLogger(__name__).warning("n8n health check failed: %s", last_error)
+    return "DOWN", "Service unavailable"
 
 
 @mobile_router.get("/status")
