@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from src.agents.tools.risk_diagnosis_tool import run_risk_diagnosis_tool
 from src.agents.tools.trade_history_tool import run_trade_history_tool
 from src.common.db import get_db_session, get_redis_client
 
+
+logger = logging.getLogger(__name__)
 
 mobile_router = APIRouter(prefix="/api/mobile", tags=["mobile"])
 
@@ -113,8 +116,7 @@ async def _check_db_health() -> tuple[str, str | None]:
         return "UP", None
     except Exception as exc:  # pragma: no cover - 운영환경 의존
         # 내부 예외 상세는 로그에만 남기고 API 응답에는 일반 메시지만 반환
-        import logging
-        logging.getLogger(__name__).warning("DB health check failed: %s", exc)
+        logger.warning("DB health check failed: %s", exc)
         return "DOWN", "Connection failed"
 
 
@@ -125,8 +127,7 @@ async def _check_redis_health() -> tuple[str, str | None]:
         await client.aclose()
         return "UP", None
     except Exception as exc:  # pragma: no cover - 운영환경 의존
-        import logging
-        logging.getLogger(__name__).warning("Redis health check failed: %s", exc)
+        logger.warning("Redis health check failed: %s", exc)
         return "DOWN", "Connection failed"
 
 
@@ -146,8 +147,7 @@ async def _check_n8n_health() -> tuple[str, str | None]:
             except Exception as exc:  # pragma: no cover - 운영환경 의존
                 last_error = str(exc)
 
-    import logging
-    logging.getLogger(__name__).warning("n8n health check failed: %s", last_error)
+    logger.warning("n8n health check failed: %s", last_error)
     return "DOWN", "Service unavailable"
 
 

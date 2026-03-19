@@ -83,12 +83,12 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
     try {
       const statusRes = await fetchApiJson("/api/mobile/status");
       // API 응답은 {"ok", "generated_at", "data": {...}} 구조
-      const d = statusRes?.data || {};
+      const statusData = statusRes?.data || {};
       return {
-        overallStatus: d?.overall_status || "UNKNOWN",
-        riskLevel: d?.risk_level || "UNKNOWN",
-        riskFlags: d?.risk_flags || [d?.overall_status, d?.risk_level].filter(Boolean).map(String),
-        components: d?.components || {},
+        overallStatus: statusData?.overall_status || "UNKNOWN",
+        riskLevel: statusData?.risk_level || "UNKNOWN",
+        riskFlags: statusData?.risk_flags || [statusData?.overall_status, statusData?.risk_level].filter(Boolean).map(String),
+        components: statusData?.components || {},
         // generated_at는 최상위에 있음
         ...freshnessStatus(statusRes?.generated_at),
       };
