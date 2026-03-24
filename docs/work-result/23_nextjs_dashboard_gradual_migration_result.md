@@ -3,10 +3,10 @@
 작성일: 2026-03-15
 작성자: Codex
 관련 계획서: `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`
-상태: Partial
-완료 범위: Phase 1 초기 골격 + Overview/System read-only MVP
-선반영/추가 구현: 있음(초기 MVP)
-관련 트러블슈팅(있다면): 없음
+상태: Phase 1 완료
+완료 범위: Phase 1 read-only MVP 연동 + OCI 운영 검증 + 보안 강화
+선반영/추가 구현: 있음(초기 MVP + 데이터 계약 정합 + 보안 조치)
+관련 트러블슈팅(있다면): 없음 (인증 헤더 불일치 / 데이터 계약 불일치는 구현 과정에서 즉시 해소)
 
 ---
 
@@ -119,13 +119,14 @@
 
 ## 6. 현재 상태와 다음 단계
 - 현재 상태:
-  - `23`은 이제 `blocked`가 아니라 Phase 1 기준 `in_progress`다.
-  - Next.js 앱 골격과 read-only MVP는 시작됐다.
+  - Phase 1 read-only MVP **연동 완료** + OCI 운영 검증 통과.
+  - Overview: 총 평가액(₩992,998), 현금, 당일 PnL, 거래 수, 리스크 레벨(SAFE) 정상 표시.
+  - System: bot/db/redis/n8n 전체 UP, Overall UP, Risk Level SAFE 정상 표시.
+  - Freshness: 두 페이지 모두 Fresh(0s) 정상 판정.
 - 다음 단계:
-  1) 의존성 설치 및 `npm run lint` / `npm run build` 검증
-  2) compose에 `next-dashboard` 서비스 연결 및 원샷 재기동 검증
-  3) Overview/System 수치와 Streamlit 화면 비교
-  4) 이후 Market/Risk/History 탭 점진 이관
+  1) UI/UX 개선 (색상, 레이아웃, 차트 등 — 선택적)
+  2) Market/Risk/History 탭 점진 이관 (Phase 2)
+  3) Dashboard 전용 BFF 또는 API 정리 검토
 
 ## 7. 23-1 운영 기동(OCI) 반영
 
@@ -139,3 +140,43 @@
   - 포트 충돌 없이 `next-dashboard`는 `127.0.0.1:3001`에 바인딩.
   - 기존 `dashboard`(`127.0.0.1:8501`), `grafana`(`127.0.0.1:3000`), `n8n`(`127.0.0.1:5678`) 매핑은 유지.
   - 로그/헬스 응답에서 Next.js 기동 성공(메인 페이지 200/ready) 상태를 확인.
+
+## 8. Phase 1 데이터 연동 완료 (2026-03-18~19)
+
+### 8.1 해결한 문제
+1. **인증 헤더 불일치 (HTTP 401)**
+   - Before: Next.js가 `x-coinpilot-api-shared-secret` 헤더로 전송, 백엔드는 `X-Api-Secret`만 수용
+   - After: `lib/bot-api.js:4`를 `X-Api-Secret`으로 통일 → 401 해소
+   - 커밋: `5441197`
+
+2. **API 응답 구조 불일치 (값 전부 0)**
+   - Before: 프론트엔드가 `positionsRes.positions`, `pnlRes.cash_krw` 등 최상위에서 직접 접근
+   - After: `positionsRes.data.holdings`, `posData.cash_krw`, `pnlData.daily_total_pnl_krw` 등 `data` 래퍼 반영
+   - 커밋: `90e85e8`, `435927f`
+
+### 8.2 보안 강화 (2026-03-19)
+1. **Dockerfile non-root 실행**: `app` 사용자(uid 1001) + `COPY --chown` + `USER app`
+2. **보안 헤더 추가**: X-Frame-Options(DENY), X-Content-Type-Options(nosniff), Referrer-Policy, X-DNS-Prefetch-Control, Permissions-Policy
+3. **헬스체크 에러 sanitize**: DB/Redis/n8n 실패 시 `str(exc)` → 일반 메시지 + 서버 로그에만 기록
+- 커밋: `d57eabf`
+
+### 8.3 코드 품질 개선 (2026-03-20)
+1. `query_api.py`: 인라인 `import logging` 3개 → 모듈 레벨 `logger` 인스턴스로 통합
+2. `bot-api.js`: `getSystemSnapshot()`의 변수 `d` → `statusData`로 명확화
+
+### 8.4 OCI 운영 검증 결과
+
+| 항목 | 검증 결과 |
+|------|-----------|
+| 내부 API 인증 | `docker exec coinpilot-dashboard-next node -e "fetch(...)"` → HTTP 200 |
+| Overview 데이터 | Total Valuation ₩992,998 / Cash ₩992,998 / PnL -₩5,113 / Trades 2 / BUY 1 / Risk SAFE |
+| System 데이터 | Overall UP / bot·db·redis·n8n 전부 UP / Risk SAFE |
+| Freshness | 두 페이지 모두 Fresh (age 0s / threshold 60s) |
+| 컨테이너 실행 사용자 | non-root (app, uid 1001) |
+| 보안 헤더 | next.config.mjs headers() 5종 적용 |
+
+### 8.5 보안 감사
+- 전체 코드베이스 보안 감사 수행 (2026-03-18)
+- 즉시 조치 3건 완료 (H-2 에러 sanitize, M-2 Dockerfile non-root, L-2 보안 헤더)
+- 브랜치 전체 security review: **실제 악용 가능한 취약점 0건** (4건 후보 모두 false positive 판정)
+- 상세: `docs/security/security_audit_2026-03-18.md` (gitignore 대상, 로컬 전용)
