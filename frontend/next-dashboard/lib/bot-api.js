@@ -79,6 +79,39 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
     }
   }
 
+  /*
+   * Risk 상세 데이터 — Risk Monitor 페이지용
+   * pnl + risk 엔드포인트를 조합해 게이지/카운트/감사 로그에 필요한 데이터를 반환
+   */
+  export async function getRiskSnapshot() {
+    try {
+      const [pnlRes, riskRes] = await Promise.all([
+        fetchApiJson("/api/mobile/pnl"),
+        fetchApiJson("/api/mobile/risk"),
+      ]);
+      const pnlData = pnlRes?.data || {};
+      const riskData = riskRes?.data || {};
+      return {
+        dailyTotalPnlKrw: Number(pnlData?.daily_total_pnl_krw || 0),
+        buyCount: Number(pnlData?.buy_count || 0),
+        sellCount: Number(pnlData?.sell_count || 0),
+        tradeCount: Number(pnlData?.trade_count || 0),
+        consecutiveLosses: Number(riskData?.consecutive_losses || 0),
+        isTradingHalted: riskData?.is_trading_halted || false,
+        riskLevel: riskData?.risk_level || "UNKNOWN",
+        riskFlags: riskData?.flags || riskData?.risk_flags || [],
+        ...freshnessStatus(pnlRes?.generated_at || riskRes?.generated_at),
+      };
+    } catch (error) {
+      return {
+        dailyTotalPnlKrw: 0, buyCount: 0, sellCount: 0, tradeCount: 0,
+        consecutiveLosses: 0, isTradingHalted: false,
+        riskLevel: "UNKNOWN", riskFlags: [String(error?.message || "조회 실패")],
+        ...freshnessStatus(null),
+      };
+    }
+  }
+
   export async function getSystemSnapshot() {
     try {
       const statusRes = await fetchApiJson("/api/mobile/status");

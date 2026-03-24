@@ -221,3 +221,7 @@ docs/runbooks/
 docs/memory/
 docs/backup/
 docs/security/
+
+# Next.js / Node.js
+node_modules/
+.next/

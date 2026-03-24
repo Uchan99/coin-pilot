@@ -3,8 +3,8 @@
 작성일: 2026-03-15
 작성자: Codex
 관련 계획서: `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`
-상태: Phase 1 완료
-완료 범위: Phase 1 read-only MVP 연동 + OCI 운영 검증 + 보안 강화
+상태: Phase 2 구현 완료 (빌드 검증 통과, OCI 배포 대기)
+완료 범위: Phase 1 read-only MVP + Phase 2 Stitch 디자인 전체 UI 재구축
 선반영/추가 구현: 있음(초기 MVP + 데이터 계약 정합 + 보안 조치)
 관련 트러블슈팅(있다면): 없음 (인증 헤더 불일치 / 데이터 계약 불일치는 구현 과정에서 즉시 해소)
 
@@ -180,3 +180,81 @@
 - 즉시 조치 3건 완료 (H-2 에러 sanitize, M-2 Dockerfile non-root, L-2 보안 헤더)
 - 브랜치 전체 security review: **실제 악용 가능한 취약점 0건** (4건 후보 모두 false positive 판정)
 - 상세: `docs/security/security_audit_2026-03-18.md` (gitignore 대상, 로컬 전용)
+
+## 9. Phase 2: Stitch 디자인 기반 전체 UI 재구축 (2026-03-24)
+
+### 9.1 개요
+- Google Stitch로 생성한 8개 페이지 디자인(`stitch_frontend/`)을 Next.js App Router 컴포넌트로 변환
+- 기존 Phase 1의 기본 CSS를 Tailwind CSS + Stitch "Deep Sea" 디자인 시스템으로 전면 교체
+- 차트 라이브러리: Plotly React 채택 (Recharts는 캔들스틱/게이지/히트맵/박스플롯 미지원으로 탈락)
+
+### 9.2 기술 스택 추가
+| 패키지 | 버전 | 용도 |
+|--------|------|------|
+| tailwindcss | 3.x | Stitch 디자인 토큰 기반 유틸리티 스타일링 |
+| postcss + autoprefixer | latest | Tailwind 빌드 파이프라인 |
+| react-plotly.js + plotly.js | latest | 캔들스틱, 게이지, 히트맵, 박스플롯, 도넛, 라인 차트 |
+| Material Symbols | CDN | 아이콘 (Google Fonts) |
+| Inter | CDN | 폰트 (Google Fonts) |
+
+### 9.3 구현된 페이지 (8개)
+
+| 페이지 | 경로 | 렌더링 | 데이터 소스 | 주요 기능 |
+|--------|------|--------|-------------|-----------|
+| Control Center | `/` | Static | - | Hero + 6개 Quick Nav + Quick Start Guide + PnL 카드 |
+| Overview | `/overview` | Server (SSR) | `getOverviewSnapshot()` | KPI 4카드 + 보유 포지션 테이블 + Freshness 배지 |
+| Market | `/market` | Client | Mock (Phase 3에서 API 연동) | 심볼/인터벌 선택 + Bot Brain + Plotly 캔들스틱 |
+| Risk Monitor | `/risk` | Server (SSR) | `getRiskSnapshot()` | Daily Loss 게이지 + Buy Count + 연패 + Trading Status |
+| Trade History | `/history` | Client | Mock (Phase 3에서 API 연동) | 필터 + 거래 테이블 + Buy/Sell 도넛 + Status 바 |
+| System Health | `/system` | Server (SSR) | `getSystemSnapshot()` | 3개 연결 카드 + AI Decisions + Risk Audit |
+| AI Chatbot | `/chatbot` | Client | UI 프레임 (Phase 3 AI 연동) | 퀵 제안 4종 + 메시지 버블 + 입력 영역 |
+| Exit Analysis | `/exit-analysis` | Client | Mock (Phase 3에서 API 연동) | KPI + 박스플롯 + 히트맵 + 튜닝 제안 |
+
+### 9.4 공통 컴포넌트
+
+| 컴포넌트 | 파일 | 설명 |
+|----------|------|------|
+| Sidebar | `components/sidebar.js` | 8개 내비게이션 + Auto-refresh + DB 상태 |
+| Topbar | `components/topbar.js` | 현재 페이지 제목 + 알림/설정 아이콘 |
+| FloatingChat | `components/floating-chat.js` | 전 페이지 우하단 플로팅 AI 채팅 |
+| PlotlyChart | `components/plotly-chart.js` | Plotly 래퍼 (SSR 비활성 dynamic import) |
+
+### 9.5 Stitch 디자인 호환 수정 사항
+| Stitch 원본 | 프로젝트 호환 변경 |
+|-------------|-------------------|
+| USD 표기 ($) | KRW 표기 (원) + `formatKrw()` 포맷터 |
+| BTCUSDT/ETHUSDT | KRW-BTC/KRW-ETH (업비트 심볼) |
+| Launch Terminal / View API Docs 버튼 | 제거 (읽기 전용 원칙) |
+| Emergency Stop 버튼 | 제거 (읽기 전용 원칙) |
+| 바이낸스 API 안내 | Upbit API 연동 안내 |
+| 외부 프로필 이미지 URL | Material Symbols person 아이콘 |
+
+### 9.6 빌드 검증 결과
+
+```
+Route (app)                    Size  First Load JS
+┌ ○ /                         162 B         106 kB
+├ ○ /chatbot                1.78 kB         104 kB
+├ ○ /exit-analysis          3.66 kB         106 kB
+├ ○ /history                 3.2 kB         105 kB
+├ ○ /market                 3.25 kB         105 kB
+├ ƒ /overview                126 B          102 kB
+├ ƒ /risk                    126 B          102 kB
+└ ƒ /system                  126 B          102 kB
+
+○ Static    ƒ Dynamic (server-rendered)
+```
+- `npm run build` 성공, 11개 라우트 전체 생성 확인
+- Server Component(ƒ): overview, risk, system — 실제 API 데이터 사용
+- Static(○): 나머지 — Mock/클라이언트 렌더링
+
+### 9.7 정리 사항
+- Phase 1 미사용 컴포넌트 3개 삭제: `metric-card.js`, `section-frame.js`, `status-pill.js`
+- Phase 1 `globals.css`를 Tailwind 기반으로 전면 교체
+- `lib/bot-api.js`에 `getRiskSnapshot()` 함수 추가
+
+### 9.8 다음 단계 (Phase 3 범위)
+1. Market/History/Exit Analysis 페이지의 Mock 데이터 → 실제 API 연동
+2. AI Chatbot 백엔드 연동 (`process_chat_sync`)
+3. OCI 배포 및 운영 검증
+4. 기존 Streamlit 대시보드와 병행 비교 운영
