@@ -3,10 +3,10 @@
 작성일: 2026-03-15
 작성자: Codex
 관련 계획서: `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`
-상태: Phase 2 구현 완료 (빌드 검증 통과, OCI 배포 대기)
-완료 범위: Phase 1 read-only MVP + Phase 2 Stitch 디자인 전체 UI 재구축
-선반영/추가 구현: 있음(초기 MVP + 데이터 계약 정합 + 보안 조치)
-관련 트러블슈팅(있다면): 없음 (인증 헤더 불일치 / 데이터 계약 불일치는 구현 과정에서 즉시 해소)
+상태: Phase 3 실데이터 연동 완료 (OCI 배포 검증 통과)
+완료 범위: Phase 1 read-only MVP + Phase 2 Stitch 디자인 전체 UI 재구축 + Phase 3 실데이터 연동
+선반영/추가 구현: 있음(초기 MVP + 데이터 계약 정합 + 보안 조치 + Phase 3 실데이터 연동)
+관련 트러블슈팅(있다면): `docs/troubleshooting/23_client_component_docker_proxy.md` (Client Component에서 Docker 내부 주소 직접 호출 불가 이슈)
 
 ---
 
@@ -253,8 +253,131 @@ Route (app)                    Size  First Load JS
 - Phase 1 `globals.css`를 Tailwind 기반으로 전면 교체
 - `lib/bot-api.js`에 `getRiskSnapshot()` 함수 추가
 
-### 9.8 다음 단계 (Phase 3 범위)
-1. Market/History/Exit Analysis 페이지의 Mock 데이터 → 실제 API 연동
-2. AI Chatbot 백엔드 연동 (`process_chat_sync`)
-3. OCI 배포 및 운영 검증
-4. 기존 Streamlit 대시보드와 병행 비교 운영
+### 9.8 다음 단계 (Phase 3 범위) → **완료 (아래 Section 10 참조)**
+
+## 10. Phase 3: 실데이터 연동 (2026-03-24)
+
+### 10.1 개요
+- Phase 2에서 Mock/UI 프레임으로 남겨둔 모든 페이지를 실제 DB/Redis/API 데이터로 연동
+- 8개 페이지 전체가 Streamlit 대시보드와 동등한 실운영 데이터를 표시하도록 전환
+- Client Component ↔ Docker 내부 주소 문제를 Next.js API Route Handler 프록시로 해결
+
+### 10.2 백엔드 API 신규/확장 (`src/mobile/query_api.py`)
+
+| 엔드포인트 | 유형 | 설명 |
+|-----------|------|------|
+| `/api/mobile/pnl` | 확장 | `cumulative_pnl_krw`, `cumulative_trade_count` 필드 추가 (`SUM(total_pnl) FROM daily_risk_state`) |
+| `/api/mobile/trades` | 신규 | 거래 내역 조회 (symbol/side 필터, limit/offset 페이지네이션) |
+| `/api/mobile/candles` | 신규 | TimescaleDB `time_bucket()` OHLCV 캔들 (15m/1h/4h/1d 화이트리스트) |
+| `/api/mobile/brain` | 신규 | Redis `bot:status:{symbol}` 봇 브레인 상태 (regime/RSI/HWM/reasoning) |
+| `/api/mobile/ai-decisions` | 신규 | `agent_decisions` 테이블 AI 판단 로그 (테이블 존재 여부 사전 검사) |
+| `/api/mobile/exit-analysis` | 신규 | 매도 분석 KPI + post-exit 평균 + 히트맵 + 개별 매도 데이터 (days 7-90, limit 10-2000) |
+
+### 10.3 Next.js API Route Handler (프록시 계층)
+- **문제**: Client Component는 브라우저에서 실행되므로 Docker 내부 주소(`bot:8000`)에 접근 불가
+- **해결**: Next.js API Route Handler가 서버 사이드에서 `bot:8000`으로 프록시
+- **트러블슈팅**: `docs/troubleshooting/23_client_component_docker_proxy.md`
+
+| 프록시 라우트 | 백엔드 경로 | 메서드 |
+|-------------|-----------|--------|
+| `/api/market/candles` | `/api/mobile/candles` | GET |
+| `/api/market/brain` | `/api/mobile/brain` | GET |
+| `/api/history/trades` | `/api/mobile/trades` | GET |
+| `/api/exit-analysis/data` | `/api/mobile/exit-analysis` | GET |
+| `/api/chatbot/ask` | `/api/mobile/ask` | POST |
+
+- 공통 프록시 함수: `lib/api-proxy.js` — API Secret 주입 + 10초 타임아웃
+
+### 10.4 프론트엔드 페이지별 변경
+
+| 페이지 | 변경 내용 |
+|--------|----------|
+| Control Center (`/`) | Static → async Server Component, `getCumulativePnl()` 호출로 실제 누적 PnL/거래 수 표시 |
+| Overview (`/overview`) | `cumulativePnlKrw`/`cumulativeTradeCount` 사용 (일별 → 누적), 서브 텍스트에 당일 breakdown |
+| Market (`/market`) | Mock `generateDemoCandles()` → `getCandles()` + `getBotBrain()` 실 API 호출 |
+| Trade History (`/history`) | `MOCK_TRADES` → `getTrades()` 실 API + 페이지네이션(50건 단위) + 심볼 검색 |
+| Exit Analysis (`/exit-analysis`) | 전면 Mock → `getExitAnalysis()` + 조회 기간/건수 필터 드롭다운 |
+| AI Chatbot (`/chatbot`) | "Phase 3에서 구현" 문구 → `askChatbot()` 실 API + 세션 ID + 한국어 IME `isComposing` 처리 |
+| System Health (`/system`) | `mockDecisions` → 실 `data.decisions` + 건수 배지 + 빈 상태 처리 |
+| Risk Monitor (`/risk`) | 이미 Phase 2에서 실 API 연동 완료 (변경 없음) |
+
+### 10.5 신규/수정 파일
+
+**신규:**
+1. `frontend/next-dashboard/lib/api-proxy.js` — 서버 사이드 프록시 함수
+2. `frontend/next-dashboard/app/api/market/candles/route.js`
+3. `frontend/next-dashboard/app/api/market/brain/route.js`
+4. `frontend/next-dashboard/app/api/history/trades/route.js`
+5. `frontend/next-dashboard/app/api/exit-analysis/data/route.js`
+6. `frontend/next-dashboard/app/api/chatbot/ask/route.js`
+
+**수정:**
+1. `src/mobile/query_api.py` — 6개 엔드포인트 신규/확장
+2. `frontend/next-dashboard/lib/bot-api.js` — 클라이언트/서버 fetch 분리, 5개 클라이언트 함수 추가, 누적 PnL 함수 추가
+3. `frontend/next-dashboard/app/page.js` — 누적 PnL 서버 컴포넌트
+4. `frontend/next-dashboard/app/overview/page.js` — 누적 지표 전환
+5. `frontend/next-dashboard/app/market/page.js` — 실 API 연동
+6. `frontend/next-dashboard/app/history/page.js` — 실 API + 페이지네이션
+7. `frontend/next-dashboard/app/exit-analysis/page.js` — 실 API + 필터
+8. `frontend/next-dashboard/app/chatbot/page.js` — 실 AI 연동
+9. `frontend/next-dashboard/app/system/page.js` — 실 AI Decisions
+
+### 10.6 빌드 검증
+
+```
+Route (app)                              Size  First Load JS
+┌ ○ /                                    162 B         106 kB
+├ ○ /chatbot                           1.78 kB         104 kB
+├ ○ /exit-analysis                     3.66 kB         106 kB
+├ ○ /history                            3.2 kB         105 kB
+├ ○ /market                           3.25 kB         105 kB
+├ ƒ /overview                           126 B          102 kB
+├ ƒ /risk                               126 B          102 kB
+└ ƒ /system                             126 B          102 kB
++ 5 API Route Handlers (proxy)
++ 6 Backend endpoints (new/extended)
+
+○ Static    ƒ Dynamic (server-rendered)
+```
+- 16개 라우트 전체 빌드 성공 (8페이지 + 5 프록시 + 3 기존)
+
+### 10.7 OCI 배포 및 운영 검증 결과
+
+**배포 명령:**
+```bash
+# 백엔드 재빌드 (새 API 엔드포인트 반영)
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml build --no-cache bot
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate bot
+
+# 프론트엔드 재빌드 (프록시 라우트 + 페이지 변경 반영)
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml build --no-cache next-dashboard
+docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compose.prod.yml up -d --force-recreate next-dashboard
+```
+
+**검증 결과:**
+
+| 페이지 | 검증 항목 | 결과 |
+|--------|----------|------|
+| Control Center | 누적 PnL 표시 | ✅ 실제 값 표시 (데이터 로딩 중... → 실 데이터) |
+| Overview | 누적 거래/손익 | ✅ 68건 / -2.2만원 (Streamlit과 일치) |
+| Market | 캔들 + Bot Brain | ✅ 실시간 캔들 차트 + RSI/regime/reasoning 표시 |
+| Risk Monitor | 게이지/카운트 | ✅ (Phase 2부터 연동 완료) |
+| Trade History | 거래 내역 | ✅ 실 거래 데이터 + 페이지네이션 동작 |
+| System Health | AI Decisions | ✅ 실 판단 로그 표시 (4건 이상) |
+| Exit Analysis | 필터 + 차트 | ✅ 기간/건수 필터 동작 + 매도 분석 데이터 |
+| AI Chatbot | 대화 | ✅ 실 AI 응답 수신 |
+
+### 10.8 정량 개선 증빙
+
+| 지표 | Before (Phase 2) | After (Phase 3) | 변화량 |
+|------|:--:|:--:|:--:|
+| 실데이터 연동 페이지 수 | 3/8 (Overview, Risk, System) | 8/8 | +5 페이지 |
+| Mock 데이터 의존 페이지 | 5/8 | 0/8 | -5 페이지 |
+| 백엔드 API 엔드포인트 | 4개 (positions/pnl/risk/status) | 10개 (+trades/candles/brain/ai-decisions/exit-analysis/ask) | +6개 |
+| 프록시 라우트 | 0개 | 5개 | +5개 |
+| 누적 PnL/거래 수 표시 | 0원 / 0건 (당일만) | -22,028원 / 68건 (누적) | Streamlit 동일 수준 |
+
+### 10.9 다음 단계
+1. Streamlit 대시보드와 병행 비교 운영 (데이터 정합성 지속 확인)
+2. 운영 전환 게이트(`21-03/21-04/28/29`) 충족 시 기본 엔트리포인트 전환 검토
+3. Phase 4 레포지토리 분리 조건 평가

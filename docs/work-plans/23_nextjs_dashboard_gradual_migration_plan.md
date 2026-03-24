@@ -175,6 +175,12 @@
 - 2026-03-14: `99-06` 정리에 따라 `21-04` 선행 게이트를 "관측성 안정화(현상 유지 모드 포함)"로 재명시했다. provider reconciliation은 개인 계정 capability 후속 범위로 분리하고, `23`의 실질 blocker 해석은 `21-03` 등 잔여 선행 과업 중심으로 정리한다.
 - 2026-03-15: 사용자 승인 후 상태를 `Approved`로 전환했다.
 - 2026-03-15: `23` 전체를 `21-03` 완료까지 막는 대신, Phase 1(Next.js 골격 + Overview/Health read-only MVP)은 즉시 착수 가능하도록 게이트를 재정의했다. 운영 전환 Phase만 기존 `21-03/21-04/28/29` 게이트를 유지한다.
+- 2026-03-24: Phase 3 실데이터 연동을 Phase 2 완료 직후 연속 구현했다.
+  - 백엔드 API 6개 신규/확장: `/pnl` 누적 필드 추가, `/trades`, `/candles`, `/brain`, `/ai-decisions`, `/exit-analysis`
+  - Client Component 프록시 구조: 브라우저 → Next.js API Route Handler → bot:8000 (Docker 내부)
+  - Chatbot AI 실연동: `/api/mobile/ask` 기존 엔드포인트 활용
+  - Control Center 누적 PnL 서버 컴포넌트 연동
+  - 트러블슈팅: Client Component에서 Docker 내부 주소 직접 호출 불가 → Next.js Route Handler 프록시로 해결 (`docs/troubleshooting/23_client_component_docker_proxy.md`)
 - 2026-03-24: Phase 2 범위를 Google Stitch 디자인 기반 전체 UI 재구축으로 확정했다.
   - 디자인 소스: `stitch_frontend/` 8개 페이지 HTML + 스크린샷 + DESIGN.md
   - 기술 스택 추가: Tailwind CSS (Stitch 디자인 토큰), Plotly React (캔들스틱/게이지/히트맵/박스플롯), Material Symbols 아이콘
