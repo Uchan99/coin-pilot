@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CoinPilot v3.0 | Exit Analysis</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .glass-panel { background: rgba(42, 53, 72, 0.6); backdrop-filter: blur(12px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-surface-variant": "#c2c6d6",
+                        "on-secondary": "#213050",
+                        "on-tertiary-fixed": "#002109",
+                        "surface-dim": "#071325",
+                        "on-surface": "#d7e3fc",
+                        "on-primary-container": "#00285d",
+                        "surface-tint": "#adc6ff",
+                        "surface-variant": "#2a3548",
+                        "surface-container-lowest": "#030e20",
+                        "secondary-container": "#384668",
+                        "primary": "#adc6ff",
+                        "on-tertiary-container": "#003111",
+                        "on-secondary-fixed": "#0a1a3a",
+                        "on-primary-fixed": "#001a42",
+                        "surface-container": "#142032",
+                        "secondary-fixed-dim": "#b7c6ee",
+                        "surface-bright": "#2e394d",
+                        "primary-container": "#4d8eff",
+                        "on-tertiary": "#003915",
+                        "on-primary": "#002e6a",
+                        "outline": "#8c909f",
+                        "on-secondary-container": "#a6b5dc",
+                        "inverse-surface": "#d7e3fc",
+                        "primary-fixed": "#d8e2ff",
+                        "on-error": "#690005",
+                        "primary-fixed-dim": "#adc6ff",
+                        "tertiary-fixed-dim": "#4ae176",
+                        "on-error-container": "#ffdad6",
+                        "tertiary-container": "#00a74b",
+                        "on-secondary-fixed-variant": "#384668",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#005321",
+                        "background": "#071325",
+                        "surface": "#071325",
+                        "tertiary": "#4ae176",
+                        "outline-variant": "#424754",
+                        "surface-container-low": "#101c2e",
+                        "secondary-fixed": "#d9e2ff",
+                        "inverse-primary": "#005ac2",
+                        "secondary": "#b7c6ee",
+                        "surface-container-highest": "#2a3548",
+                        "inverse-on-surface": "#253144",
+                        "error": "#ffb4ab",
+                        "on-primary-fixed-variant": "#004395",
+                        "tertiary-fixed": "#6bff8f",
+                        "on-background": "#d7e3fc",
+                        "surface-container-high": "#1f2a3d"
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface min-h-screen">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#101c2e] border-r border-[#424754]/15 flex flex-col py-6 px-4 gap-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-[#d7e3fc]">CoinPilot v3.0</h1>
+<p class="text-[10px] font-medium uppercase tracking-widest text-[#adc6ff]/60">AI-Powered Crypto Trading</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span> Control Center
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">analytics</span> Overview
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">show_chart</span> Market
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">security</span> Risk Monitor
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">receipt_long</span> Trade History
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">health_and_safety</span> System Health
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">smart_toy</span> AI Chatbot
+            </a>
+<!-- Active Navigation -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-semibold tracking-tight text-[#adc6ff] bg-[#1f2a3d] rounded-lg" href="#">
+<span class="material-symbols-outlined text-lg">query_stats</span> Exit Analysis
+            </a>
+</nav>
+<div class="mt-auto pt-6 border-t border-[#424754]/15 px-2">
+<div class="flex items-center gap-2 text-[10px] font-medium text-[#adc6ff]">
+<span class="material-symbols-outlined text-sm">cloud_done</span> DB Connected
+            </div>
+<p class="text-[10px] text-[#c2c6d6] mt-1">Auto-refresh: 10s</p>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 w-full h-16 bg-[#071325]/80 backdrop-blur-xl border-b border-[#424754]/15 flex justify-between items-center px-8">
+<div class="flex items-center gap-4">
+<h2 class="font-headline text-lg font-bold tracking-tight text-on-surface">Exit Analysis</h2>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<div class="flex gap-4">
+<span class="text-[10px] font-medium uppercase tracking-widest text-[#adc6ff] border-b-2 border-[#adc6ff] pb-1 cursor-pointer">Dashboard</span>
+<span class="text-[10px] font-medium uppercase tracking-widest text-[#c2c6d6] hover:text-[#d7e3fc] cursor-pointer">Market Data</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-4 text-[#c2c6d6]">
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">notifications</span>
+<span class="material-symbols-outlined cursor-pointer hover:text-primary">settings</span>
+</div>
+<img alt="User Profile" class="w-8 h-8 rounded-full border border-outline-variant/30 object-cover" data-alt="Close-up professional portrait of a tech executive with glasses, confident expression, soft studio lighting on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJT8b2Gswf1WMbh3YW67-uWAT7iQmwV0yfzIzFb85DlDQa4GzsrDah96ngOHbradbjxxjh4Ki9vBEeJP5HYhVt2nBo6tb-onS6cN8uocULW2LMvx2l42b0z8S75dfGXJCMI8PY_Ql6aSLqrNE2lOqwpCfoW9pcXAv8aIWlX_P9xHJ238EuEJG6uZS4XnIZhh5XP3aJ9KbW8dQRZjwuU817lOsk0un2RNfYYjeqvVCkgoCxXlmVSVxly-6euJOL7Hm5ugNywAU_xf7M"/>
+</div>
+</header>
+<div class="p-8 space-y-8 max-w-[1600px] mx-auto">
+<!-- Filter Bar Section -->
+<section class="bg-surface-container-low p-6 rounded-xl flex flex-wrap gap-8 items-end">
+<div class="flex-1 min-w-[200px] space-y-3">
+<div class="flex justify-between text-xs font-medium text-on-surface-variant">
+<span>Lookback Days</span>
+<span class="text-primary">45 Days</span>
+</div>
+<input class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" max="90" min="7" type="range" value="45"/>
+</div>
+<div class="flex-1 min-w-[200px] space-y-3">
+<div class="flex justify-between text-xs font-medium text-on-surface-variant">
+<span>Max Rows</span>
+<span class="text-primary">1200 Samples</span>
+</div>
+<input class="w-full h-1.5 bg-surface-container-highest rounded-lg appearance-none cursor-pointer accent-primary" max="2000" min="100" type="range" value="1200"/>
+</div>
+<button class="px-6 py-2.5 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold text-sm rounded-lg hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">filter_alt</span> Apply Filters
+                </button>
+</section>
+<!-- KPI Row (4 cards) -->
+<section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-surface-container p-6 rounded-xl space-y-2">
+<p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">SELL Count</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold text-on-surface">1,482</span>
+<span class="text-[10px] text-on-surface-variant font-medium">매도 횟수</span>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl space-y-2">
+<p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">PnL Computable Count</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold text-on-surface">1,240</span>
+<span class="text-[10px] text-on-surface-variant font-medium">수익 계산 가능</span>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl space-y-2">
+<p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Post 24h Samples</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold text-on-surface">912</span>
+<span class="text-[10px] text-on-surface-variant font-medium">추적 샘플</span>
+</div>
+</div>
+<div class="bg-surface-container p-6 rounded-xl border-l-4 border-tertiary/40 space-y-2">
+<p class="text-xs font-medium text-on-surface-variant uppercase tracking-wider">Avg SELL PnL (%)</p>
+<div class="flex items-baseline gap-2">
+<span class="text-3xl font-bold text-tertiary">+4.82%</span>
+<span class="text-[10px] text-on-surface-variant font-medium">평균 수익률</span>
+</div>
+</div>
+</section>
+<!-- Charts Row (2 cards) -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Box Plot: PnL distribution -->
+<div class="lg:col-span-7 bg-surface-container p-6 rounded-xl flex flex-col h-[400px]">
+<div class="flex justify-between items-center mb-8">
+<div>
+<h3 class="font-headline text-base font-bold text-on-surface">PnL Distribution by Exit Reason</h3>
+<p class="text-xs text-on-surface-variant">Statistical variance across exit strategies</p>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">info</span>
+</div>
+<!-- Mock Box Plot Visualization -->
+<div class="flex-1 flex flex-col justify-between py-4">
+<div class="flex items-center gap-4">
+<span class="w-24 text-[10px] text-on-surface-variant font-mono">TRAILING_STOP</span>
+<div class="flex-1 h-6 relative bg-surface-container-low rounded flex items-center">
+<div class="absolute left-[30%] right-[40%] h-3 bg-primary/20 border-x border-primary rounded-sm flex items-center justify-center">
+<div class="w-px h-full bg-primary shadow-[0_0_8px_primary]"></div>
+</div>
+<div class="absolute left-[20%] w-[50%] h-px bg-primary/30"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="w-24 text-[10px] text-on-surface-variant font-mono">TAKE_PROFIT</span>
+<div class="flex-1 h-6 relative bg-surface-container-low rounded flex items-center">
+<div class="absolute left-[60%] right-[10%] h-3 bg-tertiary/20 border-x border-tertiary rounded-sm flex items-center justify-center">
+<div class="w-px h-full bg-tertiary shadow-[0_0_8px_tertiary]"></div>
+</div>
+<div class="absolute left-[50%] w-[40%] h-px bg-tertiary/30"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="w-24 text-[10px] text-on-surface-variant font-mono">STOP_LOSS</span>
+<div class="flex-1 h-6 relative bg-surface-container-low rounded flex items-center">
+<div class="absolute left-[15%] right-[70%] h-3 bg-error/20 border-x border-error rounded-sm flex items-center justify-center">
+<div class="w-px h-full bg-error shadow-[0_0_8px_error]"></div>
+</div>
+<div class="absolute left-[10%] w-[30%] h-px bg-error/30"></div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="w-24 text-[10px] text-on-surface-variant font-mono">MANUAL_EXIT</span>
+<div class="flex-1 h-6 relative bg-surface-container-low rounded flex items-center">
+<div class="absolute left-[40%] right-[40%] h-3 bg-outline-variant/20 border-x border-outline-variant rounded-sm flex items-center justify-center">
+<div class="w-px h-full bg-outline-variant shadow-[0_0_8px_outline-variant]"></div>
+</div>
+<div class="absolute left-[35%] w-[40%] h-px bg-outline-variant/30"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Line Chart: Post-exit performance -->
+<div class="lg:col-span-5 bg-surface-container p-6 rounded-xl flex flex-col h-[400px]">
+<div class="mb-8">
+<h3 class="font-headline text-base font-bold text-on-surface">Post-Exit Opportunity Analysis</h3>
+<p class="text-xs text-on-surface-variant">Avg price delta after execution (1h to 24h)</p>
+</div>
+<div class="flex-1 relative mt-4 border-l border-b border-outline-variant/30">
+<!-- Simulated SVG Line Chart -->
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 100 100">
+<path class="drop-shadow-lg" d="M 0 50 Q 25 30 50 45 T 100 20" fill="none" stroke="url(#line-grad)" stroke-width="2"></path>
+<defs>
+<lineargradient id="line-grad" x1="0" x2="1" y1="0" y2="0">
+<stop offset="0%" stop-color="#adc6ff"></stop>
+<stop offset="100%" stop-color="#4ae176"></stop>
+</lineargradient>
+</defs>
+<!-- Data points -->
+<circle cx="0" cy="50" fill="#adc6ff" r="1.5"></circle>
+<circle cx="33" cy="35" fill="#adc6ff" r="1.5"></circle>
+<circle cx="66" cy="40" fill="#adc6ff" r="1.5"></circle>
+<circle cx="100" cy="20" fill="#4ae176" r="1.5"></circle>
+</svg>
+<div class="absolute bottom-[-24px] w-full flex justify-between text-[10px] text-on-surface-variant font-mono">
+<span>EXIT</span>
+<span>1h</span>
+<span>4h</span>
+<span>12h</span>
+<span>24h</span>
+</div>
+</div>
+<div class="mt-8 flex justify-between items-center p-3 bg-surface-container-low rounded-lg">
+<span class="text-[10px] font-medium text-on-surface-variant uppercase">Potential Profit Lost</span>
+<span class="text-lg font-bold text-error">+2.14%</span>
+</div>
+</div>
+</section>
+<!-- Heatmap & Tuning Suggestions -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- Heatmap Card -->
+<div class="lg:col-span-8 bg-surface-container p-6 rounded-xl">
+<h3 class="font-headline text-base font-bold text-on-surface mb-6">Regime × Exit Performance Matrix</h3>
+<div class="overflow-x-auto no-scrollbar">
+<table class="w-full text-center border-separate border-spacing-2">
+<thead>
+<tr>
+<th class="p-2"></th>
+<th class="p-2 text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Trailing Stop</th>
+<th class="p-2 text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Take Profit</th>
+<th class="p-2 text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Stop Loss</th>
+<th class="p-2 text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Manual</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="p-2 text-[10px] text-left font-bold text-on-surface-variant">BULL</td>
+<td class="p-4 bg-tertiary-container/40 text-on-tertiary-container rounded-lg font-bold">+8.2%</td>
+<td class="p-4 bg-tertiary-container/20 text-on-tertiary-container rounded-lg font-bold">+5.4%</td>
+<td class="p-4 bg-error-container/10 text-on-error-container rounded-lg font-bold">-1.2%</td>
+<td class="p-4 bg-tertiary-container/30 text-on-tertiary-container rounded-lg font-bold">+6.8%</td>
+</tr>
+<tr>
+<td class="p-2 text-[10px] text-left font-bold text-on-surface-variant">SIDEWAYS</td>
+<td class="p-4 bg-tertiary-container/10 text-on-tertiary-container rounded-lg font-bold">+1.2%</td>
+<td class="p-4 bg-tertiary-container/20 text-on-tertiary-container rounded-lg font-bold">+2.1%</td>
+<td class="p-4 bg-error-container/30 text-on-error-container rounded-lg font-bold">-4.2%</td>
+<td class="p-4 bg-surface-container-low text-on-surface-variant rounded-lg font-bold">0.0%</td>
+</tr>
+<tr>
+<td class="p-2 text-[10px] text-left font-bold text-on-surface-variant">BEAR</td>
+<td class="p-4 bg-error-container/20 text-on-error-container rounded-lg font-bold">-2.1%</td>
+<td class="p-4 bg-error-container/10 text-on-error-container rounded-lg font-bold">-0.8%</td>
+<td class="p-4 bg-error-container/40 text-on-error-container rounded-lg font-bold">-7.4%</td>
+<td class="p-4 bg-error-container/20 text-on-error-container rounded-lg font-bold">-2.5%</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Tuning Suggestions Card -->
+<div class="lg:col-span-4 bg-surface-container p-6 rounded-xl">
+<h3 class="font-headline text-base font-bold text-on-surface mb-6">Tuning Suggestions</h3>
+<div class="space-y-4">
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-lg border-l-4 border-primary">
+<span class="material-symbols-outlined text-primary" data-weight="fill">info</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Tighten Trailing Stop in Sideways</p>
+<p class="text-[10px] text-on-surface-variant mt-1">Current 3.5% → Recommended 2.2% based on volatility.</p>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-lg border-l-4 border-error">
+<span class="material-symbols-outlined text-error" data-weight="fill">warning</span>
+<div>
+<p class="text-xs font-bold text-on-surface">High SL Slippage Detected</p>
+<p class="text-[10px] text-on-surface-variant mt-1">Stop-losses in BEAR regimes are hitting 15% later than intended.</p>
+</div>
+</div>
+<div class="flex gap-4 p-4 bg-surface-container-low rounded-lg border-l-4 border-tertiary">
+<span class="material-symbols-outlined text-tertiary" data-weight="fill">rocket_launch</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Optimize Take Profit Levels</p>
+<p class="text-[10px] text-on-surface-variant mt-1">Winning trades show room for +1.5% extension in BULL trends.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Detail Table -->
+<section class="bg-surface-container rounded-xl overflow-hidden">
+<div class="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+<h3 class="font-headline text-base font-bold text-on-surface">Exit Execution Details</h3>
+<button class="text-xs font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span> Export CSV
+                    </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead class="bg-surface-container-low text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
+<tr>
+<th class="px-6 py-4">Timestamp</th>
+<th class="px-6 py-4">Symbol</th>
+<th class="px-6 py-4">Regime</th>
+<th class="px-6 py-4">Exit Reason</th>
+<th class="px-6 py-4">Entry Price</th>
+<th class="px-6 py-4">PnL %</th>
+<th class="px-6 py-4">Post-Exit (24h)</th>
+</tr>
+</thead>
+<tbody class="text-sm divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 font-mono text-[10px]">2023-10-27 14:22:10</td>
+<td class="px-6 py-4 font-bold">BTC/USDT</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-tertiary/10 text-tertiary rounded text-[10px] font-bold">BULL</span>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-medium">TRAILING_STOP</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant">34,512.20</td>
+<td class="px-6 py-4 text-tertiary font-bold">+5.42%</td>
+<td class="px-6 py-4 text-error font-bold">-1.20%</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 font-mono text-[10px]">2023-10-27 12:05:45</td>
+<td class="px-6 py-4 font-bold">ETH/USDT</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded text-[10px] font-bold">SIDEWAYS</span>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-medium">TAKE_PROFIT</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant">1,822.40</td>
+<td class="px-6 py-4 text-tertiary font-bold">+2.15%</td>
+<td class="px-6 py-4 text-tertiary font-bold">+0.45%</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 font-mono text-[10px]">2023-10-27 10:15:30</td>
+<td class="px-6 py-4 font-bold">SOL/USDT</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-error-container/20 text-error rounded text-[10px] font-bold">BEAR</span>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-medium">STOP_LOSS</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant">32.14</td>
+<td class="px-6 py-4 text-error font-bold">-4.50%</td>
+<td class="px-6 py-4 text-error font-bold">-2.10%</td>
+</tr>
+<tr class="hover:bg-surface-container-high transition-colors">
+<td class="px-6 py-4 font-mono text-[10px]">2023-10-27 09:44:12</td>
+<td class="px-6 py-4 font-bold">LINK/USDT</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-tertiary/10 text-tertiary rounded text-[10px] font-bold">BULL</span>
+</td>
+<td class="px-6 py-4 text-on-surface-variant font-medium">MANUAL_EXIT</td>
+<td class="px-6 py-4 font-mono text-on-surface-variant">10.85</td>
+<td class="px-6 py-4 text-tertiary font-bold">+12.40%</td>
+<td class="px-6 py-4 text-tertiary font-bold">+3.20%</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 bg-surface-container-low flex justify-center">
+<button class="text-[10px] font-bold text-on-surface-variant hover:text-primary transition-colors">VIEW ALL 1,240 RECORDS</button>
+</div>
+</section>
+</div>
+</main>
+<!-- Floating AI Chatbot Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-primary to-primary-container rounded-full shadow-2xl shadow-primary/40 flex items-center justify-center text-on-primary hover:scale-105 transition-transform active:scale-95 group z-50">
+<span class="material-symbols-outlined text-3xl group-hover:rotate-12 transition-transform" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-error rounded-full border-2 border-surface animate-pulse"></div>
+</button>
+</body></html>

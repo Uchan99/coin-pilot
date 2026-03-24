@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CoinPilot v3.0 | Control Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface-variant": "#c2c6d6",
+              "on-secondary": "#213050",
+              "on-tertiary-fixed": "#002109",
+              "surface-dim": "#071325",
+              "on-surface": "#d7e3fc",
+              "on-primary-container": "#00285d",
+              "surface-tint": "#adc6ff",
+              "surface-variant": "#2a3548",
+              "surface-container-lowest": "#030e20",
+              "secondary-container": "#384668",
+              "primary": "#adc6ff",
+              "on-tertiary-container": "#003111",
+              "on-secondary-fixed": "#0a1a3a",
+              "on-primary-fixed": "#001a42",
+              "surface-container": "#142032",
+              "secondary-fixed-dim": "#b7c6ee",
+              "surface-bright": "#2e394d",
+              "primary-container": "#4d8eff",
+              "on-tertiary": "#003915",
+              "on-primary": "#002e6a",
+              "outline": "#8c909f",
+              "on-secondary-container": "#a6b5dc",
+              "inverse-surface": "#d7e3fc",
+              "primary-fixed": "#d8e2ff",
+              "on-error": "#690005",
+              "primary-fixed-dim": "#adc6ff",
+              "tertiary-fixed-dim": "#4ae176",
+              "on-error-container": "#ffdad6",
+              "tertiary-container": "#00a74b",
+              "on-secondary-fixed-variant": "#384668",
+              "error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#005321",
+              "background": "#071325",
+              "surface": "#071325",
+              "tertiary": "#4ae176",
+              "outline-variant": "#424754",
+              "surface-container-low": "#101c2e",
+              "secondary-fixed": "#d9e2ff",
+              "inverse-primary": "#005ac2",
+              "secondary": "#b7c6ee",
+              "surface-container-highest": "#2a3548",
+              "inverse-on-surface": "#253144",
+              "error": "#ffb4ab",
+              "on-primary-fixed-variant": "#004395",
+              "tertiary-fixed": "#6bff8f",
+              "on-background": "#d7e3fc",
+              "surface-container-high": "#1f2a3d"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-effect {
+        background: rgba(42, 53, 72, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      .nav-active-shadow {
+        box-shadow: 0 0 20px rgba(173, 198, 255, 0.1);
+      }
+      .card-hover-glow:hover {
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        transform: translateY(-2px);
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/30">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#101c2e] border-r border-[#424754]/15 flex flex-col py-6 px-4 gap-2 shadow-2xl shadow-blue-900/4 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-[#d7e3fc]">CoinPilot v3.0</h1>
+<p class="text-[10px] font-medium uppercase tracking-widest text-primary/70">AI-Powered Crypto Trading</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#adc6ff] font-semibold bg-[#1f2a3d] rounded-lg nav-active-shadow transition-all duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Control Center</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200 group" href="#">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Overview</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="show_chart">show_chart</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Market</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Risk Monitor</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Trade History</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="health_and_safety">health_and_safety</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">System Health</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="smart_toy">smart_toy</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">AI Chatbot</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] rounded-lg transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="query_stats">query_stats</span>
+<span class="font-['Inter'] text-sm font-medium tracking-tight">Exit Analysis</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant/10 pt-4 flex flex-col gap-3">
+<div class="flex items-center gap-2 text-[10px] uppercase tracking-widest text-primary/60 font-bold bg-primary/5 p-2 rounded-lg">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+</span>
+                Auto-refresh: 10s
+            </div>
+<div class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6]">
+<span class="material-symbols-outlined text-tertiary text-sm" data-icon="cloud_done">cloud_done</span>
+<span class="font-['Inter'] text-xs font-medium tracking-tight uppercase">DB Connected</span>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-[240px] min-h-screen flex flex-col">
+<!-- Sticky Top NavBar -->
+<header class="sticky top-0 z-40 w-full h-16 bg-[#071325]/80 backdrop-blur-xl border-b border-[#424754]/15 flex justify-between items-center px-8">
+<div class="flex items-center gap-4">
+<h2 class="text-[#adc6ff] font-['Inter'] text-xs font-medium uppercase tracking-widest">Control Center</h2>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex gap-4 items-center">
+<button class="text-[#c2c6d6] hover:text-[#d7e3fc] transition-opacity cursor-pointer">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-[#c2c6d6] hover:text-[#d7e3fc] transition-opacity cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<div class="h-8 w-8 rounded-full bg-primary-container/20 border border-primary/20 flex items-center justify-center overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional trader avatar portrait with subtle blue studio lighting and dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_O0SgOyFMTSW6TlKYsHzME7y-nBI7vRI44CbH6cECCZMuuz7lc7MH3SJuamdYH3JGh9JT97CDptU9mQTkX_cLgJ8plQeRHnrq5CMQHybrNNI0Rjj-J-OFI-A5v6Ytg6QtGBUe-0jekBnEG2tI0cb2pCdWyHsDiUW0v7-eWPgCS0mTwYcZtGT9hHOMivJ5pNfCj4qxPLDDoZxF_H5FPXF4yZuYmLr6BwQUJ7sLGl5aB1QbuDN9sQeCjQr2XCztoACS71ulQhyDvO4V"/>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="flex-1 p-8 space-y-8 max-w-7xl mx-auto w-full">
+<!-- Hero Section -->
+<section class="relative overflow-hidden rounded-xl p-12 bg-gradient-to-br from-surface-container-high to-surface-container-low border border-outline-variant/10">
+<div class="absolute top-0 right-0 w-1/2 h-full opacity-20 pointer-events-none">
+<img alt="Abstract Crypto Grid" class="w-full h-full object-cover" data-alt="high-tech abstract digital grid with floating geometric shapes and blue neon light streaks on a dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwQSp_xLRL68nHf6f2DF2W5gYxWwP_sRN29XdAPSxPD2ae2k-YCLurqvg0SP_DvGgrRW9a_EkZPj88aaukNbt8FKfk1dVF32VG_6TAI9yaeeuXz7iYQviq7zLtszBJaaSjb41G2xywDEX7CKjqlOQlZAcu2yPdOHzxcog-JEOOib9oiZaylfQNtpFHMnUQZ8y3nKYE193ypY99FRCDxMKuHMamX2PlnSWCwli8ZR80PazRwkdSKW4X0wcKOOBIe2Js4LKcmBSVgVLJ"/>
+</div>
+<div class="relative z-10 space-y-4 max-w-2xl">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">System Operational</span>
+</div>
+<h1 class="text-5xl font-extrabold tracking-tighter text-on-surface">Welcome to CoinPilot <br/><span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-container">Control Center</span></h1>
+<p class="text-on-surface-variant text-lg font-medium">AI-Powered Crypto Trading System. Monitor, analyze, and execute with institutional-grade precision.</p>
+<div class="pt-4 flex gap-4">
+<button class="px-6 py-3 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold rounded-xl active:scale-95 transition-all shadow-lg shadow-primary/20">
+                            Launch Terminal
+                        </button>
+<button class="px-6 py-3 bg-surface-container-highest/50 border border-outline-variant/30 text-on-surface font-semibold rounded-xl active:scale-95 transition-all">
+                            View API Docs
+                        </button>
+</div>
+</div>
+</section>
+<!-- Main Layout Grid (Asymmetric) -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Quick Navigation Grid (2x3) -->
+<div class="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Card 1: Overview -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-primary/10 rounded-lg text-primary">
+<span class="material-symbols-outlined" data-icon="analytics">analytics</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">Overview</h3>
+<p class="text-xs text-on-surface-variant mb-4">전체 포트폴리오 및 시장 현황 요약</p>
+<div class="h-1 w-full bg-outline-variant/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-2/3"></div>
+</div>
+</a>
+<!-- Card 2: Market -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-tertiary/10 rounded-lg text-tertiary">
+<span class="material-symbols-outlined" data-icon="show_chart">show_chart</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-tertiary transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">Market</h3>
+<p class="text-xs text-on-surface-variant mb-4">실시간 시세 및 AI 트렌드 예측</p>
+<div class="flex gap-2 items-center">
+<span class="text-[10px] bg-tertiary/20 text-tertiary px-2 py-0.5 rounded uppercase font-bold">BTC +2.4%</span>
+<span class="text-[10px] bg-error/20 text-error px-2 py-0.5 rounded uppercase font-bold">ETH -0.8%</span>
+</div>
+</a>
+<!-- Card 3: Risk Monitor -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-error/10 rounded-lg text-error">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-error transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">Risk Monitor</h3>
+<p class="text-xs text-on-surface-variant mb-4">실시간 리스크 노출도 및 청산가 추적</p>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-tertiary"></div>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase">Low Risk Level</span>
+</div>
+</a>
+<!-- Card 4: Trade History -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-secondary/10 rounded-lg text-secondary">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-secondary transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">Trade History</h3>
+<p class="text-xs text-on-surface-variant mb-4">과거 체결 내역 및 손익 상세 분석</p>
+<div class="text-[10px] font-mono text-on-surface-variant">Last update: 2m ago</div>
+</a>
+<!-- Card 5: System Health -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-surface-tint/10 rounded-lg text-surface-tint">
+<span class="material-symbols-outlined" data-icon="health_and_safety">health_and_safety</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-surface-tint transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">System Health</h3>
+<p class="text-xs text-on-surface-variant mb-4">서버 상태 및 API 연결 지연 시간</p>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant"></div>
+</div>
+</a>
+<!-- Card 6: Exit Analysis -->
+<a class="group relative bg-surface-container p-6 rounded-xl border border-transparent card-hover-glow transition-all duration-300" href="#">
+<div class="flex justify-between items-start mb-4">
+<div class="p-3 bg-primary-container/10 rounded-lg text-primary-container">
+<span class="material-symbols-outlined" data-icon="query_stats">query_stats</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container transition-colors" data-icon="arrow_forward">arrow_forward</span>
+</div>
+<h3 class="text-lg font-bold mb-1">Exit Analysis</h3>
+<p class="text-xs text-on-surface-variant mb-4">최적의 매도 타이밍 및 전략 사후 평가</p>
+<div class="text-[10px] font-bold text-primary-container uppercase">AI Optimized</div>
+</a>
+</div>
+<!-- Right Side: Quick Start Guide -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+<div class="bg-surface-container-low border border-outline-variant/15 p-6 rounded-xl flex-1">
+<div class="flex items-center gap-2 mb-6">
+<span class="material-symbols-outlined text-primary" data-icon="lightbulb">lightbulb</span>
+<h3 class="font-bold tracking-tight">Quick Start Guide</h3>
+</div>
+<div class="space-y-6">
+<div class="flex gap-4">
+<div class="flex-none w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">1</div>
+<div>
+<h4 class="text-sm font-semibold mb-1">API Key 설정</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">바이낸스 또는 거래소 API를 연동하여 실시간 트레이딩을 시작하세요.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex-none w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">2</div>
+<div>
+<h4 class="text-sm font-semibold mb-1">리스크 매개변수 구성</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">최대 손실폭(Drawdown)과 자산 배분 비율을 설정합니다.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="flex-none w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">3</div>
+<div>
+<h4 class="text-sm font-semibold mb-1">AI 봇 활성화</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">학습된 전략 모델 중 하나를 선택하여 자동 매매를 시작합니다.</p>
+</div>
+</div>
+</div>
+<div class="mt-8 p-4 bg-surface-container-high rounded-lg border border-primary/10">
+<p class="text-xs text-primary font-medium italic">"시장 변동성이 높을 때는 레버리지를 낮추는 것이 가장 효과적인 방어 전략입니다."</p>
+<p class="text-[10px] text-on-surface-variant mt-2 text-right">— CoinPilot AI Advice</p>
+</div>
+</div>
+<!-- Performance Stat Card -->
+<div class="bg-gradient-to-br from-[#101c2e] to-[#142032] p-6 rounded-xl border border-outline-variant/15">
+<div class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Combined PNL</div>
+<div class="text-3xl font-bold text-tertiary">+$14,292.00</div>
+<div class="mt-4 h-12 flex items-end gap-1">
+<div class="flex-1 bg-tertiary/20 h-1/2 rounded-t-sm"></div>
+<div class="flex-1 bg-tertiary/30 h-3/4 rounded-t-sm"></div>
+<div class="flex-1 bg-tertiary/40 h-2/3 rounded-t-sm"></div>
+<div class="flex-1 bg-tertiary/50 h-5/6 rounded-t-sm"></div>
+<div class="flex-1 bg-tertiary/60 h-full rounded-t-sm"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Ticker -->
+<div class="mt-auto w-full bg-surface-container-low h-10 flex items-center px-8 border-t border-outline-variant/5">
+<div class="flex gap-8 animate-pulse text-[10px] font-mono text-on-surface-variant uppercase tracking-wider">
+<span class="flex gap-2">BTC/USDT <span class="text-tertiary">$64,321.40 (+1.2%)</span></span>
+<span class="flex gap-2">ETH/USDT <span class="text-error">$3,450.12 (-0.4%)</span></span>
+<span class="flex gap-2">SOL/USDT <span class="text-tertiary">$145.88 (+4.8%)</span></span>
+<span class="flex gap-2">LINK/USDT <span class="text-on-surface">$18.25 (0.0%)</span></span>
+</div>
+</div>
+</main>
+<!-- Floating AI Chat Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl shadow-primary/40 flex items-center justify-center group active:scale-90 transition-transform z-50">
+<span class="material-symbols-outlined text-3xl" data-icon="smart_toy">smart_toy</span>
+<div class="absolute right-16 px-4 py-2 bg-surface-container-highest border border-outline-variant/20 rounded-lg text-sm text-on-surface whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
+            Need trading assistance?
+        </div>
+</button>
+</body></html>

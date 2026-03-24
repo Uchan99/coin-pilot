@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface-variant": "#c2c6d6",
+              "on-secondary": "#213050",
+              "on-tertiary-fixed": "#002109",
+              "surface-dim": "#071325",
+              "on-surface": "#d7e3fc",
+              "on-primary-container": "#00285d",
+              "surface-tint": "#adc6ff",
+              "surface-variant": "#2a3548",
+              "surface-container-lowest": "#030e20",
+              "secondary-container": "#384668",
+              "primary": "#adc6ff",
+              "on-tertiary-container": "#003111",
+              "on-secondary-fixed": "#0a1a3a",
+              "on-primary-fixed": "#001a42",
+              "surface-container": "#142032",
+              "secondary-fixed-dim": "#b7c6ee",
+              "surface-bright": "#2e394d",
+              "primary-container": "#4d8eff",
+              "on-tertiary": "#003915",
+              "on-primary": "#002e6a",
+              "outline": "#8c909f",
+              "on-secondary-container": "#a6b5dc",
+              "inverse-surface": "#d7e3fc",
+              "primary-fixed": "#d8e2ff",
+              "on-error": "#690005",
+              "primary-fixed-dim": "#adc6ff",
+              "tertiary-fixed-dim": "#4ae176",
+              "on-error-container": "#ffdad6",
+              "tertiary-container": "#00a74b",
+              "on-secondary-fixed-variant": "#384668",
+              "error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#005321",
+              "background": "#071325",
+              "surface": "#071325",
+              "tertiary": "#4ae176",
+              "outline-variant": "#424754",
+              "surface-container-low": "#101c2e",
+              "secondary-fixed": "#d9e2ff",
+              "inverse-primary": "#005ac2",
+              "secondary": "#b7c6ee",
+              "surface-container-highest": "#2a3548",
+              "inverse-on-surface": "#253144",
+              "error": "#ffb4ab",
+              "on-primary-fixed-variant": "#004395",
+              "tertiary-fixed": "#6bff8f",
+              "on-background": "#d7e3fc",
+              "surface-container-high": "#1f2a3d"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body { font-family: 'Inter', sans-serif; }
+      .gauge-mask { clip-path: inset(0 0 50% 0); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#101c2e] border-r border-[#424754]/15 shadow-2xl shadow-blue-900/4 flex flex-col py-6 px-4 gap-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-[#d7e3fc]">CoinPilot v3.0</h1>
+<p class="font-['Inter'] text-xs font-medium tracking-tight text-blue-400 opacity-80">AI-Powered Crypto Trading</p>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">dashboard</span>
+<span>Control Center</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">analytics</span>
+<span>Overview</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">show_chart</span>
+<span>Market</span>
+</a>
+<!-- Active State: Risk Monitor -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#adc6ff] font-semibold bg-[#1f2a3d] rounded-lg font-['Inter'] text-sm tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">security</span>
+<span>Risk Monitor</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">receipt_long</span>
+<span>Trade History</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">health_and_safety</span>
+<span>System Health</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">smart_toy</span>
+<span>AI Chatbot</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 font-['Inter'] text-sm font-medium tracking-tight active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-lg">query_stats</span>
+<span>Exit Analysis</span>
+</a>
+</nav>
+<div class="mt-auto pt-4 flex flex-col gap-4">
+<div class="px-3 py-2 rounded-lg bg-surface-container-high/50 flex items-center justify-between">
+<span class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Auto-refresh: 10s</span>
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></div>
+</div>
+<div class="flex items-center gap-2 px-3 text-[#c2c6d6] text-xs font-medium">
+<span class="material-symbols-outlined text-sm">cloud_done</span>
+<span>DB Connected</span>
+</div>
+</div>
+</aside>
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 w-full bg-[#071325]/80 backdrop-blur-xl border-b border-[#424754]/15 ml-[240px] pr-[240px]">
+<div class="flex justify-between items-center h-16 px-8">
+<div class="flex items-center gap-6">
+<h2 class="text-xl font-extrabold tracking-tight text-on-surface">Risk Monitor</h2>
+<nav class="hidden md:flex gap-6">
+<a class="font-['Inter'] text-xs font-medium uppercase tracking-widest text-[#c2c6d6] hover:text-[#d7e3fc] transition-opacity" href="#">Dashboard</a>
+<a class="font-['Inter'] text-xs font-medium uppercase tracking-widest text-[#adc6ff] border-b-2 border-[#adc6ff] pb-1" href="#">Market Data</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-[#c2c6d6] hover:text-[#d7e3fc] transition-all cursor-pointer">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-[#c2c6d6] hover:text-[#d7e3fc] transition-all cursor-pointer">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover" data-alt="professional trader headshot in dark studio lighting with blue accents" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDi8E16jEvygS5tJg8ZDgBLiQsydqxpJJb6KC-39NLqrgLSnbJ9Lrx2-TgO7DC62Xhl8uh4jJFSdci9CXHq5aOTepZwdum-s9TfOYVP0sOmxVGFsgZBxSsZcd1WtzTUW9YvVsHkH7ke8BY0Rn7igyKCU54Fu010tlYVXIbqV5TDXxOmav-1wFF-w_DW5iyF9N7oC8r6VjTRMUtP5uT4i4bRvmqzOqnorBZFiHiRZIrnEgT2DvT2PAbq7bThY7feLGhJX0lChyLDxz7o"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-[240px] p-8 max-w-[1600px]">
+<!-- Top Row (2 cards) -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+<!-- Daily Loss Gauge -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden group">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Daily Loss Gauge</h3>
+<p class="text-xs text-on-surface-variant/60 font-label mt-1">일일 손실 한도 모니터링</p>
+</div>
+<span class="text-error font-bold text-lg">-420,500 KRW</span>
+</div>
+<div class="relative flex justify-center pt-4">
+<!-- Gauge Mockup -->
+<div class="w-64 h-32 relative">
+<div class="absolute inset-0 border-[16px] border-surface-container-highest rounded-t-full gauge-mask"></div>
+<!-- Progress Arc -->
+<div class="absolute inset-0 border-[16px] border-error rounded-t-full gauge-mask" style="transform: rotate(140deg);"></div>
+<!-- Threshold Mark -->
+<div class="absolute left-1/2 bottom-0 w-0.5 h-6 bg-white/40 -translate-x-1/2 -translate-y-28 origin-bottom"></div>
+</div>
+<div class="absolute bottom-4 text-center">
+<span class="text-3xl font-extrabold text-on-surface">-420K</span>
+<div class="text-[10px] text-on-surface-variant uppercase tracking-widest mt-1">Threshold: -500K</div>
+</div>
+</div>
+<!-- Alert Banner -->
+<div class="mt-6 flex items-center gap-3 px-4 py-3 bg-error-container/20 rounded-lg border border-error/20">
+<span class="material-symbols-outlined text-error" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="text-sm font-semibold text-error tracking-tight">🚨 Daily Loss Limit Reached!</span>
+</div>
+</div>
+<!-- Daily Buy Count -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h3 class="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">Daily Buy Count</h3>
+<p class="text-xs text-on-surface-variant/60 font-label mt-1">일일 매수 횟수 제한</p>
+</div>
+<span class="material-symbols-outlined text-primary">analytics</span>
+</div>
+<div class="flex items-center justify-around py-4">
+<div class="relative w-36 h-36 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-surface-container-highest" cx="72" cy="72" fill="transparent" r="64" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-primary" cx="72" cy="72" fill="transparent" r="64" stroke="currentColor" stroke-dasharray="402" stroke-dashoffset="120" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-4xl font-extrabold text-on-surface">7</span>
+<span class="text-xs text-on-surface-variant font-bold">/ 10</span>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-xs font-medium text-on-surface-variant uppercase">Current: 7</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-surface-container-highest"></div>
+<span class="text-xs font-medium text-on-surface-variant uppercase">Remaining: 3</span>
+</div>
+<div class="mt-2 py-1 px-3 bg-secondary-container/30 text-secondary text-[10px] rounded-full font-bold uppercase tracking-wider">
+                            Caution Near Limit
+                        </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Fill Counts Row (3 cards) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-primary tracking-widest uppercase">Buy Fills</span>
+<span class="material-symbols-outlined text-primary/40 text-sm">trending_up</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-extrabold text-primary tracking-tighter">142</span>
+<span class="text-xs font-medium text-on-surface-variant font-label">체결</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-[#ffa726] tracking-widest uppercase">Sell Fills</span>
+<span class="material-symbols-outlined text-[#ffa726]/40 text-sm">trending_down</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-extrabold text-[#ffa726] tracking-tighter">89</span>
+<span class="text-xs font-medium text-on-surface-variant font-label">체결</span>
+</div>
+</div>
+<div class="bg-surface-container-low rounded-xl p-5 border border-outline-variant/10">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs font-bold text-on-surface-variant tracking-widest uppercase">Total Trades</span>
+<span class="material-symbols-outlined text-on-surface-variant/40 text-sm">swap_vert</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-4xl font-extrabold text-on-surface tracking-tighter">231</span>
+<span class="text-xs font-medium text-on-surface-variant font-label">총합</span>
+</div>
+</div>
+</div>
+<!-- System Constraints Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+<div class="bg-surface-container rounded-xl p-6 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined">running_with_errors</span>
+</div>
+<div>
+<h4 class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Consecutive Losses</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-2xl font-extrabold text-on-surface">3</span>
+<span class="px-2 py-0.5 bg-surface-container-highest text-[10px] text-on-surface-variant rounded">MAX 5</span>
+</div>
+</div>
+</div>
+<div class="group relative">
+<span class="material-symbols-outlined text-on-surface-variant cursor-help">info</span>
+<div class="absolute bottom-full right-0 mb-2 w-48 bg-surface-container-highest text-[10px] p-2 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-outline-variant/20">
+                        5회 연속 손실 발생 시 알고리즘이 자동으로 1시간 동안 매매를 중단합니다.
+                    </div>
+</div>
+</div>
+<div class="bg-surface-container rounded-xl p-6 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-tertiary/10 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">bolt</span>
+</div>
+<div>
+<h4 class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Trading Status</h4>
+<div class="flex items-center gap-2 mt-1">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary shadow-[0_0_8px_rgba(74,225,118,0.5)]"></span>
+<span class="text-xl font-extrabold text-tertiary">RUNNING</span>
+</div>
+</div>
+</div>
+<button class="px-4 py-2 bg-error/10 hover:bg-error/20 text-error rounded-lg text-xs font-bold transition-colors">
+                    EMERGENCY STOP
+                </button>
+</div>
+</div>
+<!-- Risk Audit Log Table -->
+<div class="bg-surface-container rounded-xl overflow-hidden mb-24">
+<div class="p-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-high/30">
+<h3 class="text-sm font-bold text-on-surface uppercase tracking-widest flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">history_edu</span>
+                    Risk Audit Log
+                </h3>
+<button class="text-[10px] text-primary font-bold hover:underline">EXPORT CSV</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">
+<th class="px-6 py-4">Timestamp</th>
+<th class="px-6 py-4">Violation Type</th>
+<th class="px-6 py-4">Description</th>
+<th class="px-6 py-4 text-right">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<tr class="hover:bg-surface-container-highest/20 transition-colors">
+<td class="px-6 py-4 text-xs font-medium text-on-surface-variant">2023-11-24 14:02:11</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-error/10 text-error text-[10px] font-bold rounded uppercase">Daily Loss</span>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface font-medium">일일 손실 한도 80% 근접 (-400,000 KRW)</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-tertiary text-sm">check_circle</span>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-highest/20 transition-colors">
+<td class="px-6 py-4 text-xs font-medium text-on-surface-variant">2023-11-24 12:45:01</td>
+<td class="px-6 py-4">
+<span class="px-2 py-1 bg-secondary-container text-secondary text-[10px] font-bold rounded uppercase">Trade Frequency</span>
+</td>
+<td class="px-6 py-4 text-xs text-on-surface font-medium">1분 내 5회 이상의 급격한 주문 체결 감지</td>
+<td class="px-6 py-4 text-right">
+<span class="material-symbols-outlined text-tertiary text-sm">check_circle</span>
+</td>
+</tr>
+<!-- Empty State Example (Hidden in this preview by the rows above) -->
+<tr class="hidden">
+<td class="px-6 py-12 text-center" colspan="4">
+<div class="flex flex-col items-center gap-3">
+<div class="w-16 h-16 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary mb-2">
+<span class="material-symbols-outlined text-3xl">verified</span>
+</div>
+<p class="text-sm font-semibold text-on-surface tracking-tight">Risk 이벤트 기록이 없습니다. (Clean!)</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest">Everything is within safe parameters</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+<!-- Floating AI Chat Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-primary to-primary-container rounded-full shadow-2xl shadow-primary/20 flex items-center justify-center text-on-primary group hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<!-- Tooltip -->
+<div class="absolute right-full mr-4 px-3 py-1 bg-surface-container-highest text-[10px] font-bold text-on-surface rounded shadow-xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            Risk Analysis AI
+        </div>
+</button>
+</body></html>

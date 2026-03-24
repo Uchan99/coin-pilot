@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-surface-variant": "#c2c6d6",
+              "on-secondary": "#213050",
+              "on-tertiary-fixed": "#002109",
+              "surface-dim": "#071325",
+              "on-surface": "#d7e3fc",
+              "on-primary-container": "#00285d",
+              "surface-tint": "#adc6ff",
+              "surface-variant": "#2a3548",
+              "surface-container-lowest": "#030e20",
+              "secondary-container": "#384668",
+              "primary": "#adc6ff",
+              "on-tertiary-container": "#003111",
+              "on-secondary-fixed": "#0a1a3a",
+              "on-primary-fixed": "#001a42",
+              "surface-container": "#142032",
+              "secondary-fixed-dim": "#b7c6ee",
+              "surface-bright": "#2e394d",
+              "primary-container": "#4d8eff",
+              "on-tertiary": "#003915",
+              "on-primary": "#002e6a",
+              "outline": "#8c909f",
+              "on-secondary-container": "#a6b5dc",
+              "inverse-surface": "#d7e3fc",
+              "primary-fixed": "#d8e2ff",
+              "on-error": "#690005",
+              "primary-fixed-dim": "#adc6ff",
+              "tertiary-fixed-dim": "#4ae176",
+              "on-error-container": "#ffdad6",
+              "tertiary-container": "#00a74b",
+              "on-secondary-fixed-variant": "#384668",
+              "error-container": "#93000a",
+              "on-tertiary-fixed-variant": "#005321",
+              "background": "#071325",
+              "surface": "#071325",
+              "tertiary": "#4ae176",
+              "outline-variant": "#424754",
+              "surface-container-low": "#101c2e",
+              "secondary-fixed": "#d9e2ff",
+              "inverse-primary": "#005ac2",
+              "secondary": "#b7c6ee",
+              "surface-container-highest": "#2a3548",
+              "inverse-on-surface": "#253144",
+              "error": "#ffb4ab",
+              "on-primary-fixed-variant": "#004395",
+              "tertiary-fixed": "#6bff8f",
+              "on-background": "#d7e3fc",
+              "surface-container-high": "#1f2a3d"
+            },
+            fontFamily: {
+              "headline": ["Inter"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #071325;
+      }
+      .glass-card {
+        background: rgba(31, 42, 61, 0.6);
+        backdrop-filter: blur(12px);
+      }
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #424754;
+        border-radius: 10px;
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#101c2e] border-r border-[#424754]/15 flex flex-col py-6 px-4 gap-2 shadow-2xl shadow-blue-900/4 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-[#d7e3fc]">CoinPilot v3.0</h1>
+<p class="font-['Inter'] text-xs font-medium tracking-tight text-blue-400">AI-Powered Crypto Trading</p>
+</div>
+<nav class="flex-1 space-y-1">
+<!-- Nav Item: Control Center -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="dashboard">dashboard</span>
+                Control Center
+            </a>
+<!-- Nav Item: Overview (ACTIVE) -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-semibold tracking-tight text-[#adc6ff] bg-[#1f2a3d] rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="analytics" style="font-variation-settings: 'FILL' 1;">analytics</span>
+                Overview
+            </a>
+<!-- Nav Item: Market -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="show_chart">show_chart</span>
+                Market
+            </a>
+<!-- Nav Item: Risk Monitor -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="security">security</span>
+                Risk Monitor
+            </a>
+<!-- Nav Item: Trade History -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="receipt_long">receipt_long</span>
+                Trade History
+            </a>
+<!-- Nav Item: System Health -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="health_and_safety">health_and_safety</span>
+                System Health
+            </a>
+<!-- Nav Item: AI Chatbot -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="smart_toy">smart_toy</span>
+                AI Chatbot
+            </a>
+<!-- Nav Item: Exit Analysis -->
+<a class="flex items-center gap-3 px-3 py-2.5 font-['Inter'] text-sm font-medium tracking-tight text-[#c2c6d6] hover:bg-[#142032] transition-colors duration-200 rounded-lg active:scale-95" href="#">
+<span class="material-symbols-outlined text-lg" data-icon="query_stats">query_stats</span>
+                Exit Analysis
+            </a>
+</nav>
+<div class="mt-auto pt-6 border-t border-[#424754]/15 px-2">
+<div class="flex items-center gap-2 mb-4">
+<div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="bolt" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<span class="text-xs font-semibold text-primary">Auto-refresh: 10s</span>
+</div>
+<div class="flex items-center gap-2 text-tertiary">
+<span class="material-symbols-outlined text-sm" data-icon="cloud_done">cloud_done</span>
+<span class="text-xs font-medium">DB Connected</span>
+</div>
+</div>
+</aside>
+<!-- TopNavBar Shell -->
+<header class="sticky top-0 z-40 w-full bg-[#071325]/80 backdrop-blur-xl border-b border-[#424754]/15 ml-[240px] w-[calc(100%-240px)]">
+<div class="flex justify-between items-center h-16 px-8">
+<div class="flex items-center gap-6">
+<h2 class="font-['Inter'] text-lg font-bold uppercase tracking-widest text-[#adc6ff]">Overview</h2>
+<nav class="hidden md:flex gap-8">
+<a class="font-['Inter'] text-xs font-medium uppercase tracking-widest text-[#adc6ff] border-b-2 border-[#adc6ff] pb-1 cursor-pointer transition-all" href="#">Dashboard</a>
+<a class="font-['Inter'] text-xs font-medium uppercase tracking-widest text-[#c2c6d6] hover:text-[#d7e3fc] cursor-pointer transition-all" href="#">Market Data</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center text-[#c2c6d6] hover:text-[#d7e3fc] transition-colors">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center text-[#c2c6d6] hover:text-[#d7e3fc] transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional portrait of a financial trader in a dark suit with a clean neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBH3ZKyv19M1WkmwuLoTBEMprU-aLnHfxLTCd5_6G5rj8Jgbs5tXPwuXxJXGyFtpK0AK_kUFVXVM0VVOnpH_e7I5r19ZpUXe1K-HBWy042ntIsW6K1eCjgXUbAYHyAmRSRUyttpqyDtGtCazSGPntBAJD2K6V85WRzunDXvfFLBY2Pt9zoi0qr6fY7tcLesMRAYwVCMsWd_56Ys1WBO2YUsIlYgSw6qr-_tc1mbnIrHm5UWSB9dA0tYzQ8raabhLzL-p2yK1yRA9pYZ"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] p-8 space-y-8 min-h-screen">
+<!-- KPI Row -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- KPI 1: Total Trades -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden group shadow-lg">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary/50"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-medium text-sm">총 체결</span>
+<span class="material-symbols-outlined text-primary/40" data-icon="history">history</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-on-surface">1,284 <span class="text-sm font-normal text-on-surface-variant">건</span></span>
+<span class="text-xs text-on-surface-variant mt-1">최근 24시간: 42건</span>
+</div>
+</div>
+<!-- KPI 2: Cumulative PnL -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden group shadow-lg">
+<div class="absolute top-0 left-0 w-full h-1 bg-tertiary"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-medium text-sm">누적 손익</span>
+<div class="flex items-center gap-2">
+<!-- Toggle -->
+<div class="flex bg-surface-container-lowest rounded-full p-0.5">
+<button class="px-2 py-0.5 rounded-full text-[10px] bg-primary text-on-primary font-bold">FULL</button>
+<button class="px-2 py-0.5 rounded-full text-[10px] text-on-surface-variant hover:text-on-surface">KRW</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-tertiary">+8,847,200 <span class="text-sm font-normal">원</span></span>
+<div class="flex items-center gap-1 text-xs text-tertiary mt-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="trending_up">trending_up</span>
+<span>12.4% 수익률</span>
+</div>
+</div>
+</div>
+<!-- KPI 3: Total Valuation -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden group shadow-lg">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-medium text-sm">총 평가액</span>
+<span class="material-symbols-outlined text-primary/40" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-on-surface">142,500,000 <span class="text-sm font-normal text-on-surface-variant">원</span></span>
+<span class="text-xs text-on-surface-variant mt-1">전일 대비 +1.2%</span>
+</div>
+</div>
+<!-- KPI 4: Current Balance -->
+<div class="bg-surface-container rounded-xl p-6 relative overflow-hidden group shadow-lg">
+<div class="absolute top-0 left-0 w-full h-1 bg-primary/30"></div>
+<div class="flex justify-between items-start mb-4">
+<span class="text-on-surface-variant font-medium text-sm">현재 잔고</span>
+<span class="material-symbols-outlined text-primary/40" data-icon="payments">payments</span>
+</div>
+<div class="flex flex-col">
+<span class="text-2xl font-bold text-on-surface">24,150,000 <span class="text-sm font-normal text-on-surface-variant">원</span></span>
+<span class="text-xs text-on-surface-variant mt-1">출금 가능: 23,800,000 원</span>
+</div>
+</div>
+</div>
+<!-- Holdings Table Section -->
+<section class="bg-surface-container-low rounded-xl overflow-hidden shadow-xl">
+<div class="px-8 py-6 flex justify-between items-center bg-surface-container-low">
+<div class="flex items-center gap-3">
+<h3 class="text-lg font-bold text-on-surface tracking-tight">보유 포지션</h3>
+<span class="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold">12</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="relative">
+<input class="bg-surface-container-lowest border-none rounded-lg text-xs py-2 pl-9 pr-4 w-48 focus:ring-1 focus:ring-primary/40 text-on-surface placeholder:text-on-surface-variant/50" placeholder="자산 검색..." type="text"/>
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant" data-icon="search">search</span>
+</div>
+</div>
+</div>
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full border-collapse text-left">
+<thead>
+<tr class="bg-surface-container-lowest border-b border-outline-variant/10">
+<th class="px-8 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Symbol</th>
+<th class="px-4 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Quantity</th>
+<th class="px-4 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Avg Price (KRW)</th>
+<th class="px-4 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Invested</th>
+<th class="px-4 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">Current Value</th>
+<th class="px-4 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant">PnL (KRW)</th>
+<th class="px-8 py-4 font-['Inter'] text-xs font-semibold uppercase tracking-widest text-on-surface-variant text-right">PnL (%)</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container transition-colors group cursor-pointer">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-[10px] text-primary">BTC</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Bitcoin</div>
+<div class="text-[10px] text-on-surface-variant">BTC / KRW</div>
+</div>
+</div>
+</td>
+<td class="px-4 py-5 text-sm font-medium text-on-surface">0.42000000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">92,450,000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">38,829,000</td>
+<td class="px-4 py-5 text-sm font-bold text-on-surface">43,512,000</td>
+<td class="px-4 py-5">
+<div class="px-3 py-1 rounded bg-tertiary/10 inline-block">
+<span class="text-sm font-bold text-tertiary">+4,683,000</span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="text-sm font-bold text-tertiary">+12.06%</span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container transition-colors group cursor-pointer">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-[10px] text-primary">ETH</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Ethereum</div>
+<div class="text-[10px] text-on-surface-variant">ETH / KRW</div>
+</div>
+</div>
+</td>
+<td class="px-4 py-5 text-sm font-medium text-on-surface">8.50000000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">4,210,000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">35,785,000</td>
+<td class="px-4 py-5 text-sm font-bold text-on-surface">34,120,000</td>
+<td class="px-4 py-5">
+<div class="px-3 py-1 rounded bg-error/10 inline-block">
+<span class="text-sm font-bold text-error">-1,665,000</span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="text-sm font-bold text-error">-4.65%</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container transition-colors group cursor-pointer">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-[10px] text-primary">SOL</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Solana</div>
+<div class="text-[10px] text-on-surface-variant">SOL / KRW</div>
+</div>
+</div>
+</td>
+<td class="px-4 py-5 text-sm font-medium text-on-surface">120.000000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">185,000</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">22,200,000</td>
+<td class="px-4 py-5 text-sm font-bold text-on-surface">24,600,000</td>
+<td class="px-4 py-5">
+<div class="px-3 py-1 rounded bg-tertiary/10 inline-block">
+<span class="text-sm font-bold text-tertiary">+2,400,000</span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="text-sm font-bold text-tertiary">+10.81%</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container transition-colors group cursor-pointer">
+<td class="px-8 py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center font-bold text-[10px] text-primary">XRP</div>
+<div>
+<div class="text-sm font-bold text-on-surface">Ripple</div>
+<div class="text-[10px] text-on-surface-variant">XRP / KRW</div>
+</div>
+</div>
+</td>
+<td class="px-4 py-5 text-sm font-medium text-on-surface">15,000.00</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">880</td>
+<td class="px-4 py-5 text-sm text-on-surface-variant">13,200,000</td>
+<td class="px-4 py-5 text-sm font-bold text-on-surface">13,650,000</td>
+<td class="px-4 py-5">
+<div class="px-3 py-1 rounded bg-tertiary/10 inline-block">
+<span class="text-sm font-bold text-tertiary">+450,000</span>
+</div>
+</td>
+<td class="px-8 py-5 text-right">
+<span class="text-sm font-bold text-tertiary">+3.41%</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-8 py-4 bg-surface-container-lowest/50 border-t border-outline-variant/5">
+<button class="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+                    자세히 보기 <span class="material-symbols-outlined text-xs" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+</div>
+</section>
+<!-- Secondary Section: Performance Graph & Distribution -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div class="lg:col-span-2 bg-surface-container rounded-xl p-8 shadow-lg min-h-[400px] flex flex-col">
+<div class="flex justify-between items-center mb-8">
+<h3 class="font-bold text-on-surface">수익률 추이</h3>
+<div class="flex gap-2">
+<button class="px-3 py-1 rounded-full text-xs bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all">1W</button>
+<button class="px-3 py-1 rounded-full text-xs bg-primary text-on-primary font-bold">1M</button>
+<button class="px-3 py-1 rounded-full text-xs bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all">3M</button>
+<button class="px-3 py-1 rounded-full text-xs bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-all">ALL</button>
+</div>
+</div>
+<div class="flex-1 relative bg-surface-container-lowest/30 rounded-lg overflow-hidden flex items-end px-4 pb-8">
+<!-- Fake Chart Visualization -->
+<div class="flex items-end justify-between w-full h-[80%] gap-2">
+<div class="w-full bg-primary/20 rounded-t-sm h-[30%]"></div>
+<div class="w-full bg-primary/25 rounded-t-sm h-[45%]"></div>
+<div class="w-full bg-primary/30 rounded-t-sm h-[40%]"></div>
+<div class="w-full bg-primary/35 rounded-t-sm h-[60%]"></div>
+<div class="w-full bg-primary/40 rounded-t-sm h-[55%]"></div>
+<div class="w-full bg-primary/45 rounded-t-sm h-[75%]"></div>
+<div class="w-full bg-primary/50 rounded-t-sm h-[70%]"></div>
+<div class="w-full bg-primary/55 rounded-t-sm h-[85%]"></div>
+<div class="w-full bg-primary/60 rounded-t-sm h-[95%]"></div>
+<div class="w-full bg-tertiary rounded-t-sm h-[100%] shadow-[0_-8px_16px_rgba(74,225,118,0.2)]"></div>
+</div>
+</div>
+</div>
+<div class="bg-surface-container rounded-xl p-8 shadow-lg flex flex-col">
+<h3 class="font-bold text-on-surface mb-8">자산 비중</h3>
+<div class="flex-1 flex flex-col justify-center items-center">
+<div class="relative w-48 h-48 mb-8">
+<!-- Donut Chart Circle -->
+<div class="absolute inset-0 rounded-full border-[16px] border-primary border-r-transparent border-b-transparent rotate-45"></div>
+<div class="absolute inset-0 rounded-full border-[16px] border-secondary/30 border-l-transparent border-t-transparent -rotate-45"></div>
+<div class="absolute inset-4 bg-surface-container rounded-full flex flex-col items-center justify-center">
+<span class="text-2xl font-black text-on-surface">Top 5</span>
+<span class="text-xs text-on-surface-variant uppercase tracking-widest">Holdings</span>
+</div>
+</div>
+<div class="w-full space-y-3">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-sm font-medium text-on-surface-variant">BTC</span>
+</div>
+<span class="text-sm font-bold text-on-surface">42.5%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<span class="text-sm font-medium text-on-surface-variant">ETH</span>
+</div>
+<span class="text-sm font-bold text-on-surface">28.1%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
+<span class="text-sm font-medium text-on-surface-variant">SOL</span>
+</div>
+<span class="text-sm font-bold text-on-surface">15.4%</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-surface-bright"></div>
+<span class="text-sm font-medium text-on-surface-variant">KRW</span>
+</div>
+<span class="text-sm font-bold text-on-surface">14.0%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating AI Chat FAB -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-gradient-to-br from-primary to-primary-container rounded-full shadow-2xl flex items-center justify-center text-on-primary transition-transform active:scale-90 hover:scale-105 group z-50">
+<span class="material-symbols-outlined text-3xl" data-icon="smart_toy" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<div class="absolute right-full mr-4 bg-surface-container-highest px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity text-on-surface shadow-lg pointer-events-none">
+            AI 분석 리포트 확인하기
+        </div>
+</button>
+</body></html>

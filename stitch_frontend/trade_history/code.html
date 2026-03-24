@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-surface-variant": "#c2c6d6",
+            "on-secondary": "#213050",
+            "on-tertiary-fixed": "#002109",
+            "surface-dim": "#071325",
+            "on-surface": "#d7e3fc",
+            "on-primary-container": "#00285d",
+            "surface-tint": "#adc6ff",
+            "surface-variant": "#2a3548",
+            "surface-container-lowest": "#030e20",
+            "secondary-container": "#384668",
+            "primary": "#adc6ff",
+            "on-tertiary-container": "#003111",
+            "on-secondary-fixed": "#0a1a3a",
+            "on-primary-fixed": "#001a42",
+            "surface-container": "#142032",
+            "secondary-fixed-dim": "#b7c6ee",
+            "surface-bright": "#2e394d",
+            "primary-container": "#4d8eff",
+            "on-tertiary": "#003915",
+            "on-primary": "#002e6a",
+            "outline": "#8c909f",
+            "on-secondary-container": "#a6b5dc",
+            "inverse-surface": "#d7e3fc",
+            "primary-fixed": "#d8e2ff",
+            "on-error": "#690005",
+            "primary-fixed-dim": "#adc6ff",
+            "tertiary-fixed-dim": "#4ae176",
+            "on-error-container": "#ffdad6",
+            "tertiary-container": "#00a74b",
+            "on-secondary-fixed-variant": "#384668",
+            "error-container": "#93000a",
+            "on-tertiary-fixed-variant": "#005321",
+            "background": "#071325",
+            "surface": "#071325",
+            "tertiary": "#4ae176",
+            "outline-variant": "#424754",
+            "surface-container-low": "#101c2e",
+            "secondary-fixed": "#d9e2ff",
+            "inverse-primary": "#005ac2",
+            "secondary": "#b7c6ee",
+            "surface-container-highest": "#2a3548",
+            "inverse-on-surface": "#253144",
+            "error": "#ffb4ab",
+            "on-primary-fixed-variant": "#004395",
+            "tertiary-fixed": "#6bff8f",
+            "on-background": "#d7e3fc",
+            "surface-container-high": "#1f2a3d"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body { font-family: 'Inter', sans-serif; }
+    /* Hide scrollbar but keep functionality */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary/30">
+<!-- Side Navigation Bar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] bg-[#101c2e] dark:bg-[#101c2e] bg-[#071325] border-r border-[#424754]/15 shadow-2xl shadow-blue-900/4 flex flex-col py-6 px-4 gap-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-bold tracking-tighter text-[#d7e3fc]">CoinPilot v3.0</h1>
+<p class="text-xs font-['Inter'] text-on-surface-variant/70">AI-Powered Crypto Trading</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">dashboard</span>
+        Control Center
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">analytics</span>
+        Overview
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">show_chart</span>
+        Market
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">security</span>
+        Risk Monitor
+      </a>
+<!-- Active Tab: Trade History -->
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-semibold tracking-tight text-[#adc6ff] bg-[#1f2a3d] rounded-lg active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">receipt_long</span>
+        Trade History
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">health_and_safety</span>
+        System Health
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">smart_toy</span>
+        AI Chatbot
+      </a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm font-medium tracking-tight text-[#c2c6d6] hover:text-[#d7e3fc] hover:bg-[#142032] transition-colors duration-200 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined text-blue-400">query_stats</span>
+        Exit Analysis
+      </a>
+</nav>
+<div class="mt-auto pt-6 border-t border-[#424754]/15 px-2">
+<div class="flex items-center gap-2 text-xs font-medium text-tertiary">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">cloud_done</span>
+        DB Connected
+      </div>
+<div class="mt-4 p-3 rounded-xl bg-surface-container-high/50">
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest mb-1">Status</p>
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold text-[#adc6ff]">Auto-refresh: 10s</span>
+<div class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] min-h-screen flex flex-col">
+<!-- Top Bar -->
+<header class="sticky top-0 z-40 bg-[#071325]/80 backdrop-blur-xl border-b border-[#424754]/15 flex justify-between items-center h-16 px-8">
+<div class="flex items-center gap-4">
+<h2 class="text-lg font-extrabold tracking-tight text-on-surface">Trade History</h2>
+<div class="h-4 w-px bg-outline-variant/30"></div>
+<nav class="flex gap-6">
+<span class="text-xs font-medium uppercase tracking-widest text-[#adc6ff] border-b-2 border-[#adc6ff] pb-1 cursor-pointer">Dashboard</span>
+<span class="text-xs font-medium uppercase tracking-widest text-[#c2c6d6] hover:text-[#d7e3fc] cursor-pointer transition-all">Market Data</span>
+</nav>
+</div>
+<div class="flex items-center gap-5">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">settings</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="professional male trader avatar in corporate headshot style with soft studio lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9JIgGOCIRBS09x7sDn-sd048KgNxDYNEl91BB8DvZLlqQVjnvqI7wpCv9PJN3TYG0ryKlDNwwCphi-Qd1jKQM6_BfiPNhDFGrkEVPZ4OwYpUqTbDpmaKQKSdD07BkzNQ3rXG4wTJGSiGJ32sRz73MVAslrJqjbzvvm88UGMD1IJP4uf6gBdtdnA1CzzGCAmxCaFLNieoC0eW33ZnYfapqHwhXcvgFwXgtuXRB-_WD9d6UcCGbjejP9YGyMpDNmvgCea2Doi-kq9z-"/>
+</div>
+</div>
+</header>
+<div class="p-8 flex-1 space-y-6">
+<!-- Filter Bar -->
+<section class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-full max-w-xs group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg transition-colors group-focus-within:text-primary">search</span>
+<input class="w-full bg-surface-container-lowest border-none rounded-lg py-2.5 pl-10 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/40 focus:ring-1 focus:ring-primary/30 focus:bg-surface-container-high transition-all" placeholder="Symbol search (e.g. BTCUSDT)" type="text"/>
+</div>
+<div class="relative min-w-[120px]">
+<select class="w-full appearance-none bg-surface-container-lowest border-none rounded-lg py-2.5 px-4 pr-10 text-sm text-on-surface focus:ring-1 focus:ring-primary/30 cursor-pointer">
+<option>Side: All</option>
+<option>매수 (BUY)</option>
+<option>매도 (SELL)</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+<div class="flex bg-surface-container-lowest p-1 rounded-lg">
+<button class="px-4 py-1.5 text-xs font-semibold rounded-md bg-surface-container-high text-primary shadow-sm">기본 (Basic)</button>
+<button class="px-4 py-1.5 text-xs font-medium rounded-md text-on-surface-variant hover:text-on-surface transition-colors">상세 (Detailed)</button>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-lg">calendar_today</span>
+            Last 30 Days
+          </button>
+<button class="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg bg-gradient-to-br from-primary to-primary-container text-on-primary hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary/10">
+<span class="material-symbols-outlined text-lg">download</span>
+            Export CSV
+          </button>
+</div>
+</section>
+<!-- Trade Table -->
+<section class="bg-surface-container rounded-xl overflow-hidden shadow-xl shadow-black/20 border border-outline-variant/10">
+<div class="overflow-x-auto no-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/50 border-b border-outline-variant/15">
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Timestamp</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Symbol</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Side</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Avg Entry</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Executed</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Qty</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Realized PnL (KRW)</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">PnL (%)</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant text-right">Total</th>
+<th class="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/5">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-highest/30 transition-colors">
+<td class="px-6 py-4">
+<div class="text-xs text-on-surface font-medium">2023.11.24</div>
+<div class="text-[10px] text-on-surface-variant">14:22:05</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold text-on-surface">BTCUSDT</div>
+<div class="text-[10px] font-medium text-on-surface-variant/60">Binance Futures</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">매수 (BUY)</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm">37,420.50</td>
+<td class="px-6 py-4 text-right font-mono text-sm">37,421.10</td>
+<td class="px-6 py-4 text-right font-mono text-sm">0.250</td>
+<td class="px-6 py-4 text-right">
+<span class="text-sm font-bold text-tertiary">+42,500</span>
+<div class="text-[10px] text-on-surface-variant">실현 손익</div>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="text-xs font-bold text-tertiary">+1.24%</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm text-on-surface-variant">9,355.27</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                    Filled
+                  </div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-highest/30 transition-colors">
+<td class="px-6 py-4">
+<div class="text-xs text-on-surface font-medium">2023.11.24</div>
+<div class="text-[10px] text-on-surface-variant">13:05:41</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold text-on-surface">ETHUSDT</div>
+<div class="text-[10px] font-medium text-on-surface-variant/60">Binance Futures</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-error/10 text-error border border-error/20">매도 (SELL)</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm">2,085.12</td>
+<td class="px-6 py-4 text-right font-mono text-sm">2,078.45</td>
+<td class="px-6 py-4 text-right font-mono text-sm">4.120</td>
+<td class="px-6 py-4 text-right">
+<span class="text-sm font-bold text-error">-12,840</span>
+<div class="text-[10px] text-on-surface-variant">실현 손익</div>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="text-xs font-bold text-error">-0.32%</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm text-on-surface-variant">8,563.21</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                    Filled
+                  </div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-highest/30 transition-colors">
+<td class="px-6 py-4">
+<div class="text-xs text-on-surface font-medium">2023.11.23</div>
+<div class="text-[10px] text-on-surface-variant">22:18:12</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold text-on-surface">SOLUSDT</div>
+<div class="text-[10px] font-medium text-on-surface-variant/60">OKX Perps</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">매수 (BUY)</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm">58.42</td>
+<td class="px-6 py-4 text-right font-mono text-sm">59.95</td>
+<td class="px-6 py-4 text-right font-mono text-sm">150.00</td>
+<td class="px-6 py-4 text-right">
+<span class="text-sm font-bold text-tertiary">+228,900</span>
+<div class="text-[10px] text-on-surface-variant">실현 손익</div>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="text-xs font-bold text-tertiary">+2.62%</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm text-on-surface-variant">8,992.50</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-tertiary">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                    Filled
+                  </div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-highest/30 transition-colors">
+<td class="px-6 py-4">
+<div class="text-xs text-on-surface font-medium">2023.11.23</div>
+<div class="text-[10px] text-on-surface-variant">18:44:02</div>
+</td>
+<td class="px-6 py-4">
+<div class="text-sm font-bold text-on-surface">XRPUSDT</div>
+<div class="text-[10px] font-medium text-on-surface-variant/60">Binance Futures</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-error/10 text-error border border-error/20">매도 (SELL)</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm">0.6210</td>
+<td class="px-6 py-4 text-right font-mono text-sm">0.6215</td>
+<td class="px-6 py-4 text-right font-mono text-sm">12,000</td>
+<td class="px-6 py-4 text-right">
+<span class="text-sm font-bold text-error">-6,500</span>
+<div class="text-[10px] text-on-surface-variant">실현 손익</div>
+</td>
+<td class="px-6 py-4 text-right">
+<span class="text-xs font-bold text-error">-0.08%</span>
+</td>
+<td class="px-6 py-4 text-right font-mono text-sm text-on-surface-variant">7,458.00</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-1.5 text-xs text-on-surface-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+                    Partial
+                  </div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-surface-container-low/50 flex items-center justify-between border-t border-outline-variant/10">
+<p class="text-xs text-on-surface-variant">Showing 1-10 of 2,492 trades</p>
+<div class="flex gap-2">
+<button class="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"><span class="material-symbols-outlined text-lg">chevron_left</span></button>
+<button class="px-3 py-1 text-xs font-bold bg-primary text-on-primary rounded">1</button>
+<button class="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors">2</button>
+<button class="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors">3</button>
+<span class="text-on-surface-variant px-1">...</span>
+<button class="px-3 py-1 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors">250</button>
+<button class="p-1.5 rounded hover:bg-surface-container-highest transition-colors text-on-surface-variant"><span class="material-symbols-outlined text-lg">chevron_right</span></button>
+</div>
+</div>
+</section>
+<!-- Bottom Charts Area -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Buy/Sell Donut Chart Card -->
+<div class="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 flex flex-col items-center relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
+<div class="w-full flex justify-between items-center mb-6">
+<h3 class="text-sm font-bold tracking-tight text-on-surface">Buy/Sell Volume Ratio</h3>
+<span class="text-[10px] text-on-surface-variant uppercase tracking-widest">매수/매도 분포</span>
+</div>
+<div class="relative flex items-center justify-center w-48 h-48">
+<!-- Simulated Donut Chart using Conic Gradient -->
+<div class="absolute inset-0 rounded-full" style="background: conic-gradient(#adc6ff 0% 68%, #ffb4ab 68% 100%);"></div>
+<!-- Inner Circle for Donut Effect -->
+<div class="absolute inset-6 bg-surface-container rounded-full flex flex-col items-center justify-center shadow-inner">
+<span class="text-xs text-on-surface-variant">Total Trades</span>
+<span class="text-2xl font-black text-on-surface">2,492</span>
+</div>
+</div>
+<div class="w-full mt-8 grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/5">
+<div class="flex items-center gap-2 mb-1">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase">Buy</span>
+</div>
+<p class="text-lg font-bold text-primary">1,694 <span class="text-[10px] font-medium text-on-surface-variant ml-1">(68%)</span></p>
+</div>
+<div class="bg-surface-container-low p-3 rounded-xl border border-outline-variant/5">
+<div class="flex items-center gap-2 mb-1">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase">Sell</span>
+</div>
+<p class="text-lg font-bold text-error">798 <span class="text-[10px] font-medium text-on-surface-variant ml-1">(32%)</span></p>
+</div>
+</div>
+</div>
+<!-- Status Distribution Bar Chart Card -->
+<div class="bg-surface-container rounded-2xl p-6 border border-outline-variant/10 flex flex-col">
+<div class="w-full flex justify-between items-center mb-6">
+<h3 class="text-sm font-bold tracking-tight text-on-surface">Execution Status</h3>
+<span class="text-[10px] text-on-surface-variant uppercase tracking-widest">체결 현황 분포</span>
+</div>
+<div class="flex-1 flex items-end justify-around gap-2 px-4 py-4 min-h-[200px]">
+<!-- Bar: Filled -->
+<div class="flex flex-col items-center gap-3 w-12 group">
+<span class="text-[10px] font-bold text-tertiary opacity-0 group-hover:opacity-100 transition-opacity">2.1k</span>
+<div class="w-full bg-tertiary/20 rounded-t-lg relative flex items-end overflow-hidden" style="height: 100%;">
+<div class="w-full bg-tertiary h-[85%] rounded-t-lg shadow-[0_0_15px_rgba(74,225,118,0.2)]"></div>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Filled</span>
+</div>
+<!-- Bar: Partial -->
+<div class="flex flex-col items-center gap-3 w-12 group">
+<span class="text-[10px] font-bold text-on-surface opacity-0 group-hover:opacity-100 transition-opacity">284</span>
+<div class="w-full bg-on-surface-variant/10 rounded-t-lg relative flex items-end overflow-hidden" style="height: 100%;">
+<div class="w-full bg-on-surface-variant/40 h-[15%] rounded-t-lg"></div>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Partial</span>
+</div>
+<!-- Bar: Canceled -->
+<div class="flex flex-col items-center gap-3 w-12 group">
+<span class="text-[10px] font-bold text-error opacity-0 group-hover:opacity-100 transition-opacity">82</span>
+<div class="w-full bg-error/20 rounded-t-lg relative flex items-end overflow-hidden" style="height: 100%;">
+<div class="w-full bg-error/60 h-[8%] rounded-t-lg"></div>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Canceled</span>
+</div>
+<!-- Bar: Rejected -->
+<div class="flex flex-col items-center gap-3 w-12 group">
+<span class="text-[10px] font-bold text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">12</span>
+<div class="w-full bg-on-surface-variant/5 rounded-t-lg relative flex items-end overflow-hidden" style="height: 100%;">
+<div class="w-full bg-on-surface-variant/20 h-[3%] rounded-t-lg"></div>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Rejected</span>
+</div>
+</div>
+<p class="mt-4 text-[10px] leading-relaxed text-on-surface-variant/60 text-center italic">
+            AI Insight: 94% order fill efficiency detected in the last trading cycle.
+          </p>
+</div>
+</section>
+</div>
+</main>
+<!-- Floating AI Chat Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 rounded-full bg-gradient-to-br from-primary to-primary-container text-on-primary shadow-2xl shadow-primary/20 flex items-center justify-center group active:scale-95 transition-all z-50">
+<div class="absolute -top-1 -right-1 w-4 h-4 bg-tertiary border-2 border-surface rounded-full"></div>
+<span class="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+<!-- Tooltip -->
+<div class="absolute right-full mr-4 bg-surface-container-highest px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-outline-variant/20 shadow-xl">
+      Ask AI Pilot
+    </div>
+</button>
+</body></html>
