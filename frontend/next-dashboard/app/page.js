@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { getCumulativePnl } from "@/lib/bot-api";
+import { formatKrw } from "@/lib/formatters";
 
 /*
- * Control Center (랜딩 페이지)
- * Stitch 디자인 기반 — Hero 섹션 + 6개 Quick Nav 카드 + Quick Start Guide + PnL 요약
- * 프로젝트 호환: USD→KRW, Launch Terminal/View API Docs 제거
+ * Control Center (랜딩 페이지) — Server Component
+ * 누적 PnL을 /api/mobile/pnl에서 실데이터로 조회
  */
 
 const NAV_CARDS = [
@@ -23,7 +24,10 @@ const COLOR_MAP = {
   "primary-container": { iconBg: "bg-primary-container/10", iconText: "text-primary-container", hoverText: "group-hover:text-primary-container" },
 };
 
-export default function ControlCenterPage() {
+export default async function ControlCenterPage() {
+  const pnl = await getCumulativePnl();
+  const isProfit = pnl.cumulativePnlKrw >= 0;
+
   return (
     <div className="space-y-8">
       {/* Hero */}
@@ -94,11 +98,11 @@ export default function ControlCenterPage() {
 
           <div className="bg-gradient-to-br from-surface-low to-surface-container p-6 rounded-xl border border-outline-variant/[0.15]">
             <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Total Combined PNL</div>
-            <div className="text-3xl font-bold text-tertiary">데이터 로딩 중...</div>
-            <div className="mt-4 h-12 flex items-end gap-1">
-              {[20, 30, 25, 40, 50].map((h, i) => (
-                <div key={i} className="flex-1 bg-tertiary/20 rounded-t-sm" style={{ height: `${h}%` }} />
-              ))}
+            <div className={`text-3xl font-bold ${isProfit ? "text-tertiary" : "text-error"}`}>
+              {formatKrw(pnl.cumulativePnlKrw, true)} 원
+            </div>
+            <div className="text-xs text-on-surface-variant mt-1">
+              총 {pnl.cumulativeTradeCount}건 체결 · 당일 {formatKrw(pnl.dailyTotalPnlKrw, true)} 원
             </div>
           </div>
         </div>

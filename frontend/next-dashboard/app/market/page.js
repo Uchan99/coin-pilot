@@ -1,64 +1,68 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PlotlyChart from "@/components/plotly-chart";
+import { getCandles, getBotBrain } from "@/lib/bot-api";
 
 /*
  * Market Analysis 페이지 — Bot Brain + 캔들스틱 차트
- * 현재 Phase 2 MVP: Mock 데이터로 UI 프레임 구현
- * 실제 OHLCV/Bot Status 데이터는 API route 추가 후 연동 예정
+ * Phase 3: /api/mobile/candles + /api/mobile/brain 실데이터 연동
+ * 심볼/인터벌 변경 시 자동 재조회
  */
 
 const SYMBOLS = ["KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-XRP", "KRW-DOGE"];
 const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
-// 데모 캔들스틱 데이터 생성
-function generateDemoCandles(count = 50) {
-  const now = Date.now();
-  const dates = [];
-  const open = [];
-  const high = [];
-  const low = [];
-  const close = [];
-  let price = 98_000_000;
-
-  for (let i = count; i >= 0; i--) {
-    dates.push(new Date(now - i * 15 * 60 * 1000).toISOString());
-    const o = price + (Math.random() - 0.5) * 500_000;
-    const c = o + (Math.random() - 0.5) * 800_000;
-    const h = Math.max(o, c) + Math.random() * 300_000;
-    const l = Math.min(o, c) - Math.random() * 300_000;
-    open.push(o);
-    high.push(h);
-    low.push(l);
-    close.push(c);
-    price = c;
-  }
-  return { dates, open, high, low, close };
-}
+const REGIME_COLORS = {
+  BULL: { bg: "bg-tertiary/10", text: "text-tertiary", icon: "trending_up" },
+  SIDEWAYS: { bg: "bg-yellow-500/10", text: "text-yellow-400", icon: "trending_flat" },
+  BEAR: { bg: "bg-error/10", text: "text-error", icon: "trending_down" },
+  UNKNOWN: { bg: "bg-outline-variant/10", text: "text-on-surface-variant", icon: "help" },
+};
 
 export default function MarketPage() {
   const [symbol, setSymbol] = useState("KRW-BTC");
   const [interval, setInterval] = useState("15m");
-  const candles = generateDemoCandles(50);
+  const [candles, setCandles] = useState(null);
+  const [brain, setBrain] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Bot Brain 목 데이터
-  const botBrain = {
-    regime: "BULL",
-    action: "HOLD/BUY",
-    rsi: 64.2,
-    hwm: "₩98,420,000",
-    lastUpdate: "42s ago",
-    reasoning:
-      "현재 KRW-BTC 시장은 긍정적 매수세가 유입되며 상승 Regime을 유지하고 있습니다. RSI 지표는 64.2로 과매수 구간에 근접해 있으나, 거래량 기준 상승 추세를 보이고 있습니다.",
-  };
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const [candleData, brainData] = await Promise.all([
+      getCandles({ symbol, interval, limit: 200 }),
+      getBotBrain(symbol),
+    ]);
+    setCandles(candleData);
+    setBrain(brainData);
+    setLoading(false);
+  }, [symbol, interval]);
 
-  const regimeColors = {
-    BULL: { bg: "bg-tertiary/10", text: "text-tertiary", icon: "trending_up" },
-    SIDEWAYS: { bg: "bg-yellow-500/10", text: "text-yellow-400", icon: "trending_flat" },
-    BEAR: { bg: "bg-error/10", text: "text-error", icon: "trending_down" },
-    UNKNOWN: { bg: "bg-outline-variant/10", text: "text-on-surface-variant", icon: "help" },
-  };
-  const rc = regimeColors[botBrain.regime] || regimeColors.UNKNOWN;
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const rc = REGIME_COLORS[brain?.regime] || REGIME_COLORS.UNKNOWN;
+  const candleList = candles?.candles || [];
+  const dates = candleList.map((c) => c.time);
+  const opens = candleList.map((c) => c.open);
+  const highs = candleList.map((c) => c.high);
+  const lows = candleList.map((c) => c.low);
+  const closes = candleList.map((c) => c.close);
+
+  const lastClose = closes.length > 0 ? closes[closes.length - 1] : 0;
+  const highMax = highs.length > 0 ? Math.max(...highs) : 0;
+  const lowMin = lows.length > 0 ? Math.min(...lows.filter((v) => v > 0)) : 0;
+
+  // 봇 브레인 freshness 계산
+  let freshLabel = "N/A";
+  if (brain?.timestamp) {
+    const ageSec = Math.floor((Date.now() - new Date(brain.timestamp).getTime()) / 1000);
+    freshLabel = ageSec <= 120 ? `${ageSec}s ago` : `${Math.floor(ageSec / 60)}m ago`;
+  }
+
+  // HWM 포맷
+  const hwm = brain?.indicators?.hwm;
+  const hwmDisplay = hwm && hwm > 0 ? `₩${Number(hwm).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}` : "N/A";
+  const rsi = brain?.indicators?.rsi;
+  const rsiDisplay = rsi != null ? Number(rsi).toFixed(1) : "N/A";
 
   return (
     <div className="space-y-6">
@@ -90,8 +94,11 @@ export default function MarketPage() {
           ))}
         </div>
 
-        <div className="ml-auto text-[10px] text-on-surface-variant uppercase tracking-wider">
-          Candles: 50
+        <div className="ml-auto flex items-center gap-2">
+          {loading && <span className="text-xs text-primary animate-pulse">Loading...</span>}
+          <span className="text-[10px] text-on-surface-variant uppercase tracking-wider">
+            Candles: {candleList.length}
+          </span>
         </div>
       </div>
 
@@ -104,33 +111,35 @@ export default function MarketPage() {
           </div>
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${rc.bg} ${rc.text}`}>
             <span className="material-symbols-outlined text-sm">{rc.icon}</span>
-            {botBrain.regime}
+            {brain?.regime || "UNKNOWN"}
           </span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Recommended Action</div>
-            <div className="text-lg font-bold text-tertiary">{botBrain.action}</div>
+            <div className="text-lg font-bold text-tertiary">{brain?.action || "UNKNOWN"}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">RSI (14)</div>
-            <div className="text-lg font-bold">{botBrain.rsi}</div>
+            <div className="text-lg font-bold">{rsiDisplay}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">HWM Price</div>
-            <div className="text-lg font-bold">{botBrain.hwm}</div>
+            <div className="text-lg font-bold">{hwmDisplay}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Last Update</div>
-            <div className="text-lg font-bold">{botBrain.lastUpdate}</div>
+            <div className="text-lg font-bold">{freshLabel}</div>
           </div>
         </div>
 
         <div className="bg-surface-low rounded-lg p-4 border border-primary/10">
           <div className="flex items-start gap-2">
             <span className="material-symbols-outlined text-primary text-sm mt-0.5">smart_toy</span>
-            <p className="text-xs text-on-surface-variant leading-relaxed">{botBrain.reasoning}</p>
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              {brain?.reason || "봇 상태를 조회할 수 없습니다. 봇이 실행 중인지 확인하세요."}
+            </p>
           </div>
         </div>
       </div>
@@ -141,47 +150,55 @@ export default function MarketPage() {
           <h3 className="text-sm font-bold uppercase tracking-wider text-on-surface-variant">
             Live Chart
           </h3>
-          <span className="text-[10px] text-primary uppercase font-bold">● Real-time Data</span>
+          {candleList.length > 0 && (
+            <span className="text-[10px] text-primary uppercase font-bold">● Live Data</span>
+          )}
         </div>
-        <PlotlyChart
-          data={[
-            {
-              x: candles.dates,
-              open: candles.open,
-              high: candles.high,
-              low: candles.low,
-              close: candles.close,
-              type: "candlestick",
-              increasing: { line: { color: "#4ae176" } },
-              decreasing: { line: { color: "#ffb4ab" } },
-            },
-          ]}
-          layout={{
-            height: 500,
-            xaxis: { rangeslider: { visible: false }, gridcolor: "#1f2a3d" },
-            yaxis: {
-              title: "Price (KRW)",
-              gridcolor: "#1f2a3d",
-              tickformat: ",d",
-            },
-            margin: { l: 80, r: 20, t: 10, b: 40 },
-          }}
-        />
+        {candleList.length > 0 ? (
+          <PlotlyChart
+            data={[
+              {
+                x: dates,
+                open: opens,
+                high: highs,
+                low: lows,
+                close: closes,
+                type: "candlestick",
+                increasing: { line: { color: "#4ae176" } },
+                decreasing: { line: { color: "#ffb4ab" } },
+              },
+            ]}
+            layout={{
+              height: 500,
+              xaxis: { rangeslider: { visible: false }, gridcolor: "#1f2a3d" },
+              yaxis: {
+                title: "Price (KRW)",
+                gridcolor: "#1f2a3d",
+                tickformat: ",d",
+              },
+              margin: { l: 80, r: 20, t: 10, b: 40 },
+            }}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-[400px] text-on-surface-variant text-sm">
+            {loading ? "차트 데이터 로딩 중..." : "캔들 데이터가 없습니다."}
+          </div>
+        )}
       </div>
 
       {/* 현재가 바 */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/10">
           <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Current Price (KRW)</div>
-          <div className="text-2xl font-bold">₩{(candles.close[candles.close.length - 1] || 0).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
+          <div className="text-2xl font-bold">₩{lastClose.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
         </div>
         <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/10">
           <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">24H High</div>
-          <div className="text-2xl font-bold text-tertiary">₩{Math.max(...candles.high).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
+          <div className="text-2xl font-bold text-tertiary">₩{highMax.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
         </div>
         <div className="bg-surface-container rounded-xl p-4 border border-outline-variant/10">
           <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">24H Low</div>
-          <div className="text-2xl font-bold text-error">₩{Math.min(...candles.low).toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
+          <div className="text-2xl font-bold text-error">₩{lowMin.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}</div>
         </div>
       </div>
     </div>

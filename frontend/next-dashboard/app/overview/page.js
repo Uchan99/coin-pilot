@@ -15,16 +15,16 @@ export default async function OverviewPage() {
   const kpiCards = [
     {
       label: "총 체결",
-      value: `${metrics.tradeCount.toLocaleString("ko-KR")} 건`,
-      sub: `매수 ${metrics.buyCount}건`,
+      value: `${metrics.cumulativeTradeCount.toLocaleString("ko-KR")} 건`,
+      sub: `매수 ${metrics.buyCount}건 (당일 ${metrics.tradeCount}건)`,
       icon: "swap_horiz",
     },
     {
       label: "누적 손익",
-      value: `${formatKrw(metrics.dailyTotalPnlKrw, true)} 원`,
-      sub: metrics.dailyTotalPnlKrw >= 0 ? "수익 구간" : "손실 구간",
+      value: `${formatKrw(metrics.cumulativePnlKrw, true)} 원`,
+      sub: metrics.cumulativePnlKrw >= 0 ? "수익 구간" : "손실 구간",
       icon: "trending_up",
-      positive: metrics.dailyTotalPnlKrw >= 0,
+      positive: metrics.cumulativePnlKrw >= 0,
     },
     {
       label: "총 평가액",

@@ -1,30 +1,43 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PlotlyChart from "@/components/plotly-chart";
+import { getTrades } from "@/lib/bot-api";
+import { formatKrw } from "@/lib/formatters";
 
 /*
  * Trade History 페이지 — Stitch 디자인
- * 현재 Phase 2 MVP: Mock 데이터로 UI 프레임 구현
- * 실제 trading_history 데이터는 전용 API route 추가 후 연동 예정
+ * Phase 3: /api/mobile/trades 실데이터 연동 + 페이징/필터
  */
-
-const MOCK_TRADES = [
-  { timestamp: "2026-03-24 14:22:05", symbol: "KRW-BTC", side: "BUY", avgEntry: "97,429,500", executed: "97,421,100", qty: "0.250", realizedPnl: null, pnlPct: null, total: "24,355,275", regime: "Sideways" },
-  { timestamp: "2026-03-24 10:08:41", symbol: "KRW-ETH", side: "SELL", avgEntry: "2,885,120", executed: "2,878,450", qty: "4.326", realizedPnl: "-28,860", pnlPct: "-0.23", total: "12,452,134", regime: "Sideways" },
-  { timestamp: "2026-03-23 22:15:32", symbol: "KRW-SOL", side: "BUY", avgEntry: "58,420", executed: "59,950", qty: "158.00", realizedPnl: null, pnlPct: null, total: "9,472,100", regime: "Bull" },
-  { timestamp: "2026-03-23 18:44:12", symbol: "KRW-XRP", side: "SELL", avgEntry: "880", executed: "862.15", qty: "12,000", realizedPnl: "-213,800", pnlPct: "-2.02", total: "10,345,800", regime: "Bear" },
-];
 
 export default function HistoryPage() {
   const [sideFilter, setSideFilter] = useState("ALL");
+  const [symbolSearch, setSymbolSearch] = useState("");
   const [viewMode, setViewMode] = useState("기본");
+  const [trades, setTrades] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const PAGE_SIZE = 50;
 
-  const filtered = MOCK_TRADES.filter(
-    (t) => sideFilter === "ALL" || t.side === sideFilter
-  );
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+    if (sideFilter !== "ALL") params.side = sideFilter;
+    if (symbolSearch.trim()) params.symbol = `KRW-${symbolSearch.trim().toUpperCase()}`;
+    const data = await getTrades(params);
+    setTrades(data.trades || []);
+    setTotal(data.total || 0);
+    setLoading(false);
+  }, [sideFilter, symbolSearch, page]);
 
-  const buyCount = MOCK_TRADES.filter((t) => t.side === "BUY").length;
-  const sellCount = MOCK_TRADES.filter((t) => t.side === "SELL").length;
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // 페이지 변경 시 맨 위로 스크롤 리셋
+  useEffect(() => { setPage(0); }, [sideFilter, symbolSearch]);
+
+  const buyCount = trades.filter((t) => t.side === "BUY").length;
+  const sellCount = trades.filter((t) => t.side === "SELL").length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -34,6 +47,8 @@ export default function HistoryPage() {
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg">search</span>
           <input
             type="text"
+            value={symbolSearch}
+            onChange={(e) => setSymbolSearch(e.target.value)}
             placeholder="Symbol search (e.g. BTC)"
             className="bg-surface-container text-on-surface text-sm rounded-lg pl-10 pr-4 py-2 border border-outline-variant/20 focus:outline-none focus:border-primary/40 w-64 placeholder:text-on-surface-variant/50"
           />
@@ -65,8 +80,11 @@ export default function HistoryPage() {
           ))}
         </div>
 
-        <div className="ml-auto text-[10px] text-on-surface-variant">
-          Showing {filtered.length} of {MOCK_TRADES.length} trades
+        <div className="ml-auto flex items-center gap-3">
+          {loading && <span className="text-xs text-primary animate-pulse">Loading...</span>}
+          <span className="text-[10px] text-on-surface-variant">
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} trades
+          </span>
         </div>
       </div>
 
@@ -79,49 +97,74 @@ export default function HistoryPage() {
                 <th className="px-6 py-3">Timestamp</th>
                 <th className="px-4 py-3">Symbol</th>
                 <th className="px-4 py-3">Side</th>
-                <th className="px-4 py-3">Avg Entry</th>
-                <th className="px-4 py-3">Executed</th>
+                <th className="px-4 py-3">Price</th>
                 <th className="px-4 py-3">Qty</th>
-                <th className="px-4 py-3">Realized PnL (KRW)</th>
+                <th className="px-4 py-3">Realized PnL</th>
                 <th className="px-4 py-3">PnL (%)</th>
-                <th className="px-4 py-3">Total</th>
                 {viewMode === "상세" && <th className="px-4 py-3">Regime</th>}
+                {viewMode === "상세" && <th className="px-4 py-3">Exit Reason</th>}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((t, i) => (
-                <tr key={i} className="border-t border-outline-variant/5 hover:bg-surface-high/30 transition-colors">
-                  <td className="px-6 py-4 text-xs text-on-surface-variant font-mono">{t.timestamp}</td>
-                  <td className="px-4 py-4 text-sm font-semibold">{t.symbol.replace("KRW-", "")}</td>
-                  <td className="px-4 py-4">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                      t.side === "BUY" ? "bg-primary/10 text-primary" : "bg-error/10 text-error"
-                    }`}>
-                      {t.side === "BUY" ? "매수" : "매도"}
-                    </span>
+              {trades.length === 0 ? (
+                <tr>
+                  <td colSpan={viewMode === "상세" ? 9 : 7} className="px-6 py-12 text-center text-on-surface-variant text-sm">
+                    {loading ? "로딩 중..." : "거래 내역이 없습니다."}
                   </td>
-                  <td className="px-4 py-4 text-sm font-mono">{t.avgEntry}</td>
-                  <td className="px-4 py-4 text-sm font-mono">{t.executed}</td>
-                  <td className="px-4 py-4 text-sm font-mono">{t.qty}</td>
-                  <td className={`px-4 py-4 text-sm font-mono font-semibold ${
-                    t.realizedPnl === null ? "text-on-surface-variant" : Number(t.realizedPnl.replace(/,/g, "")) >= 0 ? "text-tertiary" : "text-error"
-                  }`}>
-                    {t.realizedPnl || "N/A"}
-                  </td>
-                  <td className={`px-4 py-4 text-sm font-mono ${
-                    t.pnlPct === null ? "text-on-surface-variant" : Number(t.pnlPct) >= 0 ? "text-tertiary" : "text-error"
-                  }`}>
-                    {t.pnlPct ? `${t.pnlPct}%` : "N/A"}
-                  </td>
-                  <td className="px-4 py-4 text-sm font-mono">{t.total}</td>
-                  {viewMode === "상세" && (
-                    <td className="px-4 py-4 text-xs text-on-surface-variant">{t.regime}</td>
-                  )}
                 </tr>
-              ))}
+              ) : (
+                trades.map((t, i) => (
+                  <tr key={i} className="border-t border-outline-variant/5 hover:bg-surface-high/30 transition-colors">
+                    <td className="px-6 py-4 text-xs text-on-surface-variant font-mono">{t.filled_at_kst || "-"}</td>
+                    <td className="px-4 py-4 text-sm font-semibold">{(t.symbol || "").replace("KRW-", "")}</td>
+                    <td className="px-4 py-4">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                        t.side === "BUY" ? "bg-primary/10 text-primary" : "bg-error/10 text-error"
+                      }`}>
+                        {t.side === "BUY" ? "매수" : "매도"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm font-mono">{t.price != null ? formatKrw(t.price) : "N/A"}</td>
+                    <td className="px-4 py-4 text-sm font-mono">{t.quantity != null ? Number(t.quantity).toFixed(8).replace(/0+$/, "").replace(/\.$/, "") : "N/A"}</td>
+                    <td className={`px-4 py-4 text-sm font-mono font-semibold ${
+                      t.realized_pnl_krw == null ? "text-on-surface-variant" : t.realized_pnl_krw >= 0 ? "text-tertiary" : "text-error"
+                    }`}>
+                      {t.realized_pnl_krw != null ? formatKrw(t.realized_pnl_krw, true) : "N/A"}
+                    </td>
+                    <td className={`px-4 py-4 text-sm font-mono ${
+                      t.realized_pnl_pct == null ? "text-on-surface-variant" : t.realized_pnl_pct >= 0 ? "text-tertiary" : "text-error"
+                    }`}>
+                      {t.realized_pnl_pct != null ? `${t.realized_pnl_pct >= 0 ? "+" : ""}${t.realized_pnl_pct.toFixed(2)}%` : "N/A"}
+                    </td>
+                    {viewMode === "상세" && <td className="px-4 py-4 text-xs text-on-surface-variant">{t.regime || "-"}</td>}
+                    {viewMode === "상세" && <td className="px-4 py-4 text-xs text-on-surface-variant">{t.exit_reason || "-"}</td>}
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* 페이징 */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 py-4 border-t border-outline-variant/10">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-high text-on-surface-variant disabled:opacity-30"
+            >
+              Prev
+            </button>
+            <span className="text-xs text-on-surface-variant">{page + 1} / {totalPages}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-high text-on-surface-variant disabled:opacity-30"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 하단 차트 */}
@@ -145,25 +188,29 @@ export default function HistoryPage() {
           />
         </div>
 
-        {/* Execution Status */}
+        {/* Total 통계 */}
         <div className="bg-surface-container rounded-xl border border-outline-variant/10 p-6">
           <h4 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4">
-            Execution Status
+            Trade Statistics
           </h4>
-          <PlotlyChart
-            data={[{
-              x: ["Filled", "Partial", "Cancelled", "Rejected"],
-              y: [MOCK_TRADES.length, 0, 0, 0],
-              type: "bar",
-              marker: { color: "#adc6ff" },
-            }]}
-            layout={{
-              height: 280,
-              margin: { l: 40, r: 20, t: 10, b: 40 },
-              yaxis: { title: "Count", gridcolor: "#1f2a3d" },
-              xaxis: { gridcolor: "#1f2a3d" },
-            }}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-surface-low rounded-lg p-4">
+              <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Total Trades</div>
+              <div className="text-2xl font-bold">{total}</div>
+            </div>
+            <div className="bg-surface-low rounded-lg p-4">
+              <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Current Page</div>
+              <div className="text-2xl font-bold">{trades.length}건</div>
+            </div>
+            <div className="bg-surface-low rounded-lg p-4">
+              <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Buy (this page)</div>
+              <div className="text-2xl font-bold text-primary">{buyCount}</div>
+            </div>
+            <div className="bg-surface-low rounded-lg p-4">
+              <div className="text-[10px] uppercase tracking-wider text-on-surface-variant mb-1">Sell (this page)</div>
+              <div className="text-2xl font-bold text-error">{sellCount}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { askChatbot } from "@/lib/bot-api";
 
 /*
  * AI Chatbot 풀페이지 — Stitch 디자인
+ * Phase 3: /api/mobile/ask 실 AI 응답 연동
  * 퀵 제안 카드 4개 + 메시지 버블 + 입력 영역
- * 실제 AI 응답은 Phase 3에서 process_chat_sync 연동 예정
  */
 
 const QUICK_SUGGESTIONS = [
@@ -29,16 +30,28 @@ export default function ChatbotPage() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sessionId] = useState(() => `web-${Date.now()}`);
+  const messagesEndRef = useRef(null);
 
-  const handleSend = (text) => {
+  // 메시지 추가 시 자동 스크롤
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async (text) => {
     const msg = text || input.trim();
-    if (!msg) return;
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: msg },
-      { role: "assistant", content: "AI 응답 연동은 Phase 3에서 구현됩니다. 현재는 UI 프레임입니다." },
-    ]);
+    if (!msg || loading) return;
+
+    setMessages((prev) => [...prev, { role: "user", content: msg }]);
     setInput("");
+    setLoading(true);
+
+    // AI 응답 요청
+    const answer = await askChatbot(msg, sessionId);
+
+    setMessages((prev) => [...prev, { role: "assistant", content: answer }]);
+    setLoading(false);
   };
 
   const handleClear = () => {
@@ -73,7 +86,8 @@ export default function ChatbotPage() {
             <button
               key={text}
               onClick={() => handleSend(text)}
-              className="bg-surface-container p-4 rounded-xl border border-outline-variant/10 hover:bg-surface-high transition-colors text-left group"
+              disabled={loading}
+              className="bg-surface-container p-4 rounded-xl border border-outline-variant/10 hover:bg-surface-high transition-colors text-left group disabled:opacity-50"
             >
               <span className={`material-symbols-outlined text-lg mb-2 ${COLOR_CLS[color]?.split(" ")[1] || "text-primary"}`}>
                 {icon}
@@ -93,7 +107,7 @@ export default function ChatbotPage() {
                 <span className="material-symbols-outlined text-primary text-sm">smart_toy</span>
               </div>
             )}
-            <div className={`max-w-[70%] px-4 py-3 rounded-xl text-sm leading-relaxed ${
+            <div className={`max-w-[70%] px-4 py-3 rounded-xl text-sm leading-relaxed whitespace-pre-wrap ${
               msg.role === "user"
                 ? "bg-primary text-on-primary rounded-br-sm"
                 : "bg-surface-container text-on-surface rounded-bl-sm"
@@ -102,6 +116,17 @@ export default function ChatbotPage() {
             </div>
           </div>
         ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3 flex-none">
+              <span className="material-symbols-outlined text-primary text-sm animate-spin">progress_activity</span>
+            </div>
+            <div className="bg-surface-container text-on-surface-variant px-4 py-3 rounded-xl text-sm rounded-bl-sm">
+              AI가 분석 중입니다...
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* 입력 영역 */}
@@ -111,13 +136,15 @@ export default function ChatbotPage() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && handleSend()}
             placeholder="질문을 입력하세요..."
-            className="flex-1 bg-surface-low text-on-surface text-sm rounded-lg px-4 py-3 border border-outline-variant/20 focus:outline-none focus:border-primary/40 placeholder:text-on-surface-variant/50"
+            disabled={loading}
+            className="flex-1 bg-surface-low text-on-surface text-sm rounded-lg px-4 py-3 border border-outline-variant/20 focus:outline-none focus:border-primary/40 placeholder:text-on-surface-variant/50 disabled:opacity-50"
           />
           <button
             onClick={() => handleSend()}
-            className="px-5 py-3 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold rounded-xl active:scale-95 transition-all"
+            disabled={loading || !input.trim()}
+            className="px-5 py-3 bg-gradient-to-br from-primary to-primary-container text-on-primary font-semibold rounded-xl active:scale-95 transition-all disabled:opacity-50"
           >
             <span className="material-symbols-outlined">send</span>
           </button>
