@@ -141,10 +141,22 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
   }
 
   /*
-   * Phase 3 API 함수 — Next.js 대시보드 실데이터 연동용
+   * Phase 3 클라이언트용 API 함수
+   * Client Component(브라우저)에서 호출 → Next.js API Route Handler(프록시) → 백엔드
+   * 브라우저는 Docker 내부 주소(bot:8000)에 접근 불가하므로, /api/* 프록시 경로를 사용
    */
 
-  /* 거래 내역 — History 탭 */
+  /**
+   * 클라이언트용 fetch — 브라우저에서 Next.js 프록시 route로 요청
+   * Server Component에서는 fetchApiJson을, Client Component에서는 이 함수를 사용
+   */
+  async function fetchClientJson(proxyPath) {
+    const res = await fetch(proxyPath, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  /* 거래 내역 — History 탭 (Client Component) */
   export async function getTrades({ symbol, side, limit = 50, offset = 0 } = {}) {
     try {
       const params = new URLSearchParams();
@@ -152,51 +164,51 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
       if (side) params.set("side", side);
       params.set("limit", String(limit));
       params.set("offset", String(offset));
-      const res = await fetchApiJson(`/api/mobile/trades?${params}`);
+      const res = await fetchClientJson(`/api/history/trades?${params}`);
       return res?.data || { trades: [], total: 0, limit, offset };
     } catch {
       return { trades: [], total: 0, limit, offset };
     }
   }
 
-  /* 캔들 데이터 — Market 탭 */
+  /* 캔들 데이터 — Market 탭 (Client Component) */
   export async function getCandles({ symbol = "KRW-BTC", interval = "15m", limit = 200 } = {}) {
     try {
       const params = new URLSearchParams({ symbol, interval, limit: String(limit) });
-      const res = await fetchApiJson(`/api/mobile/candles?${params}`);
+      const res = await fetchClientJson(`/api/market/candles?${params}`);
       return res?.data || { symbol, interval, candles: [] };
     } catch {
       return { symbol, interval, candles: [] };
     }
   }
 
-  /* 봇 브레인 상태 — Market 탭 */
+  /* 봇 브레인 상태 — Market 탭 (Client Component) */
   export async function getBotBrain(symbol = "KRW-BTC") {
     try {
-      const res = await fetchApiJson(`/api/mobile/brain?symbol=${encodeURIComponent(symbol)}`);
+      const res = await fetchClientJson(`/api/market/brain?symbol=${encodeURIComponent(symbol)}`);
       return res?.data || { available: false, symbol, regime: "UNKNOWN", action: "UNKNOWN", indicators: {}, reason: "" };
     } catch {
       return { available: false, symbol, regime: "UNKNOWN", action: "UNKNOWN", indicators: {}, reason: "조회 실패" };
     }
   }
 
-  /* 매도 분석 — Exit Analysis 탭 */
+  /* 매도 분석 — Exit Analysis 탭 (Client Component) */
   export async function getExitAnalysis({ days = 30, limit = 800 } = {}) {
     try {
       const params = new URLSearchParams({ days: String(days), limit: String(limit) });
-      const res = await fetchApiJson(`/api/mobile/exit-analysis?${params}`);
+      const res = await fetchClientJson(`/api/exit-analysis/data?${params}`);
       return res?.data || { kpi: {}, post_exit_avg: {}, heatmap: [], sells: [], filter: { days, limit } };
     } catch {
       return { kpi: {}, post_exit_avg: {}, heatmap: [], sells: [], filter: { days, limit } };
     }
   }
 
-  /* AI 챗봇 — Chatbot 탭 */
+  /* AI 챗봇 — Chatbot 탭 (Client Component) */
   export async function askChatbot(query, sessionId = null) {
     try {
-      const res = await fetch(`${BOT_API_BASE_URL}/api/mobile/ask`, {
+      const res = await fetch("/api/chatbot/ask", {
         method: "POST",
-        headers: { ...headers(), "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         cache: "no-store",
         body: JSON.stringify({ query, session_id: sessionId }),
       });
@@ -208,7 +220,7 @@ const BOT_API_BASE_URL = (process.env.BOT_API_BASE_URL || "http://bot:8000").rep
     }
   }
 
-  /* 누적 PnL — Control Center용 */
+  /* 누적 PnL — Control Center용 (Server Component) */
   export async function getCumulativePnl() {
     try {
       const res = await fetchApiJson("/api/mobile/pnl");
