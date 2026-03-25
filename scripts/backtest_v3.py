@@ -9,6 +9,7 @@ v3.0 마켓 레짐 기반 적응형 전략 백테스트
 - 청산: 레짐별 TP/SL/트레일링스탑/RSI/시간제한 적용
 - 수수료: 0.05% (업비트 기준)
 """
+import argparse
 import asyncio
 import pandas as pd
 import numpy as np
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import List, Optional, Dict
 from sqlalchemy import select, desc
-from src.config.strategy import StrategyConfig, get_config
+from src.config.strategy import StrategyConfig, get_config, load_strategy_config
 from src.common.db import get_db_session
 from src.common.models import MarketData
 from src.common.indicators import (
@@ -367,7 +368,11 @@ def print_trade_summary(trades: List[Trade], symbol: str):
 
 
 async def main():
-    config = get_config()
+    parser = argparse.ArgumentParser(description="v3 백테스트")
+    parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
+    args = parser.parse_args()
+
+    config = load_strategy_config(args.config) if args.config else get_config()
 
     print("=" * 70)
     print("v3.0 마켓 레짐 기반 적응형 전략 백테스트")
