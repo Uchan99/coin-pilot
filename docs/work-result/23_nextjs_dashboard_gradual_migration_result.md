@@ -3,7 +3,7 @@
 작성일: 2026-03-15
 작성자: Codex
 관련 계획서: `docs/work-plans/23_nextjs_dashboard_gradual_migration_plan.md`
-상태: Phase 3 실데이터 연동 완료 (OCI 배포 검증 통과)
+상태: Done (Phase 1~3 완료 + Phase 4 스킵 결정)
 완료 범위: Phase 1 read-only MVP + Phase 2 Stitch 디자인 전체 UI 재구축 + Phase 3 실데이터 연동
 선반영/추가 구현: 있음(초기 MVP + 데이터 계약 정합 + 보안 조치 + Phase 3 실데이터 연동)
 관련 트러블슈팅(있다면): `docs/troubleshooting/23_client_component_docker_proxy.md` (Client Component에서 Docker 내부 주소 직접 호출 불가 이슈)
@@ -381,3 +381,41 @@ docker compose --env-file deploy/cloud/oci/.env -f deploy/cloud/oci/docker-compo
 1. Streamlit 대시보드와 병행 비교 운영 (데이터 정합성 지속 확인)
 2. 운영 전환 게이트(`21-03/21-04/28/29`) 충족 시 기본 엔트리포인트 전환 검토
 3. Phase 4 레포지토리 분리 조건 평가
+
+---
+
+## 11. Phase 4 스킵 결정 및 최종 완료 (2026-03-25)
+
+### 11.1 게이트 충족 확인
+
+| 게이트 | 상태 |
+|---|---|
+| 21-03 AI 카나리 실험 | ✅ done (2026-03-25) |
+| 21-04 LLM 비용 관측 | ✅ done |
+| 28 RAG 보강 | ✅ done |
+| 29 레짐 전략 평가 | ✅ done |
+
+### 11.2 Phase 4(레포 분리) 스킵 결정
+
+**결정: Phase 4 스킵. 현재 모노레포 구조 유지.**
+
+이유:
+- 단일 개발자 프로젝트로 레포 분리 시 CI 2개, 이미지 태그 동기화, env 이중 관리 등 운영 부담만 증가
+- 프론트/백엔드 API가 긴밀하게 연동되어 있어 단일 커밋으로 함께 수정하는 현재 구조가 더 안전
+- 팀 분리, 독립 배포 주기, 다중 서비스 재사용 등 분리를 정당화할 조건이 없음
+- `frontend/next-dashboard/`를 모노레포 내에 유지하는 것이 최소 복잡도
+
+### 11.3 최종 운영 상태
+
+- OCI `localhost:13001`에서 Next.js 대시보드 정상 운영 중
+- 8/8 페이지 실데이터 연동 완료
+- Streamlit과 병행 운영 상태 유지
+
+### 11.4 정량 증빙
+
+| 지표 | Before (Phase 0) | After (Phase 3) | 변화량 |
+|---|---:|---:|---:|
+| 실데이터 연동 페이지 | 0/8 | 8/8 | +8 |
+| 백엔드 API 엔드포인트 | 4개 | 10개 | +6 |
+| 운영 게이트 충족 수 | 0/4 | 4/4 | +4 |
+| Phase 4 진행 여부 | — | 스킵(모노레포 유지) | — |
