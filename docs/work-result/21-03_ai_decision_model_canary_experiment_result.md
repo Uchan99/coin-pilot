@@ -3,7 +3,7 @@
 작성일: 2026-03-04
 작성자: Codex
 관련 계획서: `docs/work-plans/21-03_ai_decision_model_canary_experiment_plan.md`
-상태: Partial
+상태: Done
 완료 범위: Phase 1 (카나리 라우팅/기록/리포트 자동화)
 선반영/추가 구현: 있음(Phase 1 전부)
 관련 트러블슈팅(있다면): `docs/troubleshooting/21-06_ai_canary_env_injection_and_observability_gap.md`
@@ -425,6 +425,82 @@ ORDER BY total DESC, model_used;
   1) 최소 24~48시간 추가 관찰.
   2) 모델별 표본 N>=20 확보 후 `confirm_rate/timeout/parse_fail` 비교.
   3) 기준 충족 시 `21-03` 상태 전환 검토.
+
+---
+
+## 14. Phase 4 최종 관측 결론 (2026-03-25)
+
+### 14.1 최종 실측 데이터 (OCI, 30일 기준)
+
+```sql
+-- 실행 명령
+SELECT regime, model_used, COUNT(*),
+  COUNT(*) FILTER (WHERE decision='CONFIRM') AS confirm
+FROM agent_decisions
+WHERE created_at >= NOW() - INTERVAL '30 days'
+GROUP BY regime, model_used ORDER BY regime, model_used;
+```
+
+| regime | model_used | total | confirm |
+|---|---|---:|---:|
+| BEAR | anthropic:claude-haiku-4-5-20251001 (primary) | 23 | 0 |
+| BEAR | openai:gpt-4o-mini (canary) | 1 | 0 |
+| BULL | anthropic:claude-haiku-4-5-20251001 (primary) | 103 | 1 |
+| BULL | openai:gpt-4o-mini (canary-rag) | 20 | 0 |
+| SIDEWAYS | anthropic:claude-haiku-4-5-20251001 (primary) | 431 | 26 |
+| SIDEWAYS | openai:gpt-4o-mini (canary) | 17 | 0 |
+| SIDEWAYS | openai:gpt-4o-mini (canary-rag) | 68 | 0 |
+
+**7일 기준 모델별 비용/latency (llm_usage_events)**
+
+| provider | model | rag_status | total_calls | avg_latency_ms | avg_cost_usd |
+|---|---|---|---:|---:|---:|
+| anthropic | claude-haiku-4-5-20251001 | disabled | 162 | 7,236.83 | 0.005593 |
+| openai | gpt-4o-mini | enabled | 35 | 4,638.11 | 0.000568 |
+
+### 14.2 핵심 관찰
+
+**SIDEWAYS 레짐에서만 CONFIRM 발생 — 정상 설계**
+- BEAR/BULL에서 CONFIRM이 없는 것은 Mean Reversion 전략이 횡보장 전용이기 때문으로, 전략 설계 그대로다.
+- claude-haiku primary의 SIDEWAYS confirm율: **6.0%** (431건 중 26건)
+
+**gpt-4o-mini CONFIRM 0% — RAG 유무 무관**
+- RAG 없는 버전(`canary`, 17건 SIDEWAYS): CONFIRM **0건**
+- RAG 있는 버전(`canary-rag`, 68건 SIDEWAYS): CONFIRM **0건**
+- confidence는 오히려 더 높음(50.6~59.1 vs primary 47.4)에도 전량 REJECT.
+- RAG 앵커링이 아니라 gpt-4o-mini 자체가 이 컨텍스트에서 과보수적으로 동작하는 것으로 결론.
+
+**비용/latency 이점은 실재하지만 실운영 교체 불가**
+- 비용: primary $0.0056/call vs canary $0.0006/call → 약 **10배 절감**
+- latency: primary 7,237ms vs canary 4,638ms → 약 **36% 빠름**
+- 그러나 CONFIRM 0%는 실거래 진입 자체가 없다는 의미로, 비용/속도 이점이 실질 가치 없음.
+
+### 14.3 Before / After 비교표
+
+| 지표 | Before (실험 시작 시점) | After (30일 관측 완료) | 변화량(절대) | 변화율(%) |
+|---|---:|---:|---:|---:|
+| canary 최소 표본 충족(N>=20) | 미충족 | 충족(canary-rag 88건) | +68 | — |
+| parse_fail 비율(primary) | 미측정 | 0.0% | — | — |
+| timeout 비율(primary) | 미측정 | 0.0% | — | — |
+| SIDEWAYS confirm율(primary) | 미측정 | 6.0% | — | — |
+| SIDEWAYS confirm율(canary-rag) | 미측정 | 0.0% | — | — |
+| 비용/콜(canary vs primary) | 미측정 | 1/10 | — | -90% |
+
+### 14.4 최종 결론
+
+**primary(claude-haiku) 유지. canary 실험 종료.**
+
+- gpt-4o-mini는 RAG 유무 관계없이 SIDEWAYS CONFIRM 0%로 실운영 교체 불가.
+- 오류/timeout 악화는 없었으므로 안정성 측면은 문제없음.
+- 비용/latency 이점을 활용하려면 모델 프롬프트/평가 구조 전면 재설계가 필요하며, 이는 별도 작업 범위다.
+- 운영 종료 조치: `AI_CANARY_ENABLED=false` 적용 후 bot 재기동.
+
+### 14.5 증빙 근거
+
+- 측정 기간: 2026-02-24 ~ 2026-03-25 (약 30일)
+- 표본 수: primary 557건, canary(RAG 없음) 22건, canary-rag 88건
+- 성공/실패 기준: SIDEWAYS confirm율 비교, parse_fail/timeout +2%p 이내
+- 증빙 SQL: 본 문서 14.1 섹션 쿼리 (OCI coinpilot-db 기준)
 
 ---
 
