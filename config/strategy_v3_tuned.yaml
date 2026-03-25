@@ -1,6 +1,6 @@
 # config/strategy_v3_tuned.yaml
-# 33번 튜닝 후보 (v2): SIDEWAYS rsi_exit_min_profit_pct 1%→2%
-# 이전 후보(SL 축소)는 백테스트 결과 악화 확인 → 보류
+# 33번 튜닝 후보 (v3): SIDEWAYS rsi_overbought 70→75 (이익 청산 조건 완화, 더 오래 보유)
+# 이전 후보(SL 축소, min_profit 상향)는 백테스트 결과 개선 없음 → 보류
 # 백테스트 비교용 — 운영 적용 전 검증 목적
 
 regime_detection:
@@ -97,8 +97,8 @@ regimes:
       stop_loss_pct: 0.04        # baseline 유지 (2% 시도 시 백테스트 악화 확인)
       trailing_stop_pct: 0.025
       trailing_stop_activation_pct: 0.01
-      rsi_overbought: 70
-      rsi_exit_min_profit_pct: 0.02  # 0.01 → 0.02 (RSI 청산 최소 수익 기준 상향)
+      rsi_overbought: 75         # 70 → 75 (이익 포지션 조기 청산 방지, avg_win 개선 목적)
+      rsi_exit_min_profit_pct: 0.01  # baseline 유지
       time_limit_hours: 48       # baseline 유지
     position_size_ratio: 0.9
 
