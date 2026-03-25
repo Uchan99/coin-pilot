@@ -1,5 +1,6 @@
 # config/strategy_v3_tuned.yaml
-# 33번 튜닝 후보: SIDEWAYS stop_loss 4%→2%, time_limit 48h→24h / BEAR stop_loss 5%→3%, time_limit 24h→12h
+# 33번 튜닝 후보 (v2): SIDEWAYS rsi_exit_min_profit_pct 1%→2%
+# 이전 후보(SL 축소)는 백테스트 결과 악화 확인 → 보류
 # 백테스트 비교용 — 운영 적용 전 검증 목적
 
 regime_detection:
@@ -93,12 +94,12 @@ regimes:
       ai_error_block_minutes: 30
     exit:
       take_profit_pct: 0.03
-      stop_loss_pct: 0.02        # 0.04 → 0.02 (R:R 역전 해소)
+      stop_loss_pct: 0.04        # baseline 유지 (2% 시도 시 백테스트 악화 확인)
       trailing_stop_pct: 0.025
       trailing_stop_activation_pct: 0.01
       rsi_overbought: 70
-      rsi_exit_min_profit_pct: 0.01
-      time_limit_hours: 24       # 48 → 24 (손실 포지션 조기 정리)
+      rsi_exit_min_profit_pct: 0.02  # 0.01 → 0.02 (RSI 청산 최소 수익 기준 상향)
+      time_limit_hours: 48       # baseline 유지
     position_size_ratio: 0.9
 
   BEAR:
@@ -133,12 +134,12 @@ regimes:
       ai_error_block_minutes: 30
     exit:
       take_profit_pct: 0.03
-      stop_loss_pct: 0.03        # 0.05 → 0.03 (하락장 과대 손절 방지)
+      stop_loss_pct: 0.05        # baseline 유지
       trailing_stop_pct: 0.02
       trailing_stop_activation_pct: 0.01
       rsi_overbought: 70
-      rsi_exit_min_profit_pct: 0.005
-      time_limit_hours: 12       # 24 → 12 (하락장 장기 보유 위험 감소)
+      rsi_exit_min_profit_pct: 0.005  # baseline 유지 (BEAR 거래 없어 데이터 부족)
+      time_limit_hours: 24       # baseline 유지
     position_size_ratio: 0.7
 
 risk_management:
