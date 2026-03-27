@@ -16,6 +16,10 @@
   - 5단계(진입 조건 분석) 신설 — Rule Engine 1,361건 중 AI Confirm 26건(1.9%) 문제
 - 2026-03-28: **1단계 포지션 사이즈 상향 추가**
   - max_position_size 20%→30% (동시 2개 제한에 맞춰 자본 활용률 40%→60% 개선)
+- 2026-03-28: **Phase 1~2 OCI 배포 완료, 모니터링 전환**
+  - 2026-03-29까지 실거래 모니터링 후 Phase 3 진행 예정
+  - Result 문서 작성: docs/work-result/34_adaptive_mean_reversion_5stage_improvement_result.md
+  - 전략 회고 문서 작성: docs/troubleshooting/strategy-retrospectives/34_rr_inversion_and_correlated_loss_clustering.md
 
 ---
 
