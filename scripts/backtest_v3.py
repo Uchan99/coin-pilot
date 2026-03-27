@@ -162,7 +162,7 @@ def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: 
     return True
 
 
-def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig) -> tuple:
+def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig, bb_min_profit: float = 0.003) -> tuple:
     """레짐별 청산 조건 체크 (트레일링 스탑 포함)"""
     regime_config = config.REGIMES.get(trade.regime, config.REGIMES["SIDEWAYS"])
     exit_cfg = regime_config["exit"]
@@ -197,7 +197,7 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig) -> t
     if trade.regime == "SIDEWAYS":
         bb_mid = row.get('bb_mid') if hasattr(row, 'get') else row['bb_mid']
         if pd.notna(bb_mid) and row['close'] >= bb_mid:
-            if pnl_pct >= 0.003:
+            if pnl_pct >= bb_min_profit:
                 return True, "BB_MIDLINE_EXIT"
 
     # 5. RSI 과매수 (조건부)
@@ -213,7 +213,7 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig) -> t
     return False, ""
 
 
-def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str) -> List[Trade]:
+def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str, bb_min_profit: float = 0.003) -> List[Trade]:
     """거래 시뮬레이션 (v3.0 레짐 기반)"""
     trades = []
     position = None
@@ -227,7 +227,7 @@ def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str) -> Li
 
         # 포지션 보유 중 -> 청산 체크
         if position:
-            should_exit, reason = check_exit_signal(row, position, config)
+            should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
             if should_exit:
                 position.exit_time = current_time
                 position.exit_price = row['close']
@@ -378,12 +378,129 @@ def print_trade_summary(trades: List[Trade], symbol: str):
     print(f"  예상 수익: {total_profit:+,.0f}원 (레짐별 비중 적용)")
 
 
+async def run_compare_bb_guards(config: StrategyConfig, guard_values: list):
+    """BB_MIDLINE_EXIT 가드 수치별 비교 백테스트"""
+    # 데이터 한 번만 로드
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 90)
+    print("BB_MIDLINE_EXIT 최소 수익 가드 비교 백테스트")
+    print("=" * 90)
+    print(f"비교 값: {[f'{v*100:.1f}%' for v in guard_values]}")
+    print(f"심볼: {list(market_data.keys())}")
+    print()
+
+    # 각 가드 값으로 시뮬레이션
+    results = []
+    for guard in guard_values:
+        all_trades = []
+        for symbol, df in market_data.items():
+            trades = simulate_trades(df, config, symbol, bb_min_profit=guard)
+            all_trades.extend(trades)
+
+        # SIDEWAYS 통계
+        sw_trades = [t for t in all_trades if t.regime == "SIDEWAYS"]
+        sw_wins = [t for t in sw_trades if t.pnl_net and t.pnl_net > 0]
+        sw_total_pnl = sum(t.pnl_net for t in sw_trades if t.pnl_net) * 100
+        sw_avg_win = (sum(t.pnl_net for t in sw_wins if t.pnl_net) / len(sw_wins) * 100) if sw_wins else 0
+        sw_losses = [t for t in sw_trades if t.pnl_net and t.pnl_net <= 0]
+        sw_avg_loss = (sum(t.pnl_net for t in sw_losses if t.pnl_net) / len(sw_losses) * 100) if sw_losses else 0
+
+        # 청산 사유 집계
+        sw_reasons = {}
+        for t in sw_trades:
+            r = t.exit_reason or "UNKNOWN"
+            sw_reasons[r] = sw_reasons.get(r, 0) + 1
+
+        # 전체 통계
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        total_wins = len([t for t in all_trades if t.pnl_net and t.pnl_net > 0])
+        win_rate = total_wins / len(all_trades) * 100 if all_trades else 0
+
+        # BB_MIDLINE_EXIT 거래 상세
+        bb_exits = [t for t in sw_trades if t.exit_reason == "BB_MIDLINE_EXIT"]
+        bb_avg_pnl = (sum(t.pnl_net for t in bb_exits if t.pnl_net) / len(bb_exits) * 100) if bb_exits else 0
+
+        results.append({
+            "guard": guard,
+            "total_trades": len(all_trades),
+            "win_rate": win_rate,
+            "total_pnl": total_pnl,
+            "total_profit": total_profit,
+            "sw_trades": len(sw_trades),
+            "sw_win_rate": len(sw_wins) / len(sw_trades) * 100 if sw_trades else 0,
+            "sw_pnl": sw_total_pnl,
+            "sw_avg_win": sw_avg_win,
+            "sw_avg_loss": sw_avg_loss,
+            "sw_reasons": sw_reasons,
+            "bb_exits": len(bb_exits),
+            "bb_avg_pnl": bb_avg_pnl,
+        })
+
+    # 비교 테이블 출력
+    print("-" * 90)
+    print(f"{'가드':>6} | {'전체':>5} | {'승률':>6} | {'누적PnL':>9} | {'예상수익':>10} | "
+          f"{'SW건수':>5} | {'SW승률':>6} | {'SW PnL':>9} | {'SW avg_W':>8} | {'SW avg_L':>8}")
+    print("-" * 90)
+    for r in results:
+        print(f"{r['guard']*100:>5.1f}% | {r['total_trades']:>5} | {r['win_rate']:>5.1f}% | "
+              f"{r['total_pnl']:>+8.2f}% | {r['total_profit']:>+9,.0f}원 | "
+              f"{r['sw_trades']:>5} | {r['sw_win_rate']:>5.1f}% | {r['sw_pnl']:>+8.2f}% | "
+              f"{r['sw_avg_win']:>+7.2f}% | {r['sw_avg_loss']:>+7.2f}%")
+
+    # SIDEWAYS 청산 사유 상세
+    print()
+    print("-" * 90)
+    print("SIDEWAYS 청산 사유 분포:")
+    print("-" * 90)
+    all_reasons = set()
+    for r in results:
+        all_reasons.update(r["sw_reasons"].keys())
+    all_reasons = sorted(all_reasons)
+
+    header = f"{'가드':>6}"
+    for reason in all_reasons:
+        header += f" | {reason:>16}"
+    header += f" | {'BB avg_pnl':>10}"
+    print(header)
+    print("-" * 90)
+    for r in results:
+        line = f"{r['guard']*100:>5.1f}%"
+        for reason in all_reasons:
+            cnt = r["sw_reasons"].get(reason, 0)
+            line += f" | {cnt:>16}"
+        line += f" | {r['bb_avg_pnl']:>+9.2f}%"
+        print(line)
+
+    print()
+    print("=" * 90)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
+    parser.add_argument("--bb-min-profit", type=float, default=None,
+                        help="BB_MIDLINE_EXIT 최소 수익 가드 (예: 0.01 = 1%%). 미지정 시 0.3%%")
+    parser.add_argument("--compare-bb-guards", action="store_true",
+                        help="BB_MIDLINE_EXIT 가드 수치 비교 모드 (0%%, 0.3%%, 0.5%%, 1.0%%, 1.5%%, 2.0%%, OFF)")
     args = parser.parse_args()
 
     config = load_strategy_config(args.config) if args.config else get_config()
+
+    # BB 가드 비교 모드
+    if args.compare_bb_guards:
+        # 999.0 = BB_MIDLINE_EXIT 사실상 비활성화 (OFF 상당)
+        guard_values = [999.0, 0.003, 0.005, 0.01, 0.015, 0.02]
+        await run_compare_bb_guards(config, guard_values)
+        return
+
+    # 단일 가드 값 지정 시 적용
+    bb_min_profit = args.bb_min_profit if args.bb_min_profit is not None else 0.003
 
     print("=" * 70)
     print("v3.0 마켓 레짐 기반 적응형 전략 백테스트")
@@ -405,6 +522,7 @@ async def main():
     print()
     print(f"수수료: {FEE_RATE*100:.2f}% (매수+매도)")
     print(f"기본 투자금: {BASE_POSITION_SIZE/10000:.0f}만원/건")
+    print(f"BB_MIDLINE_EXIT 최소 수익 가드: {bb_min_profit*100:.1f}%")
     print()
     print("-" * 70)
 
@@ -417,7 +535,7 @@ async def main():
             continue
 
         data_days = len(df) / 24  # 1시간봉 기준
-        trades = simulate_trades(df, config, symbol)
+        trades = simulate_trades(df, config, symbol, bb_min_profit=bb_min_profit)
         all_trades.extend(trades)
 
         print(f"\n{symbol} ({data_days:.1f}일치 1시간봉 데이터):")
