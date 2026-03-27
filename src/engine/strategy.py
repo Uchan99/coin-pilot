@@ -309,14 +309,15 @@ class MeanReversionStrategy(BaseStrategy):
         if pnl_ratio >= exit_config["take_profit_pct"]:
             return True, "TAKE_PROFIT"
 
-        # 4. BB 중심선(MA20) 하향 이탈 익절 — SIDEWAYS 전용 (v3.4)
-        # SIDEWAYS 전략 전제: "BB 하단 반등 → MA20 복귀"
-        # MA20 하향 이탈 = 반등 모멘텀 소멸, 전략 전제 붕괴 → 수익 보존 청산
-        # pnl > 0.3% 가드: MA20 부근 횡보 노이즈(0.1% 내 미세 진동)로 인한 조기 청산 방지
-        # TRAILING_STOP(activation 1%) 이전 구간(0.3%~1%)의 수익을 포착하는 역할
+        # 4. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
+        # SIDEWAYS 평균 회귀 전략의 목표: "BB 하단 반등 → MA20(평균)으로 회귀"
+        # 가격이 현재 MA20에 도달/돌파하는 순간 = 평균 회귀 완성 → 수익 확정
+        # 하락장에서 MA20 자체가 내려오므로, 현재 MA20 기준이 고정값(진입 시 MA20)보다
+        # 도달 가능성이 높아 발동 빈도가 적절함.
+        # pnl > 0.3% 가드: 진입가 바로 위에서 MA20과 교차하는 노이즈 청산 방지
         if entry_regime == "SIDEWAYS":
             bb_mid = indicators.get("bb_mid")
-            if bb_mid is not None and float(close) < float(bb_mid):
+            if bb_mid is not None and float(close) >= float(bb_mid):
                 if pnl_ratio >= 0.003:  # 0.3% 최소 수익 조건
                     return True, "BB_MIDLINE_EXIT"
 

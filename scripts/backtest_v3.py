@@ -190,12 +190,13 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig) -> t
     if pnl_pct >= exit_cfg["take_profit_pct"]:
         return True, "TAKE_PROFIT"
 
-    # 4. BB 중심선(MA20) 하향 이탈 익절 — SIDEWAYS 전용 (v3.4)
-    # SIDEWAYS 전략 전제 붕괴(반등 모멘텀 소멸) 감지 → 수익 보존 청산
-    # pnl > 0.3% 가드: MA20 부근 노이즈로 인한 조기 청산 방지
+    # 4. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
+    # 평균 회귀 전략의 목표: "BB 하단 반등 → 현재 MA20(평균)에 도달 시 수익 확정"
+    # 하락장에서 MA20 자체가 내려오므로 현재 MA20 기준이 현실적 목표가가 됨
+    # pnl > 0.3% 가드: 진입가 바로 위에서 MA20과 교차하는 노이즈 청산 방지
     if trade.regime == "SIDEWAYS":
         bb_mid = row.get('bb_mid') if hasattr(row, 'get') else row['bb_mid']
-        if pd.notna(bb_mid) and row['close'] < bb_mid:
+        if pd.notna(bb_mid) and row['close'] >= bb_mid:
             if pnl_pct >= 0.003:
                 return True, "BB_MIDLINE_EXIT"
 
