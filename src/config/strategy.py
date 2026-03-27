@@ -152,7 +152,7 @@ class StrategyConfig:
     # 리스크 및 포트폴리오 관리 (기존 v2.0 유지)
     MAX_POSITION_SIZE: float = 0.05
     MAX_TOTAL_EXPOSURE: float = 0.20
-    MAX_CONCURRENT_POSITIONS: int = 3
+    MAX_CONCURRENT_POSITIONS: int = 2  # v3.4: 5→2 축소 (동시 다심볼 SL 상관손실 방지)
     ALLOW_SAME_COIN_DUPLICATE: bool = False
     MAX_DAILY_LOSS: float = 0.05
     MAX_DAILY_TRADES: int = 10

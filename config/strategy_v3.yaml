@@ -143,10 +143,10 @@ regimes:
 risk_management:
   # 100만원 운용 기준:
   # - 심볼당 기본 주문 타깃 20%
-  # - 필요 시 5심볼 합산 100% 홀딩 허용
+  # - 동시 포지션 2개 제한 (v3.4: 동시 다심볼 SL 상관손실 방지)
   max_position_size: 0.20
   max_total_exposure: 1.00
-  max_concurrent_positions: 5
+  max_concurrent_positions: 2
   allow_same_coin_duplicate: false
   # 초기 실거래 전환 구간 보호용 일일 리스크(보수적)
   max_daily_loss: 0.03

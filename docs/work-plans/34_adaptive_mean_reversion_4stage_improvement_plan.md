@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-27
 **작성자**: Claude (assistant)
-**상태**: Approval Pending
+**상태**: Approved
 **관련 계획 문서**: `docs/work-plans/33_strategy_exit_parameter_tuning_plan.md`
 **승인 정보**: 사용자 승인 (2026-03-27) — 데이터 분석 결과로 volume_surge 필터 폐기 후 3단계로 재편
 **변경 이력**:
@@ -69,7 +69,7 @@
 | 3/22 | 2건 | SOL(-4.17%), ETH(-4.03%) | **-8.20%** |
 
 - 이 3개 이벤트(7건)의 손실 합계: **-27.94%** → 전체 STOP_LOSS 손실의 대부분
-- 현재 `MAX_CONCURRENT_POSITIONS = 3` → 시장 크래시 시 3심볼이 동시에 SL에 진입
+- 현재 `MAX_CONCURRENT_POSITIONS = 5` (YAML override) → 시장 크래시 시 3심볼이 동시에 SL에 진입
 - **핵심 문제**: 개별 거래의 exit 로직이 아니라, **동시 노출(exposure)**이 손실 집중의 주 원인
 
 ### Root cause 2: exit 조건 미흡 — BB 중심선(MA20) 도달 시 익절 없음
@@ -129,7 +129,7 @@
 **변경 내용**:
 ```python
 # src/config/strategy.py line 155
-MAX_CONCURRENT_POSITIONS: int = 2  # 기존 3 → 2로 축소
+MAX_CONCURRENT_POSITIONS: int = 2  # 기존 5 → 2로 축소
 ```
 
 **효과 추정**:
@@ -375,4 +375,4 @@ LIMIT 20;
 | 최악 시간대 (KST) | 15시(-2.70%), 22시(-3.76%) | `trading_history` 시간 분석 | 표본 적어 관측만 (5건, 2건) |
 | 심볼별 성과 | DOGE(+1.24%) > ETH(-0.13%) > SOL(-0.25%) > XRP(-0.36%) > BTC(-1.00%) | `trading_history` | DOGE 4/5 승, BTC 1/2 승 (표본 적음) |
 | 퍼널: rule_pass → ai_confirm | 1361 → 26 (1.9%) | `rule_funnel_events` | 98.1% 거부율 |
-| MAX_CONCURRENT_POSITIONS 현재값 | **3** | `src/config/strategy.py:155` | 1단계에서 2로 축소 |
+| MAX_CONCURRENT_POSITIONS 현재값 | **5** (YAML override, Python 기본값 3) | `config/strategy_v3.yaml:149` + `src/config/strategy.py:155` | 1단계에서 2로 축소 |
