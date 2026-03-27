@@ -162,7 +162,7 @@ def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: 
     return True
 
 
-def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig, bb_min_profit: float = 0.003) -> tuple:
+def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig, bb_min_profit: float = 0.01) -> tuple:
     """레짐별 청산 조건 체크 (트레일링 스탑 포함)"""
     regime_config = config.REGIMES.get(trade.regime, config.REGIMES["SIDEWAYS"])
     exit_cfg = regime_config["exit"]
@@ -190,20 +190,19 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig, bb_m
     if pnl_pct >= exit_cfg["take_profit_pct"]:
         return True, "TAKE_PROFIT"
 
-    # 4. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
-    # 평균 회귀 전략의 목표: "BB 하단 반등 → 현재 MA20(평균)에 도달 시 수익 확정"
-    # 하락장에서 MA20 자체가 내려오므로 현재 MA20 기준이 현실적 목표가가 됨
-    # pnl > 0.3% 가드: 진입가 바로 위에서 MA20과 교차하는 노이즈 청산 방지
+    # 4. RSI 과매수 (조건부) — BB_MIDLINE_EXIT보다 우선
+    # RSI 과매수 시 추가 상승 가능성 → RSI_OVERBOUGHT에 맡김
+    if row['rsi'] > exit_cfg["rsi_overbought"]:
+        if pnl_pct >= exit_cfg["rsi_exit_min_profit_pct"]:
+            return True, "RSI_OVERBOUGHT"
+
+    # 5. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
+    # RSI가 과매수가 아닌데 MA20 도달 = 모멘텀 약한 회귀 → 수익 확정
     if trade.regime == "SIDEWAYS":
         bb_mid = row.get('bb_mid') if hasattr(row, 'get') else row['bb_mid']
         if pd.notna(bb_mid) and row['close'] >= bb_mid:
             if pnl_pct >= bb_min_profit:
                 return True, "BB_MIDLINE_EXIT"
-
-    # 5. RSI 과매수 (조건부)
-    if row['rsi'] > exit_cfg["rsi_overbought"]:
-        if pnl_pct >= exit_cfg["rsi_exit_min_profit_pct"]:
-            return True, "RSI_OVERBOUGHT"
 
     # 6. 시간 초과
     hold_time = row['timestamp'] - trade.entry_time
@@ -213,7 +212,7 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig, bb_m
     return False, ""
 
 
-def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str, bb_min_profit: float = 0.003) -> List[Trade]:
+def simulate_trades(df: pd.DataFrame, config: StrategyConfig, symbol: str, bb_min_profit: float = 0.01) -> List[Trade]:
     """거래 시뮬레이션 (v3.0 레짐 기반)"""
     trades = []
     position = None
@@ -500,7 +499,7 @@ async def main():
         return
 
     # 단일 가드 값 지정 시 적용
-    bb_min_profit = args.bb_min_profit if args.bb_min_profit is not None else 0.003
+    bb_min_profit = args.bb_min_profit if args.bb_min_profit is not None else 0.01
 
     print("=" * 70)
     print("v3.0 마켓 레짐 기반 적응형 전략 백테스트")

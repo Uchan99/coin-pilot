@@ -309,22 +309,22 @@ class MeanReversionStrategy(BaseStrategy):
         if pnl_ratio >= exit_config["take_profit_pct"]:
             return True, "TAKE_PROFIT"
 
-        # 4. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
-        # SIDEWAYS 평균 회귀 전략의 목표: "BB 하단 반등 → MA20(평균)으로 회귀"
-        # 가격이 현재 MA20에 도달/돌파하는 순간 = 평균 회귀 완성 → 수익 확정
-        # 하락장에서 MA20 자체가 내려오므로, 현재 MA20 기준이 고정값(진입 시 MA20)보다
-        # 도달 가능성이 높아 발동 빈도가 적절함.
-        # pnl > 0.3% 가드: 진입가 바로 위에서 MA20과 교차하는 노이즈 청산 방지
-        if entry_regime == "SIDEWAYS":
-            bb_mid = indicators.get("bb_mid")
-            if bb_mid is not None and float(close) >= float(bb_mid):
-                if pnl_ratio >= 0.003:  # 0.3% 최소 수익 조건
-                    return True, "BB_MIDLINE_EXIT"
-
-        # 5. RSI 과매수 청산 (최소 수익 조건부)
+        # 4. RSI 과매수 청산 (최소 수익 조건부)
+        # BB_MIDLINE_EXIT보다 우선: RSI 과매수 시 추가 상승 가능성 높으므로
+        # RSI_OVERBOUGHT(+1% min)에 맡기고, RSI 미과매수 시만 BB_MIDLINE_EXIT 적용
         if rsi_14 and rsi_14 > exit_config["rsi_overbought"]:
             if pnl_ratio >= exit_config["rsi_exit_min_profit_pct"]:
                 return True, "RSI_OVERBOUGHT"
+
+        # 5. BB 중심선(MA20) 도달 익절 — SIDEWAYS 전용 (v3.4)
+        # SIDEWAYS 평균 회귀 전략의 목표: "BB 하단 반등 → MA20(평균)으로 회귀"
+        # RSI가 과매수가 아닌데 MA20에 도달 = 모멘텀 약한 회귀 → 수익 확정이 안전
+        # pnl > 1.0% 가드: 백테스트 비교 결과 1.0%가 최적 (avg_win 보존 + TIME_LIMIT 감소)
+        if entry_regime == "SIDEWAYS":
+            bb_mid = indicators.get("bb_mid")
+            if bb_mid is not None and float(close) >= float(bb_mid):
+                if pnl_ratio >= 0.01:  # 1.0% 최소 수익 조건
+                    return True, "BB_MIDLINE_EXIT"
 
         # 6. 시간 초과
         if opened_at:

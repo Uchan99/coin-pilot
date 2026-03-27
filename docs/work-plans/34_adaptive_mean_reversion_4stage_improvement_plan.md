@@ -1,4 +1,4 @@
-# 34. AdaptiveMeanReversion 전략 4단계 개선 계획
+# 34. AdaptiveMeanReversion 전략 5단계 개선 계획
 
 **작성일**: 2026-03-27
 **작성자**: Claude (assistant)
@@ -7,10 +7,13 @@
 **승인 정보**: 사용자 승인 (2026-03-27) — 데이터 분석 결과로 volume_surge 필터 폐기 후 3단계로 재편
 **변경 이력**:
 - 2026-03-27: 초안 작성 및 승인 (3단계 구조)
-- 2026-03-28: **실거래 데이터 심층 분석 반영하여 4단계로 재편** (Approval Pending)
+- 2026-03-28: **실거래 데이터 심층 분석 반영하여 4단계로 재편**
   - STOP_LOSS 클러스터 분석 → 1단계(동시 포지션 제한) 신규 추가
   - BB_MIDLINE_EXIT 성공 기준 수정 (STOP_LOSS 방지 → TIME_LIMIT 손실 축소)
   - 데이터 근거 섹션 보강
+- 2026-03-28: **백테스트 결과 반영하여 5단계로 재편**
+  - BB_MIDLINE_EXIT 가드 0.3%→1.0% + 우선순위 RSI_OVERBOUGHT 뒤로 이동 (대안C 병행)
+  - 5단계(진입 조건 분석) 신설 — Rule Engine 1,361건 중 AI Confirm 26건(1.9%) 문제
 
 ---
 
@@ -114,11 +117,11 @@
 | **진입 필터 추가 (volume_surge_check)** | SIDEWAYS에 거래량 급증 차단 | ❌ 폐기 | 데이터 분석: 진입 vol_ratio 0.81x(평균) → 역사적 차단 건수 거의 없음 |
 | **시간 기반 동적 SL** | 보유 시간 길어질수록 SL 축소 | ❌ 보류 | 구현 복잡, SIDEWAYS에서 시간이 약이 될 수도 있어 효과 불확실 |
 | **부분 청산** | 목표가 도달 시 50% 청산, 나머지 trailing | ❌ 보류 | 현 아키텍처 미지원, 장기 과제 (avg_win 감소 vs SL 방지의 이상적 해결책) |
-| **4단계 순차 개선 (채택)** | 동시 포지션 제한 + exit 로직 + AI 프롬프트 + Guardian 강화 | ✅ 채택 | 각 단계 데이터 근거 명확, 코드/프롬프트 단계적 검증 가능 |
+| **5단계 순차 개선 (채택)** | 동시 포지션 제한 + exit 로직 + AI 프롬프트 + Guardian 강화 + 진입 조건 분석 | ✅ 채택 | 각 단계 데이터 근거 명확, 코드/프롬프트 단계적 검증 가능 |
 
 ---
 
-## 4. 4단계 구현 계획
+## 4. 5단계 구현 계획
 
 ### 1단계: 포트폴리오 동시 포지션 제한 축소 (3 → 2)
 
@@ -156,43 +159,46 @@ MAX_CONCURRENT_POSITIONS: int = 2  # 기존 5 → 2로 축소
 
 ---
 
-### 2단계: BB 중심선(MA20) 도달 시 익절 exit (구현 완료 — 검증 필요)
+### 2단계: BB 중심선(MA20) 도달 시 익절 exit (v3.4 → v3.5 수정)
 
-**목적**: 수익 구간에서 BB 중심선(MA20) 도달 시 조기 익절 → TIME_LIMIT 손실 전환 방지
-**변경 파일**: `src/engine/strategy.py` (이미 구현됨, v3.4)
-**현재 코드 상태**: `strategy.py:312-322` — `close >= bb_mid AND pnl_ratio >= 0.003`
+**목적**: 수익 구간에서 BB 중심선(MA20) 도달 시 익절 → TIME_LIMIT 손실 전환 방지
+**변경 파일**: `src/engine/strategy.py`, `scripts/backtest_v3.py`
 
-**구현된 exit 조건** (SIDEWAYS 레짐 전용):
-- `close >= bb_mid` (BB 중심선 MA20 **도달**)
-- `pnl_ratio >= 0.003` (0.3% 최소 수익 가드 — 노이즈 청산 방지)
+**v3.4 → v3.5 변경 사항** (백테스트 결과 반영):
+
+| 항목 | v3.4 (이전) | v3.5 (현재) | 변경 이유 |
+|------|------------|------------|-----------|
+| 최소 수익 가드 | 0.3% | **1.0%** | 백테스트: 1.0%가 SW PnL 최선(-52.83%), avg_win +1.29% 보존 |
+| 우선순위 | TP → **BB** → RSI | TP → **RSI** → **BB** | RSI 과매수 시 추가 상승 가능 → RSI_OVERBOUGHT에 우선권 |
+
+**exit 조건** (SIDEWAYS 레짐 전용):
+- `close >= bb_mid` (BB 중심선 MA20 도달)
+- `pnl_ratio >= 0.01` (1.0% 최소 수익 가드)
 - exit_reason: `BB_MIDLINE_EXIT`
-- 우선순위: STOP_LOSS → TRAILING_STOP → TAKE_PROFIT → **BB_MIDLINE_EXIT** → RSI_OVERBOUGHT → TIME_LIMIT
+- 우선순위: STOP_LOSS → TRAILING_STOP → TAKE_PROFIT → **RSI_OVERBOUGHT** → **BB_MIDLINE_EXIT** → TIME_LIMIT
 
-> **Plan 초안(close < ma20 "하향 이탈") vs 실제 구현(close >= bb_mid "도달") 차이 설명**:
->
-> 초안은 "BB 중심선 이탈 = 전제 붕괴 → 방어 청산"으로 설계했으나,
-> 커밋 `710398b`에서 "BB 하단 진입 → MA20 회귀 = 목표 달성 → 수익 확정"으로 변경.
-> SIDEWAYS 평균 회귀 전략에서는 **MA20 도달 = 목표가 도달**이 더 논리적으로 정합적임.
+**대안C 병행 논리** (RSI_OVERBOUGHT 우선):
+```
+RSI > 70 (과매수) → RSI_OVERBOUGHT로 청산 (모멘텀 있으므로 더 기다림, +1% min)
+RSI ≤ 70 + MA20 도달 → BB_MIDLINE_EXIT로 청산 (모멘텀 약한 회귀, +1% min)
+RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
+```
 
-**아키텍처 대안 비교**:
+**백테스트 가드 수치 비교 결과** (2026-03-28):
 
-| 대안 | 설명 | 채택 여부 | 트레이드오프 |
-|------|------|-----------|------------|
-| `close >= bb_mid` 도달 시 청산 (채택) | MA20 도달 = 평균 회귀 완성 → 수익 확정 | ✅ | 단순, 전략 논리 정합. 단점: RSI_OVERBOUGHT(+1.26%) 대비 조기 청산으로 avg_win 감소 가능 |
-| `close >= bb_mid` + 연속 N캔들 확인 | N캔들 연속 MA20 위 유지 시 청산 | 보류 | 노이즈 감소 but 반응 지연 → 이후 하락 시 수익 유실 |
-| `close < bb_lower` (BB 하단 재돌파) | BB 하단 아래로 떨어질 때 청산 | ❌ 기각 | 이미 크게 하락 후 청산 → 너무 늦음 |
-| pnl 조건 없이 항상 청산 | 수익/손실 무관하게 MA20 도달 시 청산 | ❌ 기각 | 손실 중 추가 조기 청산 → STOP_LOSS보다 불리 |
+| 가드 | SW 건수 | SW 승률 | SW PnL | avg_win | BB발동 | RSI_OB | TP | TIME_LIMIT | SL |
+|------|---------|---------|--------|---------|--------|--------|-----|-----------|-----|
+| OFF | 49 | 40.8% | -58.48% | +2.38% | 0 | 3 | 9 | 16 | 18 |
+| 0.3% | 59 | 64.4% | -57.80% | +0.63% | 38 | 0 | 0 | 3 | 15 |
+| **1.0%** | **55** | **54.5%** | **-52.83%** | **+1.29%** | **29** | **0** | **0** | **7** | **16** |
+| 2.0% | 49 | 40.8% | -66.30% | +1.92% | 15 | 1 | 0 | 12 | 18 |
 
-**0.3% 가드 수치 검증 필요**:
-- 현재 0.3%는 수수료(0.05% x 2 = 0.1%) 커버 + 약간의 마진을 고려한 감각적 기준
-- 백테스트에서 0.1%, 0.3%, 0.5%, 1.0% 등 여러 임계값 비교 필요
-- 너무 낮으면(0.1%) 노이즈 청산 증가, 너무 높으면(1.0%) BB_MIDLINE_EXIT 발동 빈도 감소
+> **주의**: 위 백테스트는 대안C(우선순위 변경) 적용 전 수치. 대안C 적용 후 RSI_OVERBOUGHT 복원 효과를 OCI에서 재검증 필요.
 
-**백테스트**: `backtest_v3.py` baseline vs tuned 비교
-**성공 기준** (수정):
-- ~~STOP_LOSS 비율 감소~~ → **TIME_LIMIT 손실 건의 avg_loss 개선**
-- avg_win 감소폭이 0.3%p 이내 (기존 +1.28% → 최소 +0.98% 이상 유지)
-- BB_MIDLINE_EXIT 발동 건의 평균 PnL > 0.3% (의미 있는 수익 확보)
+**성공 기준**:
+- TIME_LIMIT 비율 감소 (OFF 대비)
+- avg_win +1.0% 이상 유지 (RSI_OVERBOUGHT 복원 효과 포함)
+- BB_MIDLINE_EXIT 발동 건의 평균 PnL > 1.0%
 
 ---
 
@@ -232,14 +238,59 @@ MAX_CONCURRENT_POSITIONS: int = 2  # 기존 5 → 2로 축소
 
 ---
 
+### 5단계: Rule Engine 진입 조건 분석 및 강화
+
+**목적**: Rule Engine의 저품질 신호 비율을 줄여 AI 필터 의존도 감소
+**데이터 근거**: Rule Engine 1,361건 통과 → AI Confirm 26건(1.9%). 98.1%가 AI에 의해 거부 → 진입 조건이 너무 관대
+
+**현재 SIDEWAYS 진입 조건**:
+```
+RSI14 < 48        ← 거의 중립 구간까지 허용
+RSI7 반등 > 42    ← 약한 반등도 통과
+MA20 proximity    ← 근접만 하면 통과
+BB touch recovery ← BB 하단 터치 후 반등
+volume 조건       ← 진입 시 vol_ratio 0.81x (거의 항상 통과)
+```
+
+**분석 방법**: AI Confirm 26건 vs AI Reject 552건의 진입 시점 지표를 비교하여, Rule Engine 단계에서 Reject 패턴을 사전 차단할 수 있는 조건 도출
+
+**분석 SQL**:
+```sql
+-- Confirm vs Reject 진입 지표 비교
+SELECT
+  CASE WHEN stage = 'ai_confirm' THEN 'CONFIRM' ELSE 'REJECT' END AS grp,
+  COUNT(*) AS cnt,
+  AVG((signal_info->>'rsi_14')::numeric) AS avg_rsi14,
+  AVG((signal_info->>'rsi_7')::numeric) AS avg_rsi7,
+  AVG((signal_info->>'vol_ratio')::numeric) AS avg_vol_ratio,
+  PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY (signal_info->>'rsi_14')::numeric) AS rsi14_p25,
+  PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY (signal_info->>'rsi_14')::numeric) AS rsi14_p75
+FROM rule_funnel_events
+WHERE stage IN ('ai_confirm', 'ai_reject')
+  AND regime = 'SIDEWAYS'
+GROUP BY 1;
+```
+
+**예상 결과 시나리오**:
+- "Confirm 평균 RSI14 = 38, Reject 평균 RSI14 = 44" → RSI14 임계값 48→40으로 축소 근거
+- "Confirm은 최근 6h 하락률 > -1%, Reject은 < -2%" → falling_knife 필터 강화 근거
+- 유의미한 차이 없음 → Rule Engine 조건은 유지, AI 프롬프트 개선에 집중
+
+**구현 범위**: 분석 결과에 따라 결정 (데이터 기반 판단)
+**변경 파일**: `src/engine/strategy.py` (check_entry_signal) — 분석 결과에 따라
+**성공 기준**: rule_pass 건수 30% 이상 감소 + ai_confirm 건수 유지 (좋은 신호는 보존)
+
+---
+
 ## 5. 단계별 검증 기준
 
 | 단계 | 변경 범위 | 검증 방법 | 성공 기준 |
 |------|-----------|-----------|-----------|
 | 1단계 | strategy.py (config) | 실운영 2주 후 SQL | 동시 3심볼 SL 이벤트 재발 없음, 기회 비용 추적 |
-| 2단계 | strategy.py (exit) | backtest_v3.py baseline vs tuned | TIME_LIMIT avg_loss 개선, avg_win 감소 0.3%p 이내 |
+| 2단계 | strategy.py (exit) | backtest_v3.py + OCI 재검증 | TIME_LIMIT 감소, avg_win +1.0% 이상, RSI_OVERBOUGHT 복원 |
 | 3단계 | prompts.py | 실운영 2주 후 SQL | boundary_violation 33.6% → 20% 이하 |
 | 4단계 | guardian.py + prompts.py | 실운영 2주 후 reasoning 샘플링 | 캔들 구조 언급 reasoning 비율 증가 |
+| 5단계 | strategy.py (entry) | Confirm vs Reject SQL 분석 → 백테스트 검증 | rule_pass 30% 감소 + ai_confirm 건수 유지 |
 
 ### 백테스트 명령 (2단계)
 ```bash
@@ -301,18 +352,17 @@ LIMIT 20;
 ## 6. 구현 순서
 
 ```
-1단계 (즉시) → MAX_CONCURRENT_POSITIONS 3→2 변경 → OCI 배포
+1단계 (완료) → MAX_CONCURRENT_POSITIONS 5→2 변경
     ↓
-2단계 (1단계와 동시 또는 직후) → backtest_v3.py 검증 → BB_MIDLINE_EXIT OCI 배포
+2단계 (완료) → BB_MIDLINE_EXIT 가드 1.0% + RSI_OVERBOUGHT 우선순위 변경
+    ↓  → OCI 배포 후 backtest_v3.py --compare-bb-guards 재검증
     ↓
 3단계 (1·2단계 배포 후) → 2주 실운영 관측
     ↓
 4단계 (3단계 안정 확인 후) → 2주 실운영 관측
+    ↓
+5단계 (4단계와 병행 가능) → SQL 분석 → 진입 조건 백테스트 → 구현
 ```
-
-> **1단계와 2단계를 동시 배포 가능한 이유**:
-> - 1단계(포지션 제한)는 리스크 관리 파라미터, 2단계(exit 로직)는 청산 조건 — 상호 독립
-> - 동시 변경해도 각각의 효과를 구분할 수 있음 (rule_funnel vs exit_reason으로 분리 측정)
 
 ---
 
@@ -320,10 +370,11 @@ LIMIT 20;
 
 | 단계 | 롤백 방법 |
 |------|-----------|
-| 1단계 | `src/config/strategy.py` — MAX_CONCURRENT_POSITIONS를 3으로 복원 |
-| 2단계 | `src/engine/strategy.py` git revert (BB_MIDLINE_EXIT 블록 제거) |
+| 1단계 | `src/config/strategy.py` + YAML — MAX_CONCURRENT_POSITIONS를 5로 복원 |
+| 2단계 | `src/engine/strategy.py` git revert (BB_MIDLINE_EXIT 가드/우선순위 복원) |
 | 3단계 | `src/agents/prompts.py` git revert |
 | 4단계 | `src/agents/guardian.py` + `prompts.py` git revert |
+| 5단계 | `src/engine/strategy.py` check_entry_signal 파라미터 복원 |
 
 ---
 
@@ -331,11 +382,15 @@ LIMIT 20;
 
 | 단계 | 파일 | 변경 내용 |
 |------|------|-----------|
-| 1 | `src/config/strategy.py` | `MAX_CONCURRENT_POSITIONS: 3 → 2` |
-| 2 | `src/engine/strategy.py` | `check_exit_signal()` — SIDEWAYS 전용 `BB_MIDLINE_EXIT` 조건 (이미 구현, 검증 필요) |
+| 1 | `src/config/strategy.py` | `MAX_CONCURRENT_POSITIONS: 5 → 2` |
+| 1 | `config/strategy_v3.yaml` | `max_concurrent_positions: 5 → 2` |
+| 1 | `config/strategy_v3_tuned.yaml` | `max_concurrent_positions: 5 → 2` |
+| 2 | `src/engine/strategy.py` | `check_exit_signal()` — 가드 0.3%→1.0%, RSI_OVERBOUGHT→BB_MIDLINE_EXIT 우선순위 변경 |
+| 2 | `scripts/backtest_v3.py` | 동일 변경 + `--compare-bb-guards` / `--bb-min-profit` CLI 추가 |
 | 3 | `src/agents/prompts.py` | `ANALYST_SYSTEM_PROMPT` — 금지어 위주 → 장악형 양봉/망치형 등 구체 판단 기준 |
 | 4 | `src/agents/guardian.py` | state에서 OHLC 캔들 추출 → human prompt에 추가 전달 |
 | 4 | `src/agents/prompts.py` | `GUARDIAN_SYSTEM_PROMPT` — OHLC 캔들 활용 지침 추가 |
+| 5 | `src/engine/strategy.py` | `check_entry_signal()` — 분석 결과에 따라 진입 조건 강화 |
 
 ---
 
