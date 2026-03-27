@@ -144,9 +144,9 @@ regimes:
 
 risk_management:
   # 100만원 운용 기준:
-  # - 심볼당 기본 주문 타깃 20%
+  # - 심볼당 기본 주문 타깃 30% (v3.4: 동시 2개 제한에 맞춰 20%→30% 상향, 자본 활용률 개선)
   # - 동시 포지션 2개 제한 (v3.4: 동시 다심볼 SL 상관손실 방지)
-  max_position_size: 0.20
+  max_position_size: 0.30
   max_total_exposure: 1.00
   max_concurrent_positions: 2
   allow_same_coin_duplicate: false
