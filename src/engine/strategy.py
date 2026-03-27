@@ -268,6 +268,7 @@ class MeanReversionStrategy(BaseStrategy):
         """
         레짐별 청산 신호 확인 (트레일링 스탑 포함)
         레짐 변경 시 SL 타이트 유지 정책 적용 (v3.0)
+        v3.4: SIDEWAYS 전용 BB_MIDLINE_EXIT 추가
         """
         close = Decimal(str(indicators.get("close")))
         rsi_14 = indicators.get("rsi")
@@ -308,12 +309,23 @@ class MeanReversionStrategy(BaseStrategy):
         if pnl_ratio >= exit_config["take_profit_pct"]:
             return True, "TAKE_PROFIT"
 
-        # 4. RSI 과매수 청산 (최소 수익 조건부)
+        # 4. BB 중심선(MA20) 하향 이탈 익절 — SIDEWAYS 전용 (v3.4)
+        # SIDEWAYS 전략 전제: "BB 하단 반등 → MA20 복귀"
+        # MA20 하향 이탈 = 반등 모멘텀 소멸, 전략 전제 붕괴 → 수익 보존 청산
+        # pnl > 0.3% 가드: MA20 부근 횡보 노이즈(0.1% 내 미세 진동)로 인한 조기 청산 방지
+        # TRAILING_STOP(activation 1%) 이전 구간(0.3%~1%)의 수익을 포착하는 역할
+        if entry_regime == "SIDEWAYS":
+            bb_mid = indicators.get("bb_mid")
+            if bb_mid is not None and float(close) < float(bb_mid):
+                if pnl_ratio >= 0.003:  # 0.3% 최소 수익 조건
+                    return True, "BB_MIDLINE_EXIT"
+
+        # 5. RSI 과매수 청산 (최소 수익 조건부)
         if rsi_14 and rsi_14 > exit_config["rsi_overbought"]:
             if pnl_ratio >= exit_config["rsi_exit_min_profit_pct"]:
                 return True, "RSI_OVERBOUGHT"
 
-        # 5. 시간 초과
+        # 6. 시간 초과
         if opened_at:
             now = datetime.now(timezone.utc)
             aware_opened_at = opened_at if opened_at.tzinfo else opened_at.replace(tzinfo=timezone.utc)

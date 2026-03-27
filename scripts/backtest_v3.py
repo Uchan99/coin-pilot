@@ -63,6 +63,7 @@ def add_indicators_to_df(df: pd.DataFrame) -> pd.DataFrame:
     # Bollinger Bands
     bb = calculate_bb(df['close'], period=20, std_dev=2.0)
     df['bb_lower'] = bb['BBL']
+    df['bb_mid'] = bb['BBM']
 
     # Volume Ratio
     vol_ma_20 = df['volume'].rolling(window=20).mean()
@@ -189,12 +190,21 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig) -> t
     if pnl_pct >= exit_cfg["take_profit_pct"]:
         return True, "TAKE_PROFIT"
 
-    # 4. RSI 과매수 (조건부)
+    # 4. BB 중심선(MA20) 하향 이탈 익절 — SIDEWAYS 전용 (v3.4)
+    # SIDEWAYS 전략 전제 붕괴(반등 모멘텀 소멸) 감지 → 수익 보존 청산
+    # pnl > 0.3% 가드: MA20 부근 노이즈로 인한 조기 청산 방지
+    if trade.regime == "SIDEWAYS":
+        bb_mid = row.get('bb_mid') if hasattr(row, 'get') else row['bb_mid']
+        if pd.notna(bb_mid) and row['close'] < bb_mid:
+            if pnl_pct >= 0.003:
+                return True, "BB_MIDLINE_EXIT"
+
+    # 5. RSI 과매수 (조건부)
     if row['rsi'] > exit_cfg["rsi_overbought"]:
         if pnl_pct >= exit_cfg["rsi_exit_min_profit_pct"]:
             return True, "RSI_OVERBOUGHT"
 
-    # 5. 시간 초과
+    # 6. 시간 초과
     hold_time = row['timestamp'] - trade.entry_time
     if hold_time > timedelta(hours=exit_cfg["time_limit_hours"]):
         return True, "TIME_LIMIT"
