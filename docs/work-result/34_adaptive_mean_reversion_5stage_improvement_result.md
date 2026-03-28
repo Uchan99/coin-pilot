@@ -4,14 +4,14 @@
 작성자: Claude (assistant)
 관련 계획서: docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md
 상태: Partial
-완료 범위: Phase 1~2
+완료 범위: Phase 1~3
 선반영/추가 구현: 없음
 관련 트러블슈팅: docs/troubleshooting/strategy-retrospectives/34_rr_inversion_and_correlated_loss_clustering.md
 
 ---
 
 ## 1. 개요
-- 구현 범위 요약: Phase 1(포트폴리오 동시 포지션 제한 + 포지션 사이즈 상향) + Phase 2(BB_MIDLINE_EXIT 익절 로직 + RSI 우선순위 변경)
+- 구현 범위 요약: Phase 1(포트폴리오 동시 포지션 제한 + 포지션 사이즈 상향) + Phase 2(BB_MIDLINE_EXIT 익절 로직 + RSI 우선순위 변경) + Phase 3(Analyst 프롬프트 v3.5.1)
 - 목표: R:R 역전(avg win +1.28% vs avg loss -3.86%) 구조 개선 — 상관 손실 집중 완화 + 수익 확보 빈도 증가
 - 이번 구현이 해결한 문제: 동시 다심볼 STOP_LOSS 클러스터링 + SIDEWAYS 수익 구간 TIME_LIMIT 전환 손실
 - 해결한 문제의 구체 정의:
@@ -120,11 +120,17 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 2) `config/strategy_v3_tuned.yaml` docker cp 완료 ✅
 3) `docker restart coinpilot-bot` 완료 ✅
 4) `max_position_size: 0.30` 적용 확인 ✅
-5) 모니터링 체크 항목 (2026-03-29):
-   - [ ] BB_MIDLINE_EXIT 발동 건 확인
-   - [ ] 30% 포지션 주문 정상 체결 확인
-   - [ ] 동시 포지션 2개 제한 정상 작동 확인
-   - [ ] RSI_OVERBOUGHT가 BB_MIDLINE_EXIT보다 우선 발동 확인
+5) Phase 1~2 모니터링 체크 항목 (2026-03-29 확인 완료):
+   - [x] BB_MIDLINE_EXIT 발동 건 확인 — DOGE +1.4% 첫 발동
+   - [x] 30% 포지션 주문 정상 체결 확인 — BTC 289,658원(~29%), DOGE 181,045원(~18%)
+   - [x] 동시 포지션 2개 제한 정상 작동 확인 — BTC + DOGE 동시 보유 (2개)
+   - [x] RSI_OVERBOUGHT가 BB_MIDLINE_EXIT보다 우선 발동 확인 — BTC RSI_OVERBOUGHT 정상
+6) Phase 3 OCI 배포 완료 (2026-03-29):
+   - `docker compose ... up -d --build --no-deps bot` 완료
+   - `grep "허용되는 분석 범위"` 1건 확인
+7) Phase 3 모니터링 체크 항목 (2026-03-30 확인 예정):
+   - [ ] boundary_violation 비율 < 20% (기존 33.6%)
+   - [ ] AI CONFIRM 거래의 reasoning에 캔들 구조 근거만 포함 확인
 
 ---
 
@@ -165,12 +171,55 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 ---
 
 ## 10. 결론 및 다음 단계
-- 현재 상태: Phase 1~2 OCI 배포 완료, 모니터링 대기 중 (2026-03-29까지)
+- 현재 상태: Phase 1~3 OCI 배포 완료, Phase 3 모니터링 중 (2026-03-30까지)
+- Phase 1~2 모니터링 결과 (2026-03-29 확인):
+  - BB_MIDLINE_EXIT 첫 발동 (DOGE +1.4%) ✅
+  - RSI_OVERBOUGHT 우선 정상 (BTC) ✅
+  - 동시 포지션 2개 제한 정상 ✅
+  - 30% 포지션 체결 확인 (BTC 289K, DOGE 181K) ✅
 - 후속 작업:
-  1) 2026-03-29: 모니터링 결과 확인 후 Phase 3(Analyst 프롬프트) 진행
-  2) Phase 4: Guardian OHLC 컨텍스트 전달
+  1) 2026-03-30: Phase 3 모니터링 — boundary_violation < 20% 확인
+  2) Phase 4: Guardian OHLC 캔들 컨텍스트 전달
   3) Phase 5: Rule Engine 진입 조건 분석 (SQL 기반)
   4) 2주 후: 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
+
+---
+
+## 11. Phase 3 구현 결과 (2026-03-29)
+
+### 11.1 변경 내용
+- 파일: `src/agents/prompts.py`
+- 변경 사항:
+  - **ANALYST_SYSTEM_PROMPT**: 금지어 나열 → 허용어 방식 (캔들 구조만 허용 범위로 명시)
+  - **ANALYST_REGIME_GUIDANCE**: 레짐 설명 추상화 (MA50/MA200/골든크로스 → "상승 추세 구간"), SIDEWAYS CONFIRM 4가지 + REJECT 4가지 구체화
+  - **ANALYST_USER_PROMPT_TEMPLATE**: MA50/MA200 이격도·AI 컨텍스트 길이 제거, Body/Range 정의 명확화
+  - 테스트 assertion 업데이트: `tests/agents/test_analyst_rule_boundary.py`
+
+### 11.2 설계 대안 비교
+
+| # | 대안 | 채택 | 트레이드오프 |
+|---|------|------|------------|
+| 1 | 허용어 방식 + 입력 최소화 (채택) | ✅ | 프롬프트만 변경, 롤백 즉시 가능. LLM이 수치를 기계적으로 따를 수 있음 |
+| 2 | boundary violation 시 강제 REJECT 복원 | ❌ | 즉시 0%지만 valid 거래도 차단 (false rejection 증가) |
+| 3 | Few-shot 예제 추가 | 보류 | 가장 효과적이나 토큰 비용 +500~800/호출. Phase 3 미달 시 추가 |
+| 4 | reasoning 후처리로 키워드 자동 삭제 | ❌ | 2회 LLM 호출, 비용 2배, 근본 해결 아님 |
+| 5 | HOLD 옵션 추가 | 보류 | 스키마 + runner 변경 필요. confidence < 60 강제 REJECT가 사실상 HOLD 역할 |
+| 6 | reasoning 배열화 | 보류 | 하위 파이프라인(Discord/DB/audit) 전부 string 기반, 영향 범위 넓음 |
+
+### 11.3 외부 피드백 반영
+
+| 피드백 소스 | 핵심 지적 | 반영 결과 |
+|------------|----------|----------|
+| 피드백 1 | 금지어가 오히려 해당 개념을 떠올리게 함 | 허용어 방식으로 전환 |
+| 피드백 1 | 레짐 설명에 MA50/MA200이 AI 재판단 유도 | 레짐 설명 추상화 |
+| 피드백 1 | AI 컨텍스트 길이 불필요 | 제거 |
+| 피드백 1 | "위험 신호 부재" 너무 넓음 | "2~3캔들 좁은 범위 등락 + 급변동 없음"으로 구체화 |
+| 피드백 2 | Body/Range 정의 명확화 필요 | "(High-Low) 대비 |Close-Open| 비율" 명시 |
+| 피드백 2 | 유성형 단일 캔들 노이즈 | "2캔들 이상 반복" 조건으로 강화 |
+
+### 11.4 검증
+- 테스트: 7/7 passed (`tests/agents/test_analyst_rule_boundary.py`)
+- 정량 검증: 배포 직후, 24h 후 boundary_violation SQL로 확인 예정
 
 ---
 

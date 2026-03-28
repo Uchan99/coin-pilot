@@ -1,7 +1,7 @@
 # 34. R:R 역전 및 상관 손실 클러스터링 — 전략 회고
 
 작성일: 2026-03-28
-상태: Fixed (Phase 1~2), Monitoring
+상태: Fixed (Phase 1~3), Monitoring
 우선순위: P1
 관련 문서:
 - Plan: docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md
@@ -162,8 +162,8 @@ RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
 |-------|------|------|------|
 | 1 | 동시 포지션 제한 + 사이즈 조정 | ✅ 배포 | 2026-03-28 |
 | 2 | BB_MIDLINE_EXIT + RSI 우선순위 | ✅ 배포 | 2026-03-28 |
-| 3 | Analyst 프롬프트 판단 기준 구체화 | ⏳ 대기 | 2026-03-29~ |
-| 4 | Guardian OHLC 캔들 컨텍스트 | ⏳ 대기 | Phase 3 후 |
+| 3 | Analyst 프롬프트 v3.5.1 (허용어 방식 + 레짐 추상화) | ✅ 배포 | 2026-03-29 |
+| 4 | Guardian OHLC 캔들 컨텍스트 | ⏳ 대기 | Phase 3 모니터링 후 |
 | 5 | Rule Engine 진입 조건 분석 | ⏳ 대기 | Phase 4 후 |
 
 ---
@@ -189,3 +189,15 @@ RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
 - 개별 거래 최적화(SL%, TP%)보다 **동시 노출 관리**가 더 큰 영향
 - 33번에서 개별 파라미터 3가지 시도 → 모두 미미 → 구조적 문제였기 때문
 - **교훈: 개별 거래 최적화 전에 포트폴리오 레벨 리스크부터 점검**
+
+### 5.5 AI 프롬프트에서 금지어 vs 허용어
+- "RSI 쓰지 마세요" → LLM이 RSI를 떠올리는 역효과 (ironic process theory)
+- "캔들 구조만 허용합니다" → 허용 범위를 좁히는 방식이 더 안정적
+- 외부 피드백(Gemini, 데이터 분석가)으로 확인됨
+- **교훈: LLM 프롬프트에서는 금지 목록보다 허용 목록이 효과적**
+
+### 5.6 Phase 1~2 모니터링 첫 24h 결과 (2026-03-29)
+- BB_MIDLINE_EXIT 첫 발동: DOGE 138원 진입 → 140원 MA20 청산 (+1.4%)
+- RSI_OVERBOUGHT 우선순위 정상: BTC에서 RSI가 BB보다 먼저 발동
+- AI Decision: 15건 중 2건 CONFIRM (13.3%), 2건 모두 수익 청산
+- BoundaryAudit 여전히 발생 중 → Phase 3으로 대응
