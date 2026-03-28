@@ -34,7 +34,7 @@ def test_get_analyst_prompt_excludes_rule_engine_threshold_fields():
     assert "RSI(7)" not in prompt
     assert "MA(20)" not in prompt
     assert "거래량 비율" not in prompt
-    assert "캔들 패턴 보조 피처" in prompt
+    assert "캔들 패턴 피처" in prompt
 
 
 def test_contains_rule_revalidation_reasoning_detects_rule_terms():

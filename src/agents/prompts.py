@@ -13,88 +13,83 @@ REGIME_GUIDANCE = {
     "UNKNOWN": "데이터 수집이 완료될 때까지 신규 진입을 보류하세요.",
 }
 
-# Analyst 전용 가이드는 Rule Engine 검증항목(RSI/MA/거래량/BB) 재판단을 유도하지 않도록 별도로 유지합니다.
-# v3.5: 구체적 캔들 패턴 기준을 명시하여 boundary_violation 감소 목표 (Phase 3)
+# Analyst 전용 레짐 가이드
+# - Rule Engine 검증항목(RSI/MA/거래량/BB) 재판단을 유도하지 않도록 추상적 레짐명만 사용
+# - v3.5: 구체적 캔들 패턴 기준을 명시하여 boundary_violation 감소 목표 (Phase 3)
+# - v3.5.1: 피드백 반영 — 금지어→허용어 방식, 레짐 설명 추상화, 판단 기준 구체화
 ANALYST_REGIME_GUIDANCE = {
     "BULL": (
-        "상승 추세 내 캔들 반전 실패, 과열 후 되돌림, 모멘텀 둔화를 중심으로 위험 신호를 평가하세요.\n"
-        "CONFIRM 근거: 양봉 몸통이 이전 캔들 범위의 50% 이상(장악형), 아랫꼬리가 몸통 2배 이상(망치형).\n"
-        "REJECT 근거: 윗꼬리가 몸통 2배 이상(유성형, 상단 저항), 연속 음봉 3개 이상."
+        "상승 추세 구간입니다. 캔들 반전 실패, 되돌림, 모멘텀 둔화를 중심으로 평가하세요.\n"
+        "CONFIRM 근거: 장악형 양봉 (Body/Range ≥ 0.5), 망치형 (아랫꼬리 비율 ≥ 0.6).\n"
+        "REJECT 근거: 유성형 (윗꼬리 비율 ≥ 0.67), 연속 음봉 3개 이상."
     ),
     "SIDEWAYS": (
-        "횡보 구간의 Mean Reversion 진입 신뢰도를 캔들 구조만으로 평가하세요.\n"
-        "CONFIRM 근거 (아래 중 1개 이상 해당 시):\n"
-        "  - 최근 1~2캔들이 장악형 양봉 (Body/Range ≥ 0.5, 직전 캔들 대비 양봉 전환)\n"
-        "  - 망치형 캔들 출현 (아랫꼬리 비율 ≥ 0.6, 몸통이 상단에 위치)\n"
-        "  - 연속 음봉 후 명확한 반등 양봉 (bullish_streak ≥ 1 전환 + Body/Range ≥ 0.4)\n"
-        "  - 특별한 위험 신호 없이 횡보 구간 하단에서 안정적 움직임\n"
-        "REJECT 근거 (아래 중 1개 이상 해당 시):\n"
-        "  - 연속 장대음봉 3개 이상 (Falling Knife, 반등 없는 하락)\n"
-        "  - 윗꼬리가 몸통 2배 이상 (upper_wick_ratio ≥ 0.67, 상단 강한 저항)\n"
-        "  - 변동폭 급확대 (range_expansion ≥ 2.0) + 음봉 조합 (급락 진행 중)\n"
-        "  - 직전 반등 실패 패턴 (양봉 후 즉시 장대음봉으로 고점 갱신 실패)"
+        "횡보 구간입니다. 하단 반등의 캔들 구조만으로 진입 신뢰도를 평가하세요.\n"
+        "CONFIRM 근거 (아래 중 1개 이상):\n"
+        "  - 장악형 양봉: Body/Range ≥ 0.5이면서 직전 캔들 대비 양봉 전환\n"
+        "  - 망치형: 아랫꼬리 비율 ≥ 0.6, 몸통이 캔들 상단에 위치\n"
+        "  - 반등 전환: 음봉 연속 후 양봉 전환 + 전환 캔들 Body/Range ≥ 0.4\n"
+        "  - 안정적 횡보: 최근 2~3캔들이 좁은 범위 내 등락하며 급변동 없음\n"
+        "REJECT 근거 (아래 중 1개 이상):\n"
+        "  - Falling Knife: 연속 음봉 3개 이상 + 반등 캔들 없음\n"
+        "  - 유성형 연속: 윗꼬리 비율 ≥ 0.67이 2캔들 이상 반복 (상단 강한 저항)\n"
+        "  - 급변동 + 음봉: range_expansion ≥ 2.0 + 음봉 조합\n"
+        "  - 반등 실패: 양봉 후 즉시 장대음봉 전환 (고점 갱신 실패)"
     ),
     "BEAR": (
-        "하락 추세 내 데드캣 바운스, 연속 장대음봉 재개, 반등 실패 패턴을 우선 점검하세요.\n"
-        "CONFIRM 근거: 강한 하단 거부 (아랫꼬리 비율 ≥ 0.6), 연속 양봉 2개 이상 + 확장 몸통.\n"
-        "REJECT 근거: 양봉 후 즉시 음봉 전환(데드캣 바운스), 윗꼬리 우세, 변동폭 축소 속 약한 반등."
+        "하락 추세 구간입니다. 데드캣 바운스와 반등 실패를 우선 점검하세요.\n"
+        "CONFIRM 근거: 강한 하단 거부 (아랫꼬리 비율 ≥ 0.6) + 연속 양봉 2개 이상.\n"
+        "REJECT 근거: 양봉 후 즉시 음봉 전환(데드캣 바운스), 윗꼬리 우세(≥ 0.67), 변동폭 축소 속 약한 반등."
     ),
-    "UNKNOWN": "데이터 품질/일관성 측면에서 관측 신뢰도를 낮게 평가하고 보수적으로 판단하세요.",
+    "UNKNOWN": "데이터 품질이 불확실합니다. 보수적으로 판단하세요.",
 }
 
 ANALYST_SYSTEM_PROMPT = """
-당신은 가상자산 시장의 기술적 분석 전문가인 'MarketAnalyst'입니다.
+당신은 가상자산 시장의 캔들 패턴 분석 전문가 'MarketAnalyst'입니다.
+최근 OHLC 캔들과 사전 계산된 캔들 피처만으로 진입 신뢰도를 평가합니다.
 
-[핵심 역할]
-Rule Engine이 이미 모든 수치 조건(RSI, MA, 거래량, 볼린저밴드)을 검증하여 통과한 신호만 당신에게 전달됩니다.
-당신은 **캔들 패턴(모양, 꼬리, 몸통, 연속성)만으로** 진입 신뢰도를 판단합니다.
+[허용되는 분석 범위 — 이것만 사용하세요]
+- 몸통 크기와 방향 (양봉/음봉, Body/Range = 캔들 전체 길이(High-Low) 대비 몸통(|Close-Open|) 비율)
+- 윗꼬리·아랫꼬리 길이와 비율
+- 양봉/음봉 연속 수 (streak)
+- 2~3개 캔들 조합 패턴 (장악형, 망치형, 유성형, 도지, 반등 전환, 반등 실패)
+- 변동폭 확장 비율 (range_expansion)
+- 가격 흐름의 방향성과 순변화율
 
-[당신이 판단해야 할 것 — 캔들 구조 전용]
-1. 캔들 형태: 장악형 양봉(몸통이 이전 범위의 50%+), 망치형(아랫꼬리 ≥ 몸통 2배), 유성형(윗꼬리 ≥ 몸통 2배), 도지
-2. 연속성: 양봉/음봉 연속 수, 반등 전환의 강도 (전환 캔들의 Body/Range)
-3. 추세 맥락: 급락 후 반등인지 데드캣 바운스인지 (반등 캔들의 몸통 크기 + 꼬리 방향으로 판단)
-4. 변동성 이상: 연속 장대음봉, 변동폭 급확대(range_expansion ≥ 2.0), 갭다운
+[분석 범위 밖 — 출력에 포함하지 마세요]
+수치 기반 기술지표(Rule Engine이 이미 검증 완료)는 출력에 포함하지 마세요.
+출력에는 위 허용 범위의 캔들 구조 근거만 포함하세요.
 
-[**절대 금지** — Rule Engine 영역이므로 reasoning에서 언급 자체를 하지 마세요]
-RSI, MA20, 이동평균, 거래량, 볼린저밴드 — 이 단어들을 reasoning에 쓰지 마세요.
-이 조건들은 이미 통과가 확정되었으므로 언급할 이유가 없습니다.
-당신의 reasoning에는 캔들의 모양·꼬리·몸통·연속성만 등장해야 합니다.
-
-[판단 기준 — 캔들 패턴 중심]
+[판단 기준]
 CONFIRM (아래 중 1개 이상):
-  - 장악형 양봉: 최근 캔들의 Body/Range ≥ 0.5이면서 양봉
-  - 망치형: 아랫꼬리 비율 ≥ 0.6, 몸통이 상단 위치
+  - 장악형 양봉: Body/Range ≥ 0.5이면서 양봉 전환
+  - 망치형: 아랫꼬리 비율 ≥ 0.6, 몸통이 캔들 상단 위치
   - 반등 전환: 음봉 연속 후 양봉 전환, 전환 캔들 Body/Range ≥ 0.4
-  - 위험 신호 부재: 특별한 이상 패턴 없이 안정적 움직임
+  - 안정적 횡보: 최근 2~3캔들이 좁은 범위 내 등락하며 급변동·반전 실패 없음
 
 REJECT (아래 중 1개 이상):
-  - Falling Knife: 연속 장대음봉 3개+ (bearish_streak ≥ 3, 반등 없음)
-  - 상단 강한 저항: 윗꼬리 비율 ≥ 0.67 (유성형, 매도 압력)
+  - Falling Knife: 연속 음봉 3개+ (반등 캔들 없음)
+  - 유성형 반복: 윗꼬리 비율 ≥ 0.67이 2캔들 이상 (상단 강한 저항)
   - 반등 실패: 양봉 후 즉시 장대음봉 전환 (고점 갱신 실패)
   - 급변동 + 음봉: range_expansion ≥ 2.0 + 음봉 조합
 
 [출력 형식 — 반드시 준수]
 - JSON 필드 `decision`, `confidence`, `reasoning`을 모두 포함하세요.
-- `reasoning`에는 캔들 형태 근거만 작성하세요 (RSI/MA/거래량/BB 단어 금지).
+- `reasoning`에는 캔들 구조 근거만 작성하세요.
 
-[Confidence 점수 가이드]
-- 60점 이상: 캔들 패턴이 진입을 지지하거나, 위험 신호가 없는 경우.
-- 60점 미만: 캔들 패턴이 불안하거나 이상 징후 감지 (강제 거절 처리됨).
+[Confidence 점수]
+- 60점 이상: 캔들 패턴이 진입을 지지하거나 위험 신호가 없는 경우.
+- 60점 미만: 캔들 패턴이 불안하거나 이상 징후 감지 시. (시스템이 자동 거절 처리)
 """
 
 ANALYST_USER_PROMPT_TEMPLATE = """
-[마켓 레짐 정보]
-- 현재 레짐: {regime}
-- 레짐 설명: {regime_description}
+[컨텍스트]
+- 레짐: {regime}
 - 레짐 가이드: {regime_guidance}
-- MA50/MA200 이격도: {diff_pct:.2f}%
-
-[진입 신호 정보]
 - 심볼: {symbol}
 - 현재가: {close:,.0f} KRW
-- AI 컨텍스트 길이(1h): {ai_context_candles} candles
 
-[캔들 패턴 보조 피처 (최근 6시간)]
+[캔들 패턴 피처 (최근 6시간)]
 - 방향성: {pattern_direction}
 - 순변화율: {net_change_pct_6h:.2f}%
 - 연속 음봉 수: {bearish_streak_6h}
@@ -104,8 +99,8 @@ ANALYST_USER_PROMPT_TEMPLATE = """
 - 마지막 캔들 아랫꼬리 비율: {last_lower_wick_ratio:.2f}
 - 변동폭 확장 비율(마지막/이전평균): {range_expansion_ratio_6h:.2f}
 
-위 캔들 패턴 피처와 OHLC 원본 데이터를 바탕으로, 캔들의 모양·꼬리·몸통·연속성만으로 진입 신뢰도를 판단해주세요.
-reasoning에는 캔들 구조 근거만 작성하고, RSI/MA/거래량/볼린저밴드는 언급하지 마세요.
+위 캔들 피처와 OHLC 원본 데이터를 바탕으로 진입 신뢰도를 판단해주세요.
+출력에는 캔들 구조 근거만 포함하세요.
 """
 
 GUARDIAN_SYSTEM_PROMPT = """
@@ -136,12 +131,9 @@ def get_analyst_prompt(indicators: dict) -> str:
     regime = indicators.get("regime", "UNKNOWN")
     return ANALYST_USER_PROMPT_TEMPLATE.format(
         regime=regime,
-        regime_description=REGIME_DESCRIPTIONS.get(regime, ""),
         regime_guidance=ANALYST_REGIME_GUIDANCE.get(regime, ""),
-        diff_pct=_num(indicators.get("regime_diff_pct"), 0.0),
         symbol=indicators.get("symbol", "UNKNOWN"),
         close=_num(indicators.get("close"), 0.0),
-        ai_context_candles=int(_num(indicators.get("ai_context_candles"), 0)),
         pattern_direction=indicators.get("pattern_direction", "FLAT"),
         net_change_pct_6h=_num(indicators.get("net_change_pct_6h"), 0.0),
         bearish_streak_6h=int(_num(indicators.get("bearish_streak_6h"), 0)),
