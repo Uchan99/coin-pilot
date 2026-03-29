@@ -132,6 +132,14 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
    - [x] boundary_violation 비율 < 20% (기존 33.6%) → **0.0%** (9건/0건, 2026-03-30 확인)
    - [x] reasoning에 캔들 구조 근거만 포함 확인 — Rule Engine 지표 언급 0건 (2026-03-30)
    - [ ] SIDEWAYS 레짐 CONFIRM 품질 확인 — 샘플 5건 이상 필요 (현재 1건, 모니터링 계속)
+8) Phase 4 모니터링 체크 항목 (배포 후 확인 예정):
+   - [ ] Guardian reasoning에 캔들 구조 언급 포함 확인 (OHLC 데이터 활용 여부)
+   - [ ] Guardian WARNING 비율 변화 (배포 전후 비교)
+   - [ ] **[핵심] Guardian blocked 비율 — Analyst CONFIRM을 Guardian이 WARNING으로 뒤집은 건수**
+     - 측정 SQL: `SELECT COUNT(*) FROM agent_decisions WHERE reasoning LIKE '[Risk Warning]%';`
+     - blocked > 0: Guardian 분리 구조의 독립적 가치 입증
+     - blocked = 0 (장기간): Analyst-Guardian 통합 검토 필요 → 비용 절감 가능
+   - [ ] Guardian latency/cost 변화 (llm_usage 테이블, route='ai_decision_guardian')
 
 ---
 
@@ -190,9 +198,10 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
   - Phase 3 모니터링 완료 조건: SIDEWAYS 레짐 AI 판단 5건 이상 + avg_confidence v3.4 수준(67.6) 대비 비교
 - 후속 작업:
   1) Phase 3 모니터링 계속: SIDEWAYS 샘플 축적 대기
-  2) Phase 4: Guardian OHLC 캔들 컨텍스트 전달 (Phase 3 SIDEWAYS 검증 후)
+  2) Phase 4 배포 및 모니터링: Guardian OHLC 전달 + **Guardian blocked 비율 추적 (핵심)**
   3) Phase 5: Rule Engine 진입 조건 분석 (SQL 기반)
   4) 2주 후(~2026-04-11): 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
+  5) Guardian blocked = 0 장기 지속 시: Analyst-Guardian 통합 검토 (비용 절감)
 
 ---
 

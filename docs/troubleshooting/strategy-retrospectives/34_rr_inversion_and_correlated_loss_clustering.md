@@ -163,8 +163,13 @@ RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
 | 1 | 동시 포지션 제한 + 사이즈 조정 | ✅ 배포 | 2026-03-28 |
 | 2 | BB_MIDLINE_EXIT + RSI 우선순위 | ✅ 배포 | 2026-03-28 |
 | 3 | Analyst 프롬프트 v3.5.1 (허용어 방식 + 레짐 추상화) | 🔄 모니터링 중 | 2026-03-29~ (SIDEWAYS 5건 이상 필요) |
-| 4 | Guardian OHLC 캔들 컨텍스트 | ⏳ 대기 | Phase 3 SIDEWAYS 검증 후 |
+| 4 | Guardian OHLC 캔들 컨텍스트 | 🔧 구현 완료, 배포 대기 | Phase 3과 병행 (독립 영역) |
 | 5 | Rule Engine 진입 조건 분석 | ⏳ 대기 | Phase 4 후 |
+
+**Phase 4 핵심 모니터링: Guardian blocked 비율**
+- Analyst CONFIRM을 Guardian이 WARNING으로 뒤집은 건수 추적
+- blocked > 0: Guardian 분리 구조 가치 입증
+- blocked = 0 (장기): Analyst-Guardian 통합 검토 → LLM 호출 1회로 비용 절감 가능
 
 ---
 
