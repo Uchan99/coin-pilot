@@ -1,17 +1,17 @@
-# 34. AdaptiveMeanReversion 5단계 전략 개선 — Phase 1~2 구현 결과
+# 34. AdaptiveMeanReversion 5단계 전략 개선 — Phase 1~4 구현 결과
 
 작성일: 2026-03-28
 작성자: Claude (assistant)
 관련 계획서: docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md
 상태: Partial
-완료 범위: Phase 1~3
+완료 범위: Phase 1~4
 선반영/추가 구현: 없음
 관련 트러블슈팅: docs/troubleshooting/strategy-retrospectives/34_rr_inversion_and_correlated_loss_clustering.md
 
 ---
 
 ## 1. 개요
-- 구현 범위 요약: Phase 1(포트폴리오 동시 포지션 제한 + 포지션 사이즈 상향) + Phase 2(BB_MIDLINE_EXIT 익절 로직 + RSI 우선순위 변경) + Phase 3(Analyst 프롬프트 v3.5.1)
+- 구현 범위 요약: Phase 1(포트폴리오 동시 포지션 제한 + 포지션 사이즈 상향) + Phase 2(BB_MIDLINE_EXIT 익절 로직 + RSI 우선순위 변경) + Phase 3(Analyst 프롬프트 v3.5.1) + Phase 4(Guardian OHLC 캔들 컨텍스트)
 - 목표: R:R 역전(avg win +1.28% vs avg loss -3.86%) 구조 개선 — 상관 손실 집중 완화 + 수익 확보 빈도 증가
 - 이번 구현이 해결한 문제: 동시 다심볼 STOP_LOSS 클러스터링 + SIDEWAYS 수익 구간 TIME_LIMIT 전환 손실
 - 해결한 문제의 구체 정의:
@@ -58,6 +58,8 @@
 4) `src/engine/strategy.py` — BB_MIDLINE_EXIT 로직 추가, RSI_OVERBOUGHT 우선순위 변경
 5) `scripts/backtest_v3.py` — bb_min_profit/rsi_ob_override 파라미터, --compare-bb-guards/--compare-rsi CLI
 6) `docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md` — 변경 이력 반영
+7) `src/agents/guardian.py` — OHLC 6개 캔들 데이터 프롬프트 전달 (Phase 4)
+8) `src/agents/prompts.py` — Guardian 캔들 구조 분석 가이드 추가 (Phase 4)
 
 ### 3.2 신규
 - 없음
@@ -262,7 +264,57 @@ WHERE created_at >= '2026-03-29 15:00:00+09';
 
 ---
 
-## 12. References
+## Phase 4 구현 결과 (2026-03-30)
+
+### 12.1 변경 내용
+- 파일: `src/agents/guardian.py`, `src/agents/prompts.py`
+- 변경 사항:
+  - **guardian.py**: `_format_ohlc_for_guardian()` 함수 추가 — Analyst와 동일한 `sanitize_market_context_for_analyst` 재사용, 최근 6개 1시간봉 OHLC를 텍스트로 포맷하여 Guardian 프롬프트에 포함
+  - **prompts.py (GUARDIAN_SYSTEM_PROMPT)**: 캔들 구조 분석 가이드 섹션 추가 — Head Fake, 장대음봉, 연속음봉 3개, 윗꼬리 패턴, 변동폭 2배 확장 기준 명시
+  - Guardian human 프롬프트에 `[최근 6시간 OHLC 캔들]` 블록 추가
+
+### 12.2 설계 대안 비교
+
+| # | 대안 | 채택 | 장점 | 단점 |
+|---|------|------|------|------|
+| 1 | **Raw OHLC 6개 전달 (채택)** | ✅ | Analyst와 동일 범위/일관성, sanitize 재사용으로 구현 단순, 롤백 즉시 가능 | 토큰 ~200 증가/호출, Guardian 캔들 해석 품질 미검증 |
+| 2 | Raw OHLC 12개 전달 | ❌ | 더 넓은 추세 파악 | 토큰 ~400 증가, Guardian은 위험 차단 역할이라 6시간이면 충분 |
+| 3 | 캔들 패턴 피처만 전달 (direction, streak 등) | ❌ | 토큰 최소 (~50) | Head Fake 같은 복합 패턴 감지 불가, Analyst 피처 분석과 역할 중복 |
+| 4 | Analyst reasoning을 Guardian에 전달 | ❌ | 추가 입력 불필요 | Analyst bias 상속, Guardian 독립 판단 훼손 |
+| 5 | Guardian에 별도 캔들 피처 세트 | ❌ | 역할 분리 극대화 | 피처 엔지니어링 추가 필요, 간단한 raw 데이터가 더 적합 |
+| 6 | Guardian 폐지, Analyst에 리스크 통합 | ❌ | LLM 호출 1회, 비용 절반 | 관심사 분리 붕괴, 진입+리스크 이중 역할로 판단 품질 저하 우려 |
+
+### 12.3 핵심 모니터링 지표: Guardian blocked 비율
+- **정의**: Analyst CONFIRM을 Guardian이 WARNING으로 뒤집은 건수
+- **측정 SQL**:
+```sql
+SELECT COUNT(*) AS analyst_confirm_total,
+  SUM(CASE WHEN reasoning LIKE '[Risk Warning]%' THEN 1 ELSE 0 END) AS guardian_blocked
+FROM agent_decisions
+WHERE decision = 'REJECT' AND reasoning LIKE '[Risk Warning]%';
+```
+- **판단 기준**:
+  - blocked > 0: Guardian 분리 구조의 독립적 가치 입증
+  - blocked = 0 (장기간): Analyst-Guardian 통합 검토 → LLM 비용 절감 가능
+
+### 12.4 검증
+- 테스트: 10/10 passed (`tests/test_agents.py` + `tests/agents/test_analyst_rule_boundary.py`)
+- OCI 배포: 2026-03-30, `docker compose ... up -d --build --no-deps bot`
+- 코드 반영 확인: `grep "ohlc_summary"` + `grep "캔들 구조 분석 가이드"` 출력 확인
+- 정량 검증: 배포 후 ~24h 모니터링 예정
+
+### 12.5 Phase 3과의 병행 근거
+- 변경 영역 독립: Phase 3=Analyst 프롬프트, Phase 4=Guardian 프롬프트 → 간섭 없음
+- 로그 구분 가능: `agent_decisions.reasoning`에 `[Analyst]`/`[Guardian]`/`[Risk Warning]` 접두사, `llm_usage.route`로 분리
+- Phase 3 모니터링 지표(boundary_violation)는 Analyst reasoning만 측정 → Phase 4 영향 없음
+
+---
+
+## 13. References
+- Plan: docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md
+- 실거래 데이터: docs/operating_data.md
+- 전략 전회고: docs/troubleshooting/strategy-retrospectives/34_rr_inversion_and_correlated_loss_clustering.md
+- 이전 튜닝 작업: docs/work-plans/33_strategy_exit_parameter_tuning_plan.md
 - Plan: docs/work-plans/34_adaptive_mean_reversion_4stage_improvement_plan.md
 - 실거래 데이터: docs/operating_data.md
 - 전략 전회고: docs/troubleshooting/strategy-retrospectives/34_rr_inversion_and_correlated_loss_clustering.md

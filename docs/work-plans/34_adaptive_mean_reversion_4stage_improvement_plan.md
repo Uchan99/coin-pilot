@@ -23,6 +23,11 @@
 - 2026-03-29: **Phase 1~2 모니터링 결과 확인 → Phase 3 구현**
   - BB_MIDLINE_EXIT 첫 발동 확인 (DOGE +1.4%), RSI_OVERBOUGHT 우선 정상 (BTC)
   - Phase 3: Analyst 프롬프트 전면 개편 (금지어 나열 → 구체적 캔들 패턴 CONFIRM/REJECT 기준)
+- 2026-03-30: **Phase 3 모니터링 + Phase 4 구현/배포**
+  - Phase 3 결과: boundary_violation 33.6%→0.0% 달성. SIDEWAYS 샘플 1건뿐이라 모니터링 계속
+  - Phase 4: Guardian에 최근 6개 OHLC 전달 (`guardian.py` + `prompts.py` 변경)
+  - Phase 3과 병행 가능 판단: 변경 영역 독립 (Analyst vs Guardian), 로그 분리 가능
+  - **핵심 모니터링 추가: Guardian blocked 비율 (Analyst-Guardian 분리 구조 가치 판단)**
 
 ---
 
