@@ -128,9 +128,10 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 6) Phase 3 OCI 배포 완료 (2026-03-29):
    - `docker compose ... up -d --build --no-deps bot` 완료
    - `grep "허용되는 분석 범위"` 1건 확인
-7) Phase 3 모니터링 체크 항목 (2026-03-30 확인 예정):
-   - [ ] boundary_violation 비율 < 20% (기존 33.6%)
-   - [ ] AI CONFIRM 거래의 reasoning에 캔들 구조 근거만 포함 확인
+7) Phase 3 모니터링 체크 항목:
+   - [x] boundary_violation 비율 < 20% (기존 33.6%) → **0.0%** (9건/0건, 2026-03-30 확인)
+   - [x] reasoning에 캔들 구조 근거만 포함 확인 — Rule Engine 지표 언급 0건 (2026-03-30)
+   - [ ] SIDEWAYS 레짐 CONFIRM 품질 확인 — 샘플 5건 이상 필요 (현재 1건, 모니터링 계속)
 
 ---
 
@@ -171,17 +172,27 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 ---
 
 ## 10. 결론 및 다음 단계
-- 현재 상태: Phase 1~3 OCI 배포 완료, Phase 3 모니터링 중 (2026-03-30까지)
+- 현재 상태: Phase 1~3 OCI 배포 완료, Phase 3 모니터링 진행 중 (boundary_violation 목표 달성, SIDEWAYS 샘플 부족)
 - Phase 1~2 모니터링 결과 (2026-03-29 확인):
   - BB_MIDLINE_EXIT 첫 발동 (DOGE +1.4%) ✅
   - RSI_OVERBOUGHT 우선 정상 (BTC) ✅
   - 동시 포지션 2개 제한 정상 ✅
   - 30% 포지션 체결 확인 (BTC 289K, DOGE 181K) ✅
+- Phase 3 모니터링 결과 (2026-03-30 확인, 배포 후 ~23h):
+  - boundary_violation: **0.0%** (9건/0건 위반) — 목표 < 20% 달성 ✅
+  - CONFIRM rate: 0/21건 (0%) — BEAR 레짐 지배(89%)에 기인, 프롬프트 과보수 아님
+  - reasoning 품질: 캔들 피처만 사용, Rule Engine 지표 언급 없음 ✅
+  - 레짐별 비교 (v3.4 이전 24h vs v3.5.1 이후 23h):
+    - BEAR: CONFIRM 0% → 0% (동일, 정상 동작)
+    - SIDEWAYS: 2/9건(22%) → 0/1건 (샘플 부족, 판단 보류)
+    - SIDEWAYS avg_conf: 67.6 → 25.0 (1건이라 통계적 비교 불가)
+  - 판단: Phase 3 유지하되 모니터링 계속. SIDEWAYS 샘플 5건 이상 축적 시 confidence 재평가
+  - Phase 3 모니터링 완료 조건: SIDEWAYS 레짐 AI 판단 5건 이상 + avg_confidence v3.4 수준(67.6) 대비 비교
 - 후속 작업:
-  1) 2026-03-30: Phase 3 모니터링 — boundary_violation < 20% 확인
-  2) Phase 4: Guardian OHLC 캔들 컨텍스트 전달
+  1) Phase 3 모니터링 계속: SIDEWAYS 샘플 축적 대기
+  2) Phase 4: Guardian OHLC 캔들 컨텍스트 전달 (Phase 3 SIDEWAYS 검증 후)
   3) Phase 5: Rule Engine 진입 조건 분석 (SQL 기반)
-  4) 2주 후: 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
+  4) 2주 후(~2026-04-11): 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
 
 ---
 
@@ -219,7 +230,26 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 
 ### 11.4 검증
 - 테스트: 7/7 passed (`tests/agents/test_analyst_rule_boundary.py`)
-- 정량 검증: 배포 직후, 24h 후 boundary_violation SQL로 확인 예정
+- 정량 검증 (2026-03-30, 배포 후 ~23h):
+
+| 지표 | Before (v3.4) | After (v3.5.1) | 판정 |
+|------|--------------|----------------|------|
+| boundary_violation | 33.6% | **0.0%** (9건/0건) | ✅ 목표 < 20% 달성 |
+| BEAR CONFIRM rate | 0/11 (0%) | 0/8 (0%) | 동일 (정상) |
+| SIDEWAYS CONFIRM rate | 2/9 (22%) | 0/1 (0%) | 샘플 부족, 판단 보류 |
+| BEAR avg_confidence | 31.5 | 28.8 | 소폭 하락 (BEAR에서는 무의미) |
+| SIDEWAYS avg_confidence | 67.6 | 25.0 | 1건이라 통계 비교 불가 |
+
+- 결론: boundary_violation 해소 확인. CONFIRM rate 0%는 시장 BEAR 레짐(89%)에 기인하며 프롬프트 과보수가 아님. SIDEWAYS 전환 시 재평가 필요.
+
+```sql
+-- 실제 사용한 boundary_violation 측정 쿼리
+SELECT COUNT(*) AS total,
+  SUM(CASE WHEN reasoning ~* 'rsi|ma20|이동평균|거래량|vol_ratio|볼린저|bb 하단|bb_lower' THEN 1 ELSE 0 END) AS violation_cnt,
+  ROUND(100.0 * SUM(CASE WHEN reasoning ~* 'rsi|ma20|이동평균|거래량|vol_ratio|볼린저|bb 하단|bb_lower' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS violation_pct
+FROM agent_decisions
+WHERE created_at >= '2026-03-29 15:00:00+09';
+```
 
 ---
 

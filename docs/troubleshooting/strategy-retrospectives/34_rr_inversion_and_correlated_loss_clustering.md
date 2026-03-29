@@ -162,8 +162,8 @@ RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
 |-------|------|------|------|
 | 1 | 동시 포지션 제한 + 사이즈 조정 | ✅ 배포 | 2026-03-28 |
 | 2 | BB_MIDLINE_EXIT + RSI 우선순위 | ✅ 배포 | 2026-03-28 |
-| 3 | Analyst 프롬프트 v3.5.1 (허용어 방식 + 레짐 추상화) | ✅ 배포 | 2026-03-29 |
-| 4 | Guardian OHLC 캔들 컨텍스트 | ⏳ 대기 | Phase 3 모니터링 후 |
+| 3 | Analyst 프롬프트 v3.5.1 (허용어 방식 + 레짐 추상화) | 🔄 모니터링 중 | 2026-03-29~ (SIDEWAYS 5건 이상 필요) |
+| 4 | Guardian OHLC 캔들 컨텍스트 | ⏳ 대기 | Phase 3 SIDEWAYS 검증 후 |
 | 5 | Rule Engine 진입 조건 분석 | ⏳ 대기 | Phase 4 후 |
 
 ---
@@ -201,3 +201,12 @@ RSI ≤ 70 + MA20 미도달 → 기존 로직 (SL/TS/TIME_LIMIT)
 - RSI_OVERBOUGHT 우선순위 정상: BTC에서 RSI가 BB보다 먼저 발동
 - AI Decision: 15건 중 2건 CONFIRM (13.3%), 2건 모두 수익 청산
 - BoundaryAudit 여전히 발생 중 → Phase 3으로 대응
+
+### 5.7 Phase 3 모니터링 23h 결과 (2026-03-30)
+- boundary_violation: **33.6% → 0.0%** (9건 중 0건 위반) — 허용어 방식 효과 확인
+- CONFIRM rate 0% (21건 전체 REJECT) — 초기 "과보수" 우려 있었으나 분석 결과:
+  - 레짐 분포: BEAR 89% (8건), SIDEWAYS 11% (1건) — 시장 BEAR 지배
+  - v3.4에서도 BEAR CONFIRM = 0% (동일) → 프롬프트 변경 영향 아님
+  - SIDEWAYS 1건(DOGE): 연속 음봉 3개 하락 중 → REJECT 합리적
+- v3.4 vs v3.5.1 SIDEWAYS confidence: 67.6 → 25.0 — 다만 1건이라 통계 비교 불가
+- **교훈: 모니터링에서 "변경 전후 동일 조건 비교"가 핵심. CONFIRM 0%만 보면 과보수로 오진하지만, 레짐 분포를 통제하면 정상 동작으로 판정 가능**
