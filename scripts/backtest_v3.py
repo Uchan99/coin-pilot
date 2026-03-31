@@ -25,6 +25,10 @@ from src.common.indicators import (
     resample_to_hourly, detect_regime, check_bb_touch_recovery,
     calculate_volume_ratios
 )
+from src.analysis.multi_evidence import (
+    detect_order_blocks, detect_fvg, detect_swing_fractals,
+    calculate_atr, calculate_htf_trend, calculate_structural_rr,
+)
 
 @dataclass
 class Trade:
@@ -586,6 +590,302 @@ async def run_compare_rsi(config: StrategyConfig, rsi_values: list):
     print("=" * 90)
 
 
+# ──────────────────────────────────────────────
+# 다중 근거 (Multi-Evidence) 비교 백테스트
+# ──────────────────────────────────────────────
+ME_SCENARIOS = [
+    ("baseline",     "기준선 (Rule Engine)"),
+    ("ob",           "+OB 근처"),
+    ("fvg",          "+FVG 근처"),
+    ("fractal",      "+스윙 지지"),
+    ("rr2",          "+R:R≥2.0"),
+    ("rr3",          "+R:R≥3.0"),
+    ("htf",          "+HTF 정렬"),
+    ("2ev_rr2",      "+2근거+R:R≥2.0"),
+    ("2ev_rr3",      "+2근거+R:R≥3.0"),
+    ("2ev_rr3_htf",  "+2근거+R:R≥3.0+HTF"),
+]
+
+
+def _compute_me_at_entry(df_slice: pd.DataFrame, atr_val: float) -> Dict:
+    """
+    진입 시점까지의 데이터(df_slice)로 다중 근거 피처 계산.
+    - OB/FVG/Fractal: lookback=168 (7일) 윈도우
+    - HTF: 4시간봉 리샘플 후 MA20 기울기 + HH/HL 패턴
+    - R:R: 구조적 SL(스윙 저점 or OB 하단) / TP(스윙 고점 or 약세 OB)
+    """
+    current_price = df_slice.iloc[-1]["close"]
+
+    ob = detect_order_blocks(df_slice, lookback=168)
+    fvg = detect_fvg(df_slice, lookback=168)
+    fractal = detect_swing_fractals(df_slice, lookback=168)
+    htf = calculate_htf_trend(df_slice)
+
+    # 구조적 SL: 스윙 저점 vs 강세 OB 하단 중 더 가까운(높은) 것
+    structural_sl = None
+    if fractal["nearest_swing_low"]:
+        structural_sl = fractal["nearest_swing_low"]["price"]
+    if ob["nearest_bullish_ob"]:
+        ob_low = ob["nearest_bullish_ob"]["price_low"]
+        if structural_sl is None or ob_low > structural_sl:
+            structural_sl = ob_low
+
+    # 구조적 TP: 스윙 고점 vs 약세 OB 상단 중 더 가까운(낮은) 것
+    structural_tp = None
+    if fractal["nearest_swing_high"]:
+        structural_tp = fractal["nearest_swing_high"]["price"]
+    if ob["nearest_bearish_ob"]:
+        ob_high = ob["nearest_bearish_ob"]["price_high"]
+        if structural_tp is None or ob_high < structural_tp:
+            structural_tp = ob_high
+
+    rr = calculate_structural_rr(current_price, structural_sl, structural_tp, atr_val)
+
+    return {"ob": ob, "fvg": fvg, "fractal": fractal, "htf": htf, "rr": rr}
+
+
+def _passes_me_filter(me: Dict, scenario: str) -> bool:
+    """
+    시나리오별 다중 근거 필터 통과 여부 판단.
+    baseline은 항상 통과, 나머지는 해당 조건 충족 시 통과.
+    """
+    ob, fvg, fractal = me["ob"], me["fvg"], me["fractal"]
+    htf, rr = me["htf"], me["rr"]
+
+    if scenario == "baseline":
+        return True
+
+    # 개별 필터 시나리오
+    if scenario == "ob":
+        return ob.get("price_in_ob") or ob.get("has_bullish_ob_nearby")
+    if scenario == "fvg":
+        return fvg.get("price_in_fvg") or fvg.get("has_bullish_fvg_nearby")
+    if scenario == "fractal":
+        return fractal.get("near_swing_support")
+    if scenario == "rr2":
+        return rr.get("rr_ratio", 0) >= 2.0 and rr.get("risk_pct", 0) > 0
+    if scenario == "rr3":
+        return rr.get("rr_valid", False)
+    if scenario == "htf":
+        return htf.get("htf_trend") != "BEARISH"
+
+    # 복합 필터: 다중 근거 스코어링
+    # R:R 기본 체크
+    if scenario == "2ev_rr2":
+        if rr.get("rr_ratio", 0) < 2.0 or rr.get("risk_pct", 0) <= 0:
+            return False
+    elif scenario in ("2ev_rr3", "2ev_rr3_htf"):
+        if not rr.get("rr_valid", False):
+            return False
+
+    # HTF 추가 체크 (2ev_rr3_htf만)
+    if scenario == "2ev_rr3_htf" and htf.get("htf_trend") == "BEARISH":
+        return False
+
+    # 근거 수 계산: R:R 통과 = 1점, 이후 개별 근거 추가
+    score = 1  # R:R 통과
+    if ob.get("price_in_ob") or ob.get("has_bullish_ob_nearby"):
+        score += 1
+    if fvg.get("price_in_fvg") or fvg.get("has_bullish_fvg_nearby"):
+        score += 1
+    if fractal.get("near_swing_support"):
+        score += 1
+    if htf.get("htf_trend") != "BEARISH":
+        score += 1
+
+    return score >= 2
+
+
+def simulate_trades_me(
+    df: pd.DataFrame, config: StrategyConfig, symbol: str,
+    scenario: str = "baseline",
+    bb_min_profit: float = 0.01,
+) -> List[Trade]:
+    """
+    다중 근거 필터가 적용된 거래 시뮬레이션.
+    baseline 시나리오는 기존 Rule Engine 진입 로직 그대로 사용,
+    나머지 시나리오는 Rule Engine 진입 조건 통과 후 추가 ME 필터 적용.
+    """
+    trades = []
+    position = None
+    cooldown_until = None
+
+    df_clean = df.dropna(subset=['rsi', 'ma50', 'ma200']).reset_index(drop=True)
+
+    # baseline이 아닌 경우 ATR 사전 계산
+    atr_series = None
+    if scenario != "baseline":
+        atr_series = calculate_atr(df_clean)
+
+    for idx, row in df_clean.iterrows():
+        current_time = row['timestamp']
+        regime = get_regime(row, config)
+
+        # 포지션 보유 중 → 청산 체크
+        if position:
+            should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+            if should_exit:
+                position.exit_time = current_time
+                position.exit_price = row['close']
+                position.exit_reason = reason
+                gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+                position.pnl_pct = gross_pnl
+                position.pnl_net = gross_pnl - (FEE_RATE * 2)
+                trades.append(position)
+                position = None
+                cooldown_until = current_time + timedelta(minutes=30)
+
+        # 포지션 미보유 → 진입 체크
+        else:
+            if cooldown_until and current_time < cooldown_until:
+                continue
+
+            if check_entry_signal(row, regime, config, df_clean, idx):
+                # 다중 근거 필터 (baseline 제외)
+                if scenario != "baseline":
+                    atr_val = atr_series.iloc[idx] if pd.notna(atr_series.iloc[idx]) else 0
+                    me = _compute_me_at_entry(df_clean.iloc[:idx + 1], atr_val)
+                    if not _passes_me_filter(me, scenario):
+                        continue
+
+                size_ratio = config.REGIMES.get(regime, {}).get("position_size_ratio", 0.0)
+                symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+                effective_ratio = float(size_ratio) * float(symbol_multiplier)
+                if effective_ratio <= 0:
+                    continue
+
+                position = Trade(
+                    symbol=symbol,
+                    regime=regime,
+                    entry_time=current_time,
+                    entry_price=row['close'],
+                    position_size=BASE_POSITION_SIZE * effective_ratio,
+                    high_water_mark=row['close'],
+                )
+
+    # 마지막 포지션 청산
+    if position and len(df_clean) > 0:
+        last_row = df_clean.iloc[-1]
+        position.exit_time = last_row['timestamp']
+        position.exit_price = last_row['close']
+        position.exit_reason = "END"
+        gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+        position.pnl_pct = gross_pnl
+        position.pnl_net = gross_pnl - (FEE_RATE * 2)
+        trades.append(position)
+
+    return trades
+
+
+async def run_compare_multi_evidence(config: StrategyConfig):
+    """
+    다중 근거 시나리오 10개 비교 백테스트.
+    각 시나리오는 기존 Rule Engine 진입 조건 + 추가 ME 필터 조합.
+    baseline 대비 필터율/승률/수익률 변화를 비교 테이블로 출력.
+    """
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 105)
+    print("다중 근거 기술적 분석 (Multi-Evidence TA) 비교 백테스트")
+    print("=" * 105)
+    print(f"심볼: {list(market_data.keys())}")
+    print(f"시나리오: {len(ME_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc in ME_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_me(df_data, config, symbol, scenario=sc_name)
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        # 레짐별 거래 수
+        regime_counts = {}
+        for t in all_trades:
+            regime_counts[t.regime] = regime_counts.get(t.regime, 0) + 1
+
+        results.append({
+            "name": sc_name, "desc": sc_desc,
+            "total": total, "wins": len(wins), "losses": len(losses),
+            "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_profit": total_profit,
+            "avg_win": avg_win, "avg_loss": avg_loss,
+            "reasons": reasons, "regime_counts": regime_counts,
+        })
+
+    # ── 결과 테이블 ──
+    baseline_total = results[0]["total"] if results else 1
+    print()
+    print("-" * 105)
+    print(f"{'시나리오':<26} | {'거래':>4} | {'승률':>6} | {'누적PnL':>9} | {'예상수익':>10} | "
+          f"{'avg_W':>7} | {'avg_L':>7} | {'필터율':>6}")
+    print("-" * 105)
+    for r in results:
+        filter_rate = (1 - r["total"] / baseline_total) * 100 if baseline_total > 0 else 0
+        print(f"{r['desc']:<26} | {r['total']:>4} | {r['win_rate']:>5.1f}% | "
+              f"{r['total_pnl']:>+8.2f}% | {r['total_profit']:>+9,.0f}원 | "
+              f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | {filter_rate:>5.1f}%")
+
+    # ── 청산 사유 분포 ──
+    print()
+    print("-" * 105)
+    print("청산 사유 분포:")
+    print("-" * 105)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+
+    header = f"{'시나리오':<26}"
+    for reason in all_reasons:
+        header += f" | {reason:>12}"
+    print(header)
+    print("-" * 105)
+    for r in results:
+        line = f"{r['desc']:<26}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>12}"
+        print(line)
+
+    # ── 레짐별 거래 분포 ──
+    print()
+    print("-" * 105)
+    print("레짐별 거래 수:")
+    print("-" * 105)
+    all_regimes = sorted({r for res in results for r in res["regime_counts"]})
+    header = f"{'시나리오':<26}"
+    for regime in all_regimes:
+        header += f" | {regime:>10}"
+    print(header)
+    print("-" * 105)
+    for r in results:
+        line = f"{r['desc']:<26}"
+        for regime in all_regimes:
+            cnt = r["regime_counts"].get(regime, 0)
+            line += f" | {cnt:>10}"
+        print(line)
+
+    print()
+    print("=" * 105)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -595,6 +895,8 @@ async def main():
                         help="BB_MIDLINE_EXIT 가드 수치 비교 모드 (0%%, 0.3%%, 0.5%%, 1.0%%, 1.5%%, 2.0%%, OFF)")
     parser.add_argument("--compare-rsi", action="store_true",
                         help="RSI 과매수 임계값 비교 모드 (55, 60, 65, 70, 75) BB 가드 1.0%% 고정")
+    parser.add_argument("--multi-evidence", action="store_true",
+                        help="다중 근거 기술적 분석 시나리오 10개 비교 모드 (OB/FVG/Fractal/R:R/HTF)")
     args = parser.parse_args()
 
     config = load_strategy_config(args.config) if args.config else get_config()
@@ -609,6 +911,11 @@ async def main():
     if args.compare_rsi:
         rsi_values = [55, 60, 65, 70, 75]
         await run_compare_rsi(config, rsi_values)
+        return
+
+    # 다중 근거 비교 모드
+    if args.multi_evidence:
+        await run_compare_multi_evidence(config)
         return
 
     # 단일 가드 값 지정 시 적용

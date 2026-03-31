@@ -2,7 +2,7 @@
 
 **작성일**: 2026-03-31
 **작성자**: Claude (assistant)
-**상태**: Approval Pending
+**상태**: Approved
 **관련 문서**:
 - Charter: docs/PROJECT_CHARTER.md
 - 전략 참고: docs/strategy/TradingMethod.md
@@ -330,8 +330,8 @@ python scripts/backtest_v3.py --multi-evidence
 
 ## 9. 선행 조건
 - [x] 34번 Phase 3/4 모니터링 진행 중 (병행 가능)
-- [ ] 34번 Phase 5 SQL 분석 완료 (Phase 5 결과가 피처 우선순위/조건 설계에 영향)
 - [ ] `market_data` 테이블에 7일 이상 OHLCV 데이터 존재 확인 (lookback=168 지원)
+- 참고: 34번 Phase 5(Rule Engine SQL 분석)는 별도 진행. Phase 5 결과는 35번 Phase 2 통합 시 반영 가능
 
 ---
 
@@ -350,11 +350,12 @@ python scripts/backtest_v3.py --multi-evidence
 ## 11. 일정
 
 ```
-Phase 1 (백테스트): 34번 Phase 5 SQL 분석 완료 후 시작
+Phase 1 (백테스트): 34번 Phase 3/4 모니터링과 병행하여 즉시 시작
   → 피처 함수 구현 (OB/FVG/프렉탈 + Unmitigated + R:R + HTF)
   → 10가지 시나리오 백테스트 비교
   → 시간대별 OB/FVG 신뢰도 분석 (세션 가중치 결정)
 Phase 2 (Rule Engine 통합): Phase 1 백테스트 유효성 확인 후
+  → 34번 Phase 5 SQL 분석 결과도 함께 반영
   → 구조적 SL/TP를 signal_info에 저장
 Phase 3 (AI 프롬프트): Phase 2 라이브 모니터링 확인 후
   → 다중 근거 + R:R 정보를 AI 컨텍스트로 전달
