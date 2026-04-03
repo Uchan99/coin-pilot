@@ -440,22 +440,26 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 def _filter_unmitigated(
     obs: List[Dict], df: pd.DataFrame, direction: str,
 ) -> List[Dict]:
-    """OB가 이후 캔들에 의해 해소되었는지 필터."""
+    """
+    OB가 이후 캔들에 의해 해소되었는지 필터. (벡터화 버전)
+    벡터 연산으로 for 루프 대비 대폭 성능 향상 (6개월~1년 백테스트 대응).
+    """
+    if not obs:
+        return []
+    close_arr = df["close"].values
     result = []
     for ob in obs:
         idx = ob["candle_idx"]
-        mitigated = False
-        for j in range(idx + 1, len(df)):
-            if direction == "bullish":
-                # 강세 OB: 종가가 OB 하단 아래로 떨어지면 해소
-                if df.iloc[j]["close"] < ob["price_low"]:
-                    mitigated = True
-                    break
-            else:
-                # 약세 OB: 종가가 OB 상단 위로 올라가면 해소
-                if df.iloc[j]["close"] > ob["price_high"]:
-                    mitigated = True
-                    break
+        if idx + 1 >= len(df):
+            result.append(ob)
+            continue
+        after_close = close_arr[idx + 1:]
+        if direction == "bullish":
+            # 강세 OB: 종가가 OB 하단 아래로 떨어지면 해소
+            mitigated = (after_close < ob["price_low"]).any()
+        else:
+            # 약세 OB: 종가가 OB 상단 위로 올라가면 해소
+            mitigated = (after_close > ob["price_high"]).any()
         if not mitigated:
             result.append(ob)
     return result
@@ -464,23 +468,27 @@ def _filter_unmitigated(
 def _filter_unmitigated_fvg(
     fvgs: List[Dict], df: pd.DataFrame, direction: str,
 ) -> List[Dict]:
-    """FVG가 이후 캔들에 의해 50% 이상 침범되었는지 필터."""
+    """
+    FVG가 이후 캔들에 의해 50% 이상 침범되었는지 필터. (벡터화 버전)
+    """
+    if not fvgs:
+        return []
+    low_arr = df["low"].values
+    high_arr = df["high"].values
     result = []
     for fvg in fvgs:
         idx = fvg["candle_idx"]
         gap_mid = (fvg["gap_low"] + fvg["gap_high"]) / 2
-        mitigated = False
-        for j in range(idx + 2, len(df)):  # FVG는 3캔들이므로 idx+2부터
-            if direction == "bullish":
-                # 강세 FVG: 종가가 갭 중간 아래로 들어오면 해소
-                if df.iloc[j]["low"] <= gap_mid:
-                    mitigated = True
-                    break
-            else:
-                # 약세 FVG: 종가가 갭 중간 위로 올라오면 해소
-                if df.iloc[j]["high"] >= gap_mid:
-                    mitigated = True
-                    break
+        start = idx + 2  # FVG는 3캔들이므로 idx+2부터
+        if start >= len(df):
+            result.append(fvg)
+            continue
+        if direction == "bullish":
+            # 강세 FVG: low가 갭 중간 아래로 들어오면 해소
+            mitigated = (low_arr[start:] <= gap_mid).any()
+        else:
+            # 약세 FVG: high가 갭 중간 위로 올라오면 해소
+            mitigated = (high_arr[start:] >= gap_mid).any()
         if not mitigated:
             result.append(fvg)
     return result
@@ -547,3 +555,258 @@ def _empty_fractal_result() -> Dict:
         "nearest_swing_low": None, "nearest_swing_high": None,
         "near_swing_support": False,
     }
+
+
+# ──────────────────────────────────────────────
+# 8. Zone 병합 (v4.1 — 군집화 방지)
+# ──────────────────────────────────────────────
+def merge_zones(
+    zones: List[Dict],
+    atr_14: float,
+    merge_factor: float = 0.3,
+    price_key_low: str = "price_low",
+    price_key_high: str = "price_high",
+) -> List[Dict]:
+    """
+    ATR(14)×merge_factor 이내에 인접한 OB/FVG를 하나의 Zone으로 병합.
+    급락 시 마이크로 FVG 군집이 5+5 슬롯을 독점하여 메이저 지지선을 밀어내는 문제 방지.
+
+    병합 규칙:
+    - Zone들을 price_low 기준 오름차순 정렬
+    - 인접 Zone 간 거리 < ATR×merge_factor 이면 하나로 합침
+    - 병합 Zone: price_low = min(all lows), price_high = max(all highs)
+    - candle_idx = 가장 최근(마지막) Zone의 idx (대표값)
+
+    Args:
+        zones: OB 또는 FVG 리스트 (price_low/price_high 또는 gap_low/gap_high 키)
+        atr_14: ATR(14) 값 (동적 임계값 기준)
+        merge_factor: ATR 곱 계수 (기본 0.3)
+        price_key_low/high: 가격 키 이름 (OB=price_low/high, FVG=gap_low/high)
+    """
+    if len(zones) <= 1 or atr_14 <= 0:
+        return zones
+
+    threshold = atr_14 * merge_factor
+    # 가격 기준 오름차순 정렬
+    sorted_zones = sorted(zones, key=lambda z: z[price_key_low])
+
+    merged: List[Dict] = []
+    current = dict(sorted_zones[0])  # 복사본으로 작업
+
+    for i in range(1, len(sorted_zones)):
+        nxt = sorted_zones[i]
+        # 현재 Zone의 상단과 다음 Zone의 하단 거리가 threshold 이내면 병합
+        if nxt[price_key_low] - current[price_key_high] <= threshold:
+            current[price_key_high] = max(current[price_key_high], nxt[price_key_high])
+            current["candle_idx"] = max(current.get("candle_idx", 0), nxt.get("candle_idx", 0))
+            # 병합 구성 수 추적
+            current["_merged_count"] = current.get("_merged_count", 1) + 1
+        else:
+            merged.append(current)
+            current = dict(nxt)
+
+    merged.append(current)
+    return merged
+
+
+# ──────────────────────────────────────────────
+# 9. 공간적 상한선 (Spatial Capacity) 5+5
+# ──────────────────────────────────────────────
+def apply_spatial_capacity(
+    bullish_zones: List[Dict],
+    bearish_zones: List[Dict],
+    current_price: float,
+    max_per_side: int = 5,
+    price_key_low: str = "price_low",
+    price_key_high: str = "price_high",
+) -> Tuple[List[Dict], List[Dict]]:
+    """
+    현재가 기준 아래 강세 N개 + 위 약세 N개만 유지.
+    가격 이동 시 멀어진 구간은 자연히 밀려남 → 자동 Pruning.
+
+    강세(매수 지지): 현재가 아래, price_high 기준 가까운 순
+    약세(매도 저항): 현재가 위, price_low 기준 가까운 순
+    """
+    # 강세: 현재가 아래 → price_high 기준 내림차순 (가까운 것 먼저)
+    below = [z for z in bullish_zones if z[price_key_high] <= current_price]
+    below_sorted = sorted(below, key=lambda z: z[price_key_high], reverse=True)
+
+    # 약세: 현재가 위 → price_low 기준 오름차순 (가까운 것 먼저)
+    above = [z for z in bearish_zones if z[price_key_low] >= current_price]
+    above_sorted = sorted(above, key=lambda z: z[price_key_low])
+
+    return below_sorted[:max_per_side], above_sorted[:max_per_side]
+
+
+# ──────────────────────────────────────────────
+# 10. Net R:R 계산 (슬리피지 반영, v4.1)
+# ──────────────────────────────────────────────
+ESTIMATED_SLIPPAGE_PCT = 0.15  # 수수료(0.05%) + 호가창 슬리피지(0.1%) = 0.15%
+
+
+def calculate_structural_rr_net(
+    current_price: float,
+    structural_sl: Optional[float],
+    structural_tp: Optional[float],
+    atr_14: float,
+    sl_buffer_multiplier: float = 0.5,
+    slippage_pct: float = ESTIMATED_SLIPPAGE_PCT,
+    min_rr: float = 3.0,
+) -> Dict:
+    """
+    슬리피지를 반영한 Net R:R 계산.
+    SL 0.4% 타점에서 슬리피지 0.15% → 실제 리스크 0.55%, Net R:R 급감.
+    이 간극을 사전 필터에 반영하여 진입-청산 R:R 불일치 해소.
+
+    Returns: rr_ratio, rr_net, rr_valid, sl_price, tp_price, risk_pct, reward_pct, net_risk_pct
+    """
+    if structural_sl is None or structural_tp is None or atr_14 <= 0:
+        return {
+            "rr_ratio": 0.0, "rr_net": 0.0, "rr_valid": False,
+            "sl_price": None, "tp_price": None,
+            "risk_pct": 0.0, "reward_pct": 0.0, "net_risk_pct": 0.0,
+        }
+
+    sl_price = structural_sl - (atr_14 * sl_buffer_multiplier)
+    tp_price = structural_tp
+
+    risk = current_price - sl_price
+    reward = tp_price - current_price
+
+    if risk <= 0 or reward <= 0:
+        return {
+            "rr_ratio": 0.0, "rr_net": 0.0, "rr_valid": False,
+            "sl_price": sl_price, "tp_price": tp_price,
+            "risk_pct": 0.0, "reward_pct": 0.0, "net_risk_pct": 0.0,
+        }
+
+    risk_pct = risk / current_price * 100
+    reward_pct = reward / current_price * 100
+    net_risk_pct = risk_pct + slippage_pct
+    rr_gross = reward / risk
+    rr_net = reward_pct / net_risk_pct
+
+    return {
+        "sl_price": sl_price,
+        "tp_price": tp_price,
+        "risk_pct": round(risk_pct, 4),
+        "reward_pct": round(reward_pct, 4),
+        "net_risk_pct": round(net_risk_pct, 4),
+        "rr_ratio": round(rr_gross, 2),
+        "rr_net": round(rr_net, 2),
+        "rr_valid": rr_net >= min_rr,
+    }
+
+
+# ──────────────────────────────────────────────
+# 11. 유의미한 스윙 저점 감지 (트레일링용, v4.0)
+# ──────────────────────────────────────────────
+def detect_significant_swing_lows(
+    df_1h: pd.DataFrame,
+    condition: str = "A",
+    vol_ma_period: int = 20,
+    vol_threshold: float = 1.2,
+) -> List[Dict]:
+    """
+    구조적 트레일링에 사용할 유의미한 스윙 저점 감지.
+    1시간봉 노이즈 저점을 필터링하여 스탑 헌팅 조기 청산 방지.
+
+    조건 (Plan §17.2):
+    - A: 4시간봉 기준 3캔들 프렉탈 (1시간봉 노이즈 필터링)
+    - B: BOS 동반 (이전 고점 갱신 후의 되돌림 저점만 유효)
+    - C: 거래량 확인 (해당 저점 캔들 거래량 ≥ 20봉 MA × 1.2)
+    - 복합: AB, AC, BC, ABC (AND 조합)
+    """
+    results: List[Dict] = []
+
+    # 조건 A: 4시간봉 프렉탈
+    if "A" in condition:
+        df_4h = resample_to_4h(df_1h)
+        if len(df_4h) >= 3:
+            for i in range(1, len(df_4h) - 1):
+                prev_l = df_4h.iloc[i - 1]["low"]
+                curr_l = df_4h.iloc[i]["low"]
+                next_l = df_4h.iloc[i + 1]["low"]
+                if curr_l < prev_l and curr_l < next_l:
+                    results.append({
+                        "price": curr_l,
+                        "timestamp": df_4h.iloc[i].get("timestamp"),
+                        "source": "4h_fractal",
+                    })
+
+    # 조건 B: BOS — Higher High 후의 되돌림 저점
+    if "B" in condition:
+        # 1시간봉에서 최근 스윙 고점/저점 쌍을 추적
+        # Higher High 갱신 후 그 직전 되돌림 저점만 유효
+        swing_highs = []
+        swing_lows = []
+        for i in range(1, len(df_1h) - 1):
+            h = df_1h.iloc[i]["high"]
+            if h > df_1h.iloc[i - 1]["high"] and h > df_1h.iloc[i + 1]["high"]:
+                swing_highs.append({"price": h, "idx": i})
+            lo = df_1h.iloc[i]["low"]
+            if lo < df_1h.iloc[i - 1]["low"] and lo < df_1h.iloc[i + 1]["low"]:
+                swing_lows.append({"price": lo, "idx": i})
+
+        # BOS: 새 고점이 이전 고점보다 높으면, 그 사이의 가장 낮은 저점이 유효
+        prev_high = None
+        for sh in swing_highs:
+            if prev_high is not None and sh["price"] > prev_high["price"]:
+                # 이전 고점~현재 고점 사이의 저점 중 최저
+                between_lows = [
+                    sl for sl in swing_lows
+                    if prev_high["idx"] < sl["idx"] < sh["idx"]
+                ]
+                if between_lows:
+                    min_low = min(between_lows, key=lambda x: x["price"])
+                    results.append({
+                        "price": min_low["price"],
+                        "timestamp": df_1h.iloc[min_low["idx"]].get("timestamp"),
+                        "source": "bos_pullback",
+                    })
+            prev_high = sh
+
+    # 조건 C: 거래량 — 해당 저점 캔들 거래량 ≥ 20봉 MA × 1.2
+    if "C" in condition:
+        if "volume" in df_1h.columns:
+            vol_ma = df_1h["volume"].rolling(vol_ma_period).mean()
+            for i in range(1, len(df_1h) - 1):
+                lo = df_1h.iloc[i]["low"]
+                if lo < df_1h.iloc[i - 1]["low"] and lo < df_1h.iloc[i + 1]["low"]:
+                    if pd.notna(vol_ma.iloc[i]) and df_1h.iloc[i]["volume"] >= vol_ma.iloc[i] * vol_threshold:
+                        results.append({
+                            "price": lo,
+                            "timestamp": df_1h.iloc[i].get("timestamp"),
+                            "source": "volume_swing",
+                        })
+
+    # 복합 조건 (AND): 여러 source에서 동일 가격대(ATR×0.1 이내) 교차하는 것만 유지
+    # 단일 조건(A/B/C)이면 그대로 반환
+    if len(condition) == 1:
+        return results
+
+    # 복합 조건: 각 source별 결과를 교차 매칭
+    sources_needed = set(condition)
+    source_map = {"A": "4h_fractal", "B": "bos_pullback", "C": "volume_swing"}
+    by_source = {}
+    for s in sources_needed:
+        key = source_map[s]
+        by_source[key] = [r for r in results if r["source"] == key]
+
+    # 기준 source의 각 포인트가 다른 source에도 근접(1% 이내) 매치가 있는지
+    base_key = source_map[condition[0]]
+    base_points = by_source.get(base_key, [])
+    other_keys = [source_map[c] for c in condition[1:]]
+
+    matched = []
+    for bp in base_points:
+        all_match = True
+        for ok in other_keys:
+            others = by_source.get(ok, [])
+            if not any(abs(o["price"] - bp["price"]) / bp["price"] < 0.01 for o in others):
+                all_match = False
+                break
+        if all_match:
+            matched.append(bp)
+
+    return matched

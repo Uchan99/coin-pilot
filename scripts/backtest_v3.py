@@ -28,6 +28,8 @@ from src.common.indicators import (
 from src.analysis.multi_evidence import (
     detect_order_blocks, detect_fvg, detect_swing_fractals,
     calculate_atr, calculate_htf_trend, calculate_structural_rr,
+    calculate_structural_rr_net, merge_zones, apply_spatial_capacity,
+    detect_significant_swing_lows, resample_to_4h,
 )
 
 @dataclass
@@ -45,9 +47,22 @@ class Trade:
     pnl_pct: Optional[float] = None
     pnl_net: Optional[float] = None
 
+
+@dataclass
+class TradeME(Trade):
+    """Phase 1-2 구조적 청산용 거래 기록 — 구조적 SL/TP + BE 방어 + 트레일링 추적"""
+    structural_sl: Optional[float] = None      # 구조적 SL 가격 (진입 시 설정)
+    structural_tp: Optional[float] = None      # 구조적 TP 가격 (진입 시 설정)
+    current_sl: Optional[float] = None         # 현재 활성 SL (BE/트레일링으로 상향)
+    be_triggered: bool = False                  # BE 발동 여부
+    rr_ratio: float = 0.0                       # 진입 시 Net R:R
+    risk_pct: float = 0.0                       # 구조적 SL 거리 (%)
+
+
 # 상수
 FEE_RATE = 0.0005  # 0.05% (업비트)
 BASE_POSITION_SIZE = 100000  # 기본 건당 10만원
+EQUITY = 1_000_000  # 캡 역산 기준 자산 (100만원)
 
 
 def add_indicators_to_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -886,6 +901,458 @@ async def run_compare_multi_evidence(config: StrategyConfig):
     print("=" * 105)
 
 
+# ════════════════════════════════════════════════════════════════════
+# Phase 1-2: 구조적 청산 + 확장 백테스트
+# ════════════════════════════════════════════════════════════════════
+
+def calculate_position_size_capped(
+    equity: float,
+    structural_sl_pct: float,
+    max_order: float,
+    risk_per_trade: float = 0.02,
+    min_order: float = 5000,
+    sl_max_pct: float = 5.0,
+    sl_min_pct: float = 0.3,
+) -> tuple:
+    """
+    캡 역산(Capped Inverse) 포지션 사이징 (v4.0 최종).
+    per-trade 리스크 정규화: SL 넓은 타점은 비중 축소, SL 좁은 타점은 비중 확대.
+    현물 캡: max_order 초과 불가 (레버리지 불가 제약).
+
+    공식: final_size = min((equity × 0.02) / structural_sl_pct, max_order)
+    극단값 가드: SL > 5% 또는 < 0.3% 시 진입 스킵.
+
+    Returns: (position_size, skip_reason)  — skip_reason이 None이면 진입 가능
+    """
+    if structural_sl_pct <= 0:
+        return 0, "sl_zero"
+    if structural_sl_pct > sl_max_pct:
+        return 0, "sl_too_wide"
+    if structural_sl_pct < sl_min_pct:
+        return 0, "sl_too_tight"
+
+    calculated = (equity * risk_per_trade) / (structural_sl_pct / 100)
+    final = min(calculated, max_order)
+
+    if final < min_order:
+        return 0, "below_min_order"
+
+    return final, None
+
+
+def check_exit_signal_structural(
+    row, trade: TradeME, df: pd.DataFrame, idx: int,
+    config: StrategyConfig,
+    be_threshold_r: float = 1.5,
+    swing_condition: str = "A",
+) -> tuple:
+    """
+    구조적 청산 로직 (Phase 1-2).
+    고정 비율 SL/TP 대신 구조적 레벨 기반 청산 + BE 방어 + 구조적 트레일링.
+
+    청산 우선순위:
+    1. 구조적 SL: current_price <= current_sl → STRUCTURAL_SL
+    2. BE 체크: 미발동 + 수익 ≥ be_threshold × risk → SL을 진입가로 이동 (청산 아님)
+    3. 구조적 트레일링: 유의미한 스윙 저점 형성 시 SL 상향 (청산 아님)
+    4. 구조적 TP: current_price >= structural_tp → STRUCTURAL_TP
+    5. 시간 초과: TIME_LIMIT 유지
+    """
+    current_price = row["close"]
+
+    # 1. 구조적 SL (최우선)
+    if trade.current_sl is not None and current_price <= trade.current_sl:
+        if trade.be_triggered:
+            return True, "BE_STOP"
+        return True, "STRUCTURAL_SL"
+
+    # 2. BE 체크 — 미발동 + 현재 수익 ≥ be_threshold × risk
+    if be_threshold_r is not None and not trade.be_triggered and trade.risk_pct > 0:
+        pnl_pct = (current_price - trade.entry_price) / trade.entry_price * 100
+        if pnl_pct >= be_threshold_r * trade.risk_pct:
+            # SL을 진입가로 이동 (물량 유지, 청산 아님)
+            trade.current_sl = trade.entry_price
+            trade.be_triggered = True
+
+    # 3. 구조적 트레일링 — 유의미한 스윙 저점 형성 시 SL 상향
+    #    보유 기간 중 새로운 스윙 저점이 현재 SL보다 높으면 SL 상향
+    if swing_condition and trade.current_sl is not None and idx >= 4:
+        # 진입 이후 데이터만으로 스윙 저점 감지 (최소 4봉 필요)
+        entry_idx = None
+        for search_idx in range(max(0, idx - 200), idx):
+            if df.iloc[search_idx]["timestamp"] == trade.entry_time:
+                entry_idx = search_idx
+                break
+
+        if entry_idx is not None and idx - entry_idx >= 4:
+            # 진입 이후 ~ 현재까지 슬라이스
+            post_entry = df.iloc[entry_idx:idx + 1]
+            sig_lows = detect_significant_swing_lows(post_entry, condition=swing_condition)
+            for sl in sig_lows:
+                # SL은 항상 상향만 (하향 금지)
+                if sl["price"] > trade.current_sl and sl["price"] < current_price:
+                    trade.current_sl = sl["price"]
+
+    # 4. 구조적 TP
+    if trade.structural_tp is not None and current_price >= trade.structural_tp:
+        return True, "STRUCTURAL_TP"
+
+    # 5. 시간 초과
+    regime_config = config.REGIMES.get(trade.regime, config.REGIMES["SIDEWAYS"])
+    exit_cfg = regime_config["exit"]
+    hold_time = row["timestamp"] - trade.entry_time
+    if hold_time > timedelta(hours=exit_cfg["time_limit_hours"]):
+        return True, "TIME_LIMIT"
+
+    return False, ""
+
+
+def _compute_me_at_entry_phase2(
+    df_slice: pd.DataFrame, atr_val: float, use_zone_merge: bool = False,
+) -> Dict:
+    """
+    Phase 1-2용 진입 시점 다중 근거 피처 계산.
+    Phase 1 대비 추가: Zone 병합 + 5+5 Spatial Capacity + Net R:R.
+    """
+    current_price = df_slice.iloc[-1]["close"]
+
+    ob = detect_order_blocks(df_slice, lookback=168)
+    fvg = detect_fvg(df_slice, lookback=168)
+    fractal = detect_swing_fractals(df_slice, lookback=168)
+    htf = calculate_htf_trend(df_slice)
+
+    # Zone 병합 (v4.1): OB/FVG 군집을 ATR×0.3 기준으로 병합
+    bullish_obs = ob["unmitigated_bullish_obs"]
+    bearish_obs = ob["unmitigated_bearish_obs"]
+    bullish_fvgs = fvg["unmitigated_bullish_fvgs"]
+    bearish_fvgs = fvg["unmitigated_bearish_fvgs"]
+
+    if use_zone_merge and atr_val > 0:
+        bullish_obs = merge_zones(bullish_obs, atr_val, price_key_low="price_low", price_key_high="price_high")
+        bearish_obs = merge_zones(bearish_obs, atr_val, price_key_low="price_low", price_key_high="price_high")
+        bullish_fvgs = merge_zones(bullish_fvgs, atr_val, price_key_low="gap_low", price_key_high="gap_high")
+        bearish_fvgs = merge_zones(bearish_fvgs, atr_val, price_key_low="gap_low", price_key_high="gap_high")
+
+    # 5+5 Spatial Capacity: 현재가 기준 가까운 5개씩만 유지
+    bullish_obs, bearish_obs = apply_spatial_capacity(
+        bullish_obs, bearish_obs, current_price, max_per_side=5,
+        price_key_low="price_low", price_key_high="price_high",
+    )
+    bullish_fvgs, bearish_fvgs = apply_spatial_capacity(
+        bullish_fvgs, bearish_fvgs, current_price, max_per_side=5,
+        price_key_low="gap_low", price_key_high="gap_high",
+    )
+
+    # 구조적 SL: 스윙 저점 vs 강세 OB 하단 중 더 가까운(높은) 것
+    structural_sl = None
+    if fractal["nearest_swing_low"]:
+        structural_sl = fractal["nearest_swing_low"]["price"]
+    for b_ob in bullish_obs:
+        ob_low = b_ob["price_low"]
+        if ob_low < current_price:
+            if structural_sl is None or ob_low > structural_sl:
+                structural_sl = ob_low
+
+    # 구조적 TP: 스윙 고점 vs 약세 OB 상단 중 더 가까운(낮은) 것
+    structural_tp = None
+    if fractal["nearest_swing_high"]:
+        structural_tp = fractal["nearest_swing_high"]["price"]
+    for b_ob in bearish_obs:
+        ob_high = b_ob["price_high"]
+        if ob_high > current_price:
+            if structural_tp is None or ob_high < structural_tp:
+                structural_tp = ob_high
+
+    # Net R:R (슬리피지 반영)
+    rr = calculate_structural_rr_net(current_price, structural_sl, structural_tp, atr_val)
+
+    # FVG 근처 판단
+    has_fvg = any(
+        f["gap_low"] <= current_price <= f["gap_high"]
+        for f in bullish_fvgs + bearish_fvgs
+    )
+    if not has_fvg:
+        for bf in bullish_fvgs:
+            if abs(current_price - bf.get("gap_high", 0)) / current_price <= 0.02:
+                has_fvg = True
+                break
+
+    return {
+        "ob": ob, "fvg": fvg, "fractal": fractal, "htf": htf, "rr": rr,
+        "structural_sl": structural_sl, "structural_tp": structural_tp,
+        "has_fvg_nearby": has_fvg,
+    }
+
+
+# Phase 1-2 시나리오 정의
+# (name, description, exit_type, be_threshold, swing_cond, sizing)
+ME2_SCENARIOS = [
+    ("baseline",         "기준선 (고정 청산)",                "fixed",      None, None,  "fixed"),
+    ("fvg_fixed",        "+FVG (고정 청산)",                 "fixed",      None, None,  "fixed"),
+    ("fvg_struct",       "+FVG+구조적 청산",                 "structural", None, None,  "fixed"),
+    ("fvg_struct_be10",  "+FVG+구조적+BE(1.0R)",            "structural", 1.0,  "A",   "fixed"),
+    ("fvg_struct_be15",  "+FVG+구조적+BE(1.5R)",            "structural", 1.5,  "A",   "fixed"),
+    ("fvg_struct_be20",  "+FVG+구조적+BE(2.0R)",            "structural", 2.0,  "A",   "fixed"),
+    ("fvg_struct_be15_B", "FVG+구조적+BE1.5+BOS",          "structural", 1.5,  "B",   "fixed"),
+    ("fvg_struct_be15_C", "FVG+구조적+BE1.5+거래량",        "structural", 1.5,  "C",   "fixed"),
+    ("fvg_cap",          "+FVG+구조적+BE1.5+캡역산",        "structural", 1.5,  "A",   "capped"),
+    ("fvg_cap_zone",     "+FVG+구조적+BE1.5+캡+Zone",      "structural", 1.5,  "A",   "capped_zone"),
+]
+
+
+def simulate_trades_me_phase2(
+    df: pd.DataFrame, config: StrategyConfig, symbol: str,
+    scenario_name: str, exit_type: str, be_threshold: float,
+    swing_cond: str, sizing: str,
+    bb_min_profit: float = 0.01,
+) -> List[TradeME]:
+    """
+    Phase 1-2 구조적 청산 시뮬레이션.
+    - baseline/fvg_fixed: 기존 고정 청산 사용 (Phase 1과 동일)
+    - fvg_struct*: 구조적 SL/TP + BE + 트레일링
+    - fvg_cap*: + 캡 역산 포지션 사이징
+    - fvg_cap_zone: + Zone 병합
+    """
+    trades: List[TradeME] = []
+    position: Optional[TradeME] = None
+    cooldown_until = None
+
+    df_clean = df.dropna(subset=["rsi", "ma50", "ma200"]).reset_index(drop=True)
+    atr_series = calculate_atr(df_clean)
+
+    use_fvg = scenario_name != "baseline"
+    use_structural = exit_type == "structural"
+    use_capped = sizing in ("capped", "capped_zone")
+    use_zone_merge = sizing == "capped_zone"
+
+    for idx, row in df_clean.iterrows():
+        current_time = row["timestamp"]
+        regime = get_regime(row, config)
+
+        # ── 포지션 보유 중 → 청산 체크 ──
+        if position:
+            if use_structural and position.structural_sl is not None:
+                should_exit, reason = check_exit_signal_structural(
+                    row, position, df_clean, idx, config,
+                    be_threshold_r=be_threshold,
+                    swing_condition=swing_cond,
+                )
+            else:
+                should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+
+            if should_exit:
+                position.exit_time = current_time
+                position.exit_price = row["close"]
+                position.exit_reason = reason
+                gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+                position.pnl_pct = gross_pnl
+                position.pnl_net = gross_pnl - (FEE_RATE * 2)
+                trades.append(position)
+                position = None
+                cooldown_until = current_time + timedelta(minutes=30)
+
+        # ── 포지션 미보유 → 진입 체크 ──
+        else:
+            if cooldown_until and current_time < cooldown_until:
+                continue
+
+            if not check_entry_signal(row, regime, config, df_clean, idx):
+                continue
+
+            atr_val = atr_series.iloc[idx] if pd.notna(atr_series.iloc[idx]) else 0
+
+            # FVG 필터 + 구조적 피처 계산
+            if use_fvg:
+                me = _compute_me_at_entry_phase2(df_clean.iloc[:idx + 1], atr_val, use_zone_merge)
+
+                # FVG 필터: FVG 근처가 아니면 스킵
+                if not me["has_fvg_nearby"]:
+                    continue
+
+                # 구조적 청산 시나리오: Net R:R ≥ 3.0 필수
+                if use_structural:
+                    if not me["rr"]["rr_valid"]:
+                        continue
+            else:
+                me = None
+
+            # 포지션 사이징
+            regime_config = config.REGIMES.get(regime, {})
+            size_ratio = regime_config.get("position_size_ratio", 0.0)
+            symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+            effective_ratio = float(size_ratio) * float(symbol_multiplier)
+            if effective_ratio <= 0:
+                continue
+
+            if use_capped and me and me["rr"]["risk_pct"] > 0:
+                max_order = EQUITY * effective_ratio
+                pos_size, skip_reason = calculate_position_size_capped(
+                    EQUITY, me["rr"]["risk_pct"], max_order,
+                )
+                if skip_reason:
+                    continue
+            else:
+                pos_size = BASE_POSITION_SIZE * effective_ratio
+
+            # TradeME 생성
+            structural_sl = me["structural_sl"] if me else None
+            structural_tp = me["structural_tp"] if me else None
+            risk_pct = me["rr"]["risk_pct"] if me and me["rr"] else 0.0
+            rr_ratio = me["rr"]["rr_net"] if me and me["rr"] else 0.0
+
+            position = TradeME(
+                symbol=symbol,
+                regime=regime,
+                entry_time=current_time,
+                entry_price=row["close"],
+                position_size=pos_size,
+                high_water_mark=row["close"],
+                structural_sl=structural_sl,
+                structural_tp=structural_tp,
+                current_sl=structural_sl,  # 초기 SL = 구조적 SL
+                rr_ratio=rr_ratio,
+                risk_pct=risk_pct,
+            )
+
+    # 마지막 포지션 청산
+    if position and len(df_clean) > 0:
+        last_row = df_clean.iloc[-1]
+        position.exit_time = last_row["timestamp"]
+        position.exit_price = last_row["close"]
+        position.exit_reason = "END"
+        gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+        position.pnl_pct = gross_pnl
+        position.pnl_net = gross_pnl - (FEE_RATE * 2)
+        trades.append(position)
+
+    return trades
+
+
+async def run_compare_me_phase2(config: StrategyConfig, days: int = 365):
+    """
+    Phase 1-2 다중 근거 + 구조적 청산 비교 백테스트.
+    10개 시나리오: baseline → FVG → 구조적 청산 → BE(1.0/1.5/2.0R) → 스윙 조건(A/B/C) → 캡 역산 → Zone 병합
+    """
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 130)
+    print("Phase 1-2: 구조적 청산 + 캡 역산 + BE 방어 비교 백테스트")
+    print("=" * 130)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(ME2_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, exit_type, be_thresh, swing_cond, sizing in ME2_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_me_phase2(
+                df_data, config, symbol,
+                sc_name, exit_type, be_thresh, swing_cond, sizing,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+
+        # 청산 사유 분포
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        # 레짐별
+        regime_counts = {}
+        for t in all_trades:
+            regime_counts[t.regime] = regime_counts.get(t.regime, 0) + 1
+
+        # Phase 1-2 전용 지표
+        avg_sl_pct = 0.0
+        be_count = 0
+        avg_rr = 0.0
+        if all_trades:
+            sl_pcts = [t.risk_pct for t in all_trades if t.risk_pct > 0]
+            avg_sl_pct = sum(sl_pcts) / len(sl_pcts) if sl_pcts else 0
+            be_count = sum(1 for t in all_trades if t.be_triggered)
+            rrs = [t.rr_ratio for t in all_trades if t.rr_ratio > 0]
+            avg_rr = sum(rrs) / len(rrs) if rrs else 0
+
+        results.append({
+            "name": sc_name, "desc": sc_desc,
+            "total": total, "wins": len(wins), "losses": len(losses),
+            "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_profit": total_profit,
+            "avg_win": avg_win, "avg_loss": avg_loss,
+            "reasons": reasons, "regime_counts": regime_counts,
+            "avg_sl_pct": avg_sl_pct, "be_count": be_count, "avg_rr": avg_rr,
+        })
+
+    # ── 결과 테이블 ──
+    baseline_total = results[0]["total"] if results else 1
+    print()
+    print("-" * 130)
+    print(f"{'시나리오':<28} | {'거래':>4} | {'승률':>6} | {'누적PnL':>9} | {'예상수익':>10} | "
+          f"{'avg_W':>7} | {'avg_L':>7} | {'필터율':>6} | {'avgSL%':>6} | {'avgR:R':>6} | {'BE':>3}")
+    print("-" * 130)
+    for r in results:
+        filter_rate = (1 - r["total"] / baseline_total) * 100 if baseline_total > 0 else 0
+        print(f"{r['desc']:<28} | {r['total']:>4} | {r['win_rate']:>5.1f}% | "
+              f"{r['total_pnl']:>+8.2f}% | {r['total_profit']:>+9,.0f}원 | "
+              f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | {filter_rate:>5.1f}% | "
+              f"{r['avg_sl_pct']:>5.2f}% | {r['avg_rr']:>5.1f}:1 | {r['be_count']:>3}")
+
+    # ── 청산 사유 분포 ──
+    print()
+    print("-" * 130)
+    print("청산 사유 분포:")
+    print("-" * 130)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<28}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<28}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    # ── 레짐별 거래 분포 ──
+    print()
+    print("-" * 130)
+    print("레짐별 거래 수:")
+    print("-" * 130)
+    all_regimes = sorted({r for res in results for r in res["regime_counts"]})
+    header = f"{'시나리오':<28}"
+    for regime in all_regimes:
+        header += f" | {regime:>10}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<28}"
+        for regime in all_regimes:
+            cnt = r["regime_counts"].get(regime, 0)
+            line += f" | {cnt:>10}"
+        print(line)
+
+    print()
+    print("=" * 130)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -897,6 +1364,10 @@ async def main():
                         help="RSI 과매수 임계값 비교 모드 (55, 60, 65, 70, 75) BB 가드 1.0%% 고정")
     parser.add_argument("--multi-evidence", action="store_true",
                         help="다중 근거 기술적 분석 시나리오 10개 비교 모드 (OB/FVG/Fractal/R:R/HTF)")
+    parser.add_argument("--me-phase2", action="store_true",
+                        help="Phase 1-2: 구조적 청산 + 캡 역산 + BE 방어 비교 모드")
+    parser.add_argument("--days", type=int, default=365,
+                        help="백테스트 데이터 기간 (일, 기본 365)")
     args = parser.parse_args()
 
     config = load_strategy_config(args.config) if args.config else get_config()
@@ -916,6 +1387,11 @@ async def main():
     # 다중 근거 비교 모드
     if args.multi_evidence:
         await run_compare_multi_evidence(config)
+        return
+
+    # Phase 1-2: 구조적 청산 비교 모드
+    if args.me_phase2:
+        await run_compare_me_phase2(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
