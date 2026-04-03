@@ -131,17 +131,18 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
    - `docker compose ... up -d --build --no-deps bot` 완료
    - `grep "허용되는 분석 범위"` 1건 확인
 7) Phase 3 모니터링 체크 항목:
-   - [x] boundary_violation 비율 < 20% (기존 33.6%) → **0.0%** (9건/0건, 2026-03-30 확인)
-   - [x] reasoning에 캔들 구조 근거만 포함 확인 — Rule Engine 지표 언급 0건 (2026-03-30)
-   - [ ] SIDEWAYS 레짐 CONFIRM 품질 확인 — 샘플 5건 이상 필요 (현재 1건, 모니터링 계속)
-8) Phase 4 모니터링 체크 항목 (배포 후 확인 예정):
-   - [ ] Guardian reasoning에 캔들 구조 언급 포함 확인 (OHLC 데이터 활용 여부)
-   - [ ] Guardian WARNING 비율 변화 (배포 전후 비교)
-   - [ ] **[핵심] Guardian blocked 비율 — Analyst CONFIRM을 Guardian이 WARNING으로 뒤집은 건수**
-     - 측정 SQL: `SELECT COUNT(*) FROM agent_decisions WHERE reasoning LIKE '[Risk Warning]%';`
-     - blocked > 0: Guardian 분리 구조의 독립적 가치 입증
-     - blocked = 0 (장기간): Analyst-Guardian 통합 검토 필요 → 비용 절감 가능
-   - [ ] Guardian latency/cost 변화 (llm_usage 테이블, route='ai_decision_guardian')
+   - [x] boundary_violation 비율 < 20% (기존 33.6%) → **11.3%** (8/70건, 2026-04-03 확인)
+   - [x] reasoning에 캔들 구조 근거만 포함 확인 — REJECT 시 0% 위반, CONFIRM 시에만 violation 발생
+   - [x] SIDEWAYS 레짐 CONFIRM 품질 확인 — **39건** 축적, CONFIRM 7건(17.9%), avg_conf 36.2
+   - [x] Phase 3 모니터링 **close** (2026-04-03). CONFIRM violation 패턴은 v3.5.2 프롬프트로 대응.
+8) Phase 4 모니터링 체크 항목:
+   - [x] Guardian reasoning에 캔들 구조 언급 포함 확인 — **100%** (37/37건)
+   - [x] Guardian WARNING 비율 — **100% REJECT** (37/37건, CONFIRM 0건) ⚠️ 과보수
+   - [x] Guardian blocked 비율 — guardian_warning 39건 차단 (파이프라인 funnel 확인)
+   - [x] Guardian latency/cost — avg 8.9s / $0.007/call (Analyst 대비 +27% latency, 비용 동등)
+   - **문제 발견**: Guardian 100% REJECT → SAFE 기준 부재 + 6시간 창 내 오래된 이벤트 반복 감지
+   - **대응**: v3.5.2 프롬프트 수정 — SAFE 기준 구체화 + 3시간 시간 범위 제한
+   - [ ] v3.5.2 배포 후 재모니터링 (3일, Guardian SAFE 비율 > 0% 목표)
 
 ---
 
@@ -182,28 +183,37 @@ GROUP BY 1 HAVING COUNT(*) >= 3;
 ---
 
 ## 10. 결론 및 다음 단계
-- 현재 상태: Phase 1~3 OCI 배포 완료, Phase 3 모니터링 진행 중 (boundary_violation 목표 달성, SIDEWAYS 샘플 부족)
+- 현재 상태: Phase 1~4 OCI 배포 완료, Phase 3 모니터링 close, Phase 4 프롬프트 v3.5.2 수정 후 재모니터링
 - Phase 1~2 모니터링 결과 (2026-03-29 확인):
   - BB_MIDLINE_EXIT 첫 발동 (DOGE +1.4%) ✅
   - RSI_OVERBOUGHT 우선 정상 (BTC) ✅
   - 동시 포지션 2개 제한 정상 ✅
   - 30% 포지션 체결 확인 (BTC 289K, DOGE 181K) ✅
-- Phase 3 모니터링 결과 (2026-03-30 확인, 배포 후 ~23h):
-  - boundary_violation: **0.0%** (9건/0건 위반) — 목표 < 20% 달성 ✅
-  - CONFIRM rate: 0/21건 (0%) — BEAR 레짐 지배(89%)에 기인, 프롬프트 과보수 아님
-  - reasoning 품질: 캔들 피처만 사용, Rule Engine 지표 언급 없음 ✅
-  - 레짐별 비교 (v3.4 이전 24h vs v3.5.1 이후 23h):
-    - BEAR: CONFIRM 0% → 0% (동일, 정상 동작)
-    - SIDEWAYS: 2/9건(22%) → 0/1건 (샘플 부족, 판단 보류)
-    - SIDEWAYS avg_conf: 67.6 → 25.0 (1건이라 통계적 비교 불가)
-  - 판단: Phase 3 유지하되 모니터링 계속. SIDEWAYS 샘플 5건 이상 축적 시 confidence 재평가
-  - Phase 3 모니터링 완료 조건: SIDEWAYS 레짐 AI 판단 5건 이상 + avg_confidence v3.4 수준(67.6) 대비 비교
+- Phase 3 모니터링 결과 (2026-03-30 1차, 2026-04-03 2차 확인):
+  - 1차 (배포 후 ~23h, 9건): boundary_violation 0.0%, SIDEWAYS 1건 샘플 부족
+  - 2차 (배포 후 ~5일, 62건): boundary_violation **11.3%** (8/70건) — 목표 < 20% 달성 ✅
+  - SIDEWAYS 39건 충분 축적 (목표 5건 이상) ✅
+  - SIDEWAYS CONFIRM rate: 17.9% (7/39건), avg_confidence: 36.2
+  - BEAR CONFIRM rate: 0% (0/23건) — 정상
+  - **발견**: violation 8건 전부 CONFIRM 판단 건 — REJECT 시에는 0% 위반
+  - **대응**: Analyst 프롬프트 v3.5.2 수정 — "CONFIRM/REJECT 모두 금지 키워드 출력 금지" 명시
+  - **판단**: Phase 3 모니터링 **close** (목표 달성 + 샘플 충분 + 프롬프트 미세조정 적용)
+- Phase 4 모니터링 결과 (2026-04-03 확인, 배포 후 ~4일):
+  - OHLC 캔들 패턴 활용: **100%** (37/37건) ✅
+  - Guardian 판단: **37건 전량 REJECT, CONFIRM 0건** ⚠️
+  - 감지 패턴: Head Fake, 연속음봉, 장대음봉, 변동폭 확장, Falling Knife ✅
+  - **문제**: Guardian 100% REJECT 편향 — 단일 Head Fake가 6시간 창 안에서 반복 감지되며 수시간 차단 지속
+  - **근본 원인**: WARNING 기준만 상세, SAFE 기준 없음 → LLM이 항상 위험 요소를 찾아냄
+  - **대응**: Guardian 프롬프트 v3.5.2 수정 — SAFE 기준 구체화 + 최근 3캔들(3시간) 시간 범위 제한
+  - **판단**: v3.5.2 배포 후 3일 재모니터링 필요 (Guardian SAFE 비율 > 0% 목표)
+- Pipeline 퍼널 (3/29~4/3):
+  - rule_pass 483 → risk_reject 193 → ai_prefilter 111 → guardrail 71 → analyst_reject 60 → guardian_warning 39 → **approved 8** (1.7%)
+- LLM 비용 (3/30~4/3): Analyst $0.54 (92 calls) + Guardian $0.31 (44 calls) = **$0.85**
 - 후속 작업:
-  1) Phase 3 모니터링 계속: SIDEWAYS 샘플 축적 대기
-  2) Phase 4 배포 및 모니터링: Guardian OHLC 전달 + **Guardian blocked 비율 추적 (핵심)**
-  3) Phase 5: Rule Engine 진입 조건 분석 (SQL 기반)
-  4) 2주 후(~2026-04-11): 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
-  5) Guardian blocked = 0 장기 지속 시: Analyst-Guardian 통합 검토 (비용 절감)
+  1) v3.5.2 OCI 배포 후 3일 모니터링 (Guardian SAFE 비율 확인)
+  2) Phase 5: Rule Engine 진입 조건 분석 (SQL 기반)
+  3) 2주 후(~2026-04-11): 실운영 데이터 기반 정량 검증 (BB_MIDLINE_EXIT 효과, 동시 제한 기회비용)
+  4) Guardian SAFE 비율이 여전히 0%면: Analyst-Guardian 통합 검토 (비용 절감)
 
 ---
 
