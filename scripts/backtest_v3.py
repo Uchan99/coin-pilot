@@ -1084,25 +1084,35 @@ def _compute_me_at_entry_phase2(
 
 
 # Phase 1-2 시나리오 정의
-# (name, description, exit_type, be_threshold, swing_cond, sizing)
+# (name, description, exit_type, be_threshold, swing_cond, sizing, min_rr)
+# min_rr=None → R:R 필터 비적용 (구조적 청산만 테스트)
 ME2_SCENARIOS = [
-    ("baseline",         "기준선 (고정 청산)",                "fixed",      None, None,  "fixed"),
-    ("fvg_fixed",        "+FVG (고정 청산)",                 "fixed",      None, None,  "fixed"),
-    ("fvg_struct",       "+FVG+구조적 청산",                 "structural", None, None,  "fixed"),
-    ("fvg_struct_be10",  "+FVG+구조적+BE(1.0R)",            "structural", 1.0,  "A",   "fixed"),
-    ("fvg_struct_be15",  "+FVG+구조적+BE(1.5R)",            "structural", 1.5,  "A",   "fixed"),
-    ("fvg_struct_be20",  "+FVG+구조적+BE(2.0R)",            "structural", 2.0,  "A",   "fixed"),
-    ("fvg_struct_be15_B", "FVG+구조적+BE1.5+BOS",          "structural", 1.5,  "B",   "fixed"),
-    ("fvg_struct_be15_C", "FVG+구조적+BE1.5+거래량",        "structural", 1.5,  "C",   "fixed"),
-    ("fvg_cap",          "+FVG+구조적+BE1.5+캡역산",        "structural", 1.5,  "A",   "capped"),
-    ("fvg_cap_zone",     "+FVG+구조적+BE1.5+캡+Zone",      "structural", 1.5,  "A",   "capped_zone"),
+    # 기준선
+    ("baseline",          "기준선 (고정 청산)",              "fixed",      None, None, "fixed",       None),
+    ("fvg_fixed",         "+FVG (고정 청산)",               "fixed",      None, None, "fixed",       None),
+    # 구조적 청산 — R:R 필터 없음 (순수 구조적 SL/TP 효과 확인)
+    ("fvg_struct_norr",   "+FVG+구조적 (R:R무)",            "structural", None, None, "fixed",       None),
+    # 구조적 청산 — R:R 임계값 비교
+    ("fvg_struct_rr15",   "+FVG+구조적 (R:R≥1.5)",          "structural", None, None, "fixed",       1.5),
+    ("fvg_struct_rr20",   "+FVG+구조적 (R:R≥2.0)",          "structural", None, None, "fixed",       2.0),
+    ("fvg_struct_rr30",   "+FVG+구조적 (R:R≥3.0)",          "structural", None, None, "fixed",       3.0),
+    # BE 방어 비교 (R:R≥1.5 기준, 진입 충분히 확보)
+    ("fvg_be10",          "+FVG+구조적+BE(1.0R)",           "structural", 1.0,  "A",  "fixed",       1.5),
+    ("fvg_be15",          "+FVG+구조적+BE(1.5R)",           "structural", 1.5,  "A",  "fixed",       1.5),
+    ("fvg_be20",          "+FVG+구조적+BE(2.0R)",           "structural", 2.0,  "A",  "fixed",       1.5),
+    # 스윙 조건 비교 (BE 1.5R 고정)
+    ("fvg_be15_B",        "FVG+구조적+BE1.5+BOS",          "structural", 1.5,  "B",  "fixed",       1.5),
+    ("fvg_be15_C",        "FVG+구조적+BE1.5+거래량",        "structural", 1.5,  "C",  "fixed",       1.5),
+    # 캡 역산 + Zone 병합
+    ("fvg_cap",           "+FVG+구조적+BE1.5+캡역산",       "structural", 1.5,  "A",  "capped",      1.5),
+    ("fvg_cap_zone",      "+FVG+구조적+BE1.5+캡+Zone",     "structural", 1.5,  "A",  "capped_zone", 1.5),
 ]
 
 
 def simulate_trades_me_phase2(
     df: pd.DataFrame, config: StrategyConfig, symbol: str,
     scenario_name: str, exit_type: str, be_threshold: float,
-    swing_cond: str, sizing: str,
+    swing_cond: str, sizing: str, min_rr: float = None,
     bb_min_profit: float = 0.01,
 ) -> List[TradeME]:
     """
@@ -1168,9 +1178,10 @@ def simulate_trades_me_phase2(
                 if not me["has_fvg_nearby"]:
                     continue
 
-                # 구조적 청산 시나리오: Net R:R ≥ 3.0 필수
-                if use_structural:
-                    if not me["rr"]["rr_valid"]:
+                # 구조적 청산 시나리오: Net R:R 필터 (min_rr이 설정된 경우만)
+                if use_structural and min_rr is not None:
+                    rr_net = me["rr"].get("rr_net", 0)
+                    if rr_net < min_rr:
                         continue
             else:
                 me = None
@@ -1248,13 +1259,13 @@ async def run_compare_me_phase2(config: StrategyConfig, days: int = 365):
     print()
 
     results = []
-    for sc_name, sc_desc, exit_type, be_thresh, swing_cond, sizing in ME2_SCENARIOS:
+    for sc_name, sc_desc, exit_type, be_thresh, swing_cond, sizing, min_rr in ME2_SCENARIOS:
         print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
         all_trades: List[TradeME] = []
         for symbol, df_data in market_data.items():
             trades = simulate_trades_me_phase2(
                 df_data, config, symbol,
-                sc_name, exit_type, be_thresh, swing_cond, sizing,
+                sc_name, exit_type, be_thresh, swing_cond, sizing, min_rr,
             )
             all_trades.extend(trades)
 
