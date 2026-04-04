@@ -947,15 +947,8 @@ def check_exit_signal_structural(
     swing_condition: str = "A",
 ) -> tuple:
     """
-    구조적 청산 로직 (Phase 1-2).
-    고정 비율 SL/TP 대신 구조적 레벨 기반 청산 + BE 방어 + 구조적 트레일링.
-
-    청산 우선순위:
-    1. 구조적 SL: current_price <= current_sl → STRUCTURAL_SL
-    2. BE 체크: 미발동 + 수익 ≥ be_threshold × risk → SL을 진입가로 이동 (청산 아님)
-    3. 구조적 트레일링: 유의미한 스윙 저점 형성 시 SL 상향 (청산 아님)
-    4. 구조적 TP: current_price >= structural_tp → STRUCTURAL_TP
-    5. 시간 초과: TIME_LIMIT 유지
+    순수 구조적 청산 로직 — SL/TP 모두 구조적 레벨 사용.
+    R:R이 낮은 Mean-reversion 환경에서는 TP가 수익을 절단하므로, A안(sl_only) 권장.
     """
     current_price = row["close"]
 
@@ -969,28 +962,11 @@ def check_exit_signal_structural(
     if be_threshold_r is not None and not trade.be_triggered and trade.risk_pct > 0:
         pnl_pct = (current_price - trade.entry_price) / trade.entry_price * 100
         if pnl_pct >= be_threshold_r * trade.risk_pct:
-            # SL을 진입가로 이동 (물량 유지, 청산 아님)
             trade.current_sl = trade.entry_price
             trade.be_triggered = True
 
-    # 3. 구조적 트레일링 — 유의미한 스윙 저점 형성 시 SL 상향
-    #    보유 기간 중 새로운 스윙 저점이 현재 SL보다 높으면 SL 상향
-    if swing_condition and trade.current_sl is not None and idx >= 4:
-        # 진입 이후 데이터만으로 스윙 저점 감지 (최소 4봉 필요)
-        entry_idx = None
-        for search_idx in range(max(0, idx - 200), idx):
-            if df.iloc[search_idx]["timestamp"] == trade.entry_time:
-                entry_idx = search_idx
-                break
-
-        if entry_idx is not None and idx - entry_idx >= 4:
-            # 진입 이후 ~ 현재까지 슬라이스
-            post_entry = df.iloc[entry_idx:idx + 1]
-            sig_lows = detect_significant_swing_lows(post_entry, condition=swing_condition)
-            for sl in sig_lows:
-                # SL은 항상 상향만 (하향 금지)
-                if sl["price"] > trade.current_sl and sl["price"] < current_price:
-                    trade.current_sl = sl["price"]
+    # 3. 구조적 트레일링
+    _apply_structural_trailing(trade, df, idx, swing_condition)
 
     # 4. 구조적 TP
     if trade.structural_tp is not None and current_price >= trade.structural_tp:
@@ -1004,6 +980,114 @@ def check_exit_signal_structural(
         return True, "TIME_LIMIT"
 
     return False, ""
+
+
+def check_exit_signal_hybrid(
+    row, trade: TradeME, df: pd.DataFrame, idx: int,
+    config: StrategyConfig,
+    be_threshold_r: float = None,
+    swing_condition: str = None,
+    bb_min_profit: float = 0.01,
+) -> tuple:
+    """
+    A안: 하이브리드 청산 — 구조적 SL + 기존 익절 로직 보존.
+
+    핵심 원리 (외부 피드백):
+    - 손실은 구조적 SL(-1.13%)로 자르고
+    - 수익은 기존 BB_MIDLINE/TP/RSI/TRAILING까지 끌고 간다
+    - 이론적 R:R = avg_win(1.85%) / avg_loss(1.13%) ≈ 1.6:1
+    - 승률 45~50%만 나와도 누적 PnL 우상향
+
+    청산 우선순위:
+    1. 구조적 SL (or BE_STOP): 가격이 구조적 손절선 하회
+    2. BE 체크: 미발동 + 수익 ≥ be_threshold × risk → SL을 진입가로 이동
+    3. 구조적 트레일링: 유의미한 스윙 저점 형성 시 SL 상향
+    4~8. 기존 고정 청산: TRAILING_STOP → TAKE_PROFIT → RSI_OVERBOUGHT → BB_MIDLINE → TIME_LIMIT
+    """
+    current_price = row["close"]
+    entry_price = trade.entry_price
+    pnl_pct = (current_price - entry_price) / entry_price
+
+    # ── 1. 구조적 SL (최우선 — 고정 SL 대체) ──
+    if trade.current_sl is not None and current_price <= trade.current_sl:
+        if trade.be_triggered:
+            return True, "BE_STOP"
+        return True, "STRUCTURAL_SL"
+
+    # ── 2. BE 체크 — 꼬리 리스크 방어 (Tail Risk 필수 방어 기제) ──
+    #   가격이 목표치의 99%까지 갔다가 악재로 수직 하락 시, SL을 진입가로 이동하여 손실 0
+    if be_threshold_r is not None and not trade.be_triggered and trade.risk_pct > 0:
+        pnl_pct_abs = (current_price - entry_price) / entry_price * 100
+        if pnl_pct_abs >= be_threshold_r * trade.risk_pct:
+            trade.current_sl = entry_price
+            trade.be_triggered = True
+
+    # ── 3. 구조적 트레일링 ──
+    _apply_structural_trailing(trade, df, idx, swing_condition)
+
+    # ── 4~8. 기존 고정 청산 (수익 보존 — 구조적 TP 대신 기존 로직 사용) ──
+    regime_config = config.REGIMES.get(trade.regime, config.REGIMES["SIDEWAYS"])
+    exit_cfg = regime_config["exit"]
+
+    # 4. HWM 갱신 + 트레일링 스탑
+    if current_price > trade.high_water_mark:
+        trade.high_water_mark = current_price
+    if pnl_pct >= exit_cfg["trailing_stop_activation_pct"]:
+        stop_price = trade.high_water_mark * (1 - exit_cfg["trailing_stop_pct"])
+        if current_price <= stop_price:
+            return True, "TRAILING_STOP"
+
+    # 5. Take Profit
+    if pnl_pct >= exit_cfg["take_profit_pct"]:
+        return True, "TAKE_PROFIT"
+
+    # 6. RSI 과매수
+    if row["rsi"] > exit_cfg["rsi_overbought"]:
+        if pnl_pct >= exit_cfg["rsi_exit_min_profit_pct"]:
+            return True, "RSI_OVERBOUGHT"
+
+    # 7. BB 중심선 익절 (SIDEWAYS 전용)
+    if trade.regime == "SIDEWAYS":
+        bb_mid = row.get("bb_mid") if hasattr(row, "get") else row["bb_mid"]
+        if pd.notna(bb_mid) and row["close"] >= bb_mid:
+            if pnl_pct >= bb_min_profit:
+                return True, "BB_MIDLINE_EXIT"
+
+    # 8. 시간 초과
+    hold_time = row["timestamp"] - trade.entry_time
+    if hold_time > timedelta(hours=exit_cfg["time_limit_hours"]):
+        return True, "TIME_LIMIT"
+
+    return False, ""
+
+
+def _apply_structural_trailing(
+    trade: TradeME, df: pd.DataFrame, idx: int, swing_condition: str,
+):
+    """
+    구조적 트레일링: 유의미한 스윙 저점 형성 시 SL 상향.
+    check_exit_signal_structural / check_exit_signal_hybrid 양쪽에서 공유.
+    """
+    if not swing_condition or trade.current_sl is None or idx < 4:
+        return
+
+    # 진입 이후 데이터만으로 스윙 저점 감지
+    entry_idx = None
+    for search_idx in range(max(0, idx - 200), idx):
+        if df.iloc[search_idx]["timestamp"] == trade.entry_time:
+            entry_idx = search_idx
+            break
+
+    if entry_idx is None or idx - entry_idx < 4:
+        return
+
+    current_price = df.iloc[idx]["close"]
+    post_entry = df.iloc[entry_idx:idx + 1]
+    sig_lows = detect_significant_swing_lows(post_entry, condition=swing_condition)
+    for sl in sig_lows:
+        # SL은 항상 상향만 (하향 금지)
+        if sl["price"] > trade.current_sl and sl["price"] < current_price:
+            trade.current_sl = sl["price"]
 
 
 def _compute_me_at_entry_phase2(
@@ -1083,29 +1167,29 @@ def _compute_me_at_entry_phase2(
     }
 
 
-# Phase 1-2 시나리오 정의
+# Phase 1-2 시나리오 정의 — A안: 구조적 SL + 기존 청산(BB_MIDLINE/TP/RSI) 보존
 # (name, description, exit_type, be_threshold, swing_cond, sizing, min_rr)
-# min_rr=None → R:R 필터 비적용 (구조적 청산만 테스트)
+# exit_type: "fixed"=기존 전부, "sl_only"=구조적SL+기존익절(A안), "structural"=SL+TP 모두 구조적
+# min_rr: None=R:R 필터 없음 (Mean-reversion에서 avg R:R 0.6:1이므로 필터 무의미)
 ME2_SCENARIOS = [
-    # 기준선
-    ("baseline",          "기준선 (고정 청산)",              "fixed",      None, None, "fixed",       None),
-    ("fvg_fixed",         "+FVG (고정 청산)",               "fixed",      None, None, "fixed",       None),
-    # 구조적 청산 — R:R 필터 없음 (순수 구조적 SL/TP 효과 확인)
-    ("fvg_struct_norr",   "+FVG+구조적 (R:R무)",            "structural", None, None, "fixed",       None),
-    # 구조적 청산 — R:R 임계값 비교
-    ("fvg_struct_rr15",   "+FVG+구조적 (R:R≥1.5)",          "structural", None, None, "fixed",       1.5),
-    ("fvg_struct_rr20",   "+FVG+구조적 (R:R≥2.0)",          "structural", None, None, "fixed",       2.0),
-    ("fvg_struct_rr30",   "+FVG+구조적 (R:R≥3.0)",          "structural", None, None, "fixed",       3.0),
-    # BE 방어 비교 (R:R≥1.5 기준, 진입 충분히 확보)
-    ("fvg_be10",          "+FVG+구조적+BE(1.0R)",           "structural", 1.0,  "A",  "fixed",       1.5),
-    ("fvg_be15",          "+FVG+구조적+BE(1.5R)",           "structural", 1.5,  "A",  "fixed",       1.5),
-    ("fvg_be20",          "+FVG+구조적+BE(2.0R)",           "structural", 2.0,  "A",  "fixed",       1.5),
-    # 스윙 조건 비교 (BE 1.5R 고정)
-    ("fvg_be15_B",        "FVG+구조적+BE1.5+BOS",          "structural", 1.5,  "B",  "fixed",       1.5),
-    ("fvg_be15_C",        "FVG+구조적+BE1.5+거래량",        "structural", 1.5,  "C",  "fixed",       1.5),
-    # 캡 역산 + Zone 병합
-    ("fvg_cap",           "+FVG+구조적+BE1.5+캡역산",       "structural", 1.5,  "A",  "capped",      1.5),
-    ("fvg_cap_zone",      "+FVG+구조적+BE1.5+캡+Zone",     "structural", 1.5,  "A",  "capped_zone", 1.5),
+    # ── 기준선 ──
+    ("baseline",          "기준선 (고정 청산)",              "fixed",      None, None,  "fixed",       None),
+    ("fvg_fixed",         "+FVG (고정 청산)",               "fixed",      None, None,  "fixed",       None),
+    # ── A안 핵심: 구조적 SL + 기존 익절 ──
+    ("fvg_sl",            "+FVG+구조적SL (A안)",            "sl_only",    None, None,  "fixed",       None),
+    # ── A안 + BE 방어 (꼬리 리스크 방어 — R:R 필터 없음) ──
+    ("fvg_sl_be10",       "+FVG+구조적SL+BE(1.0R)",        "sl_only",    1.0,  None,  "fixed",       None),
+    ("fvg_sl_be15",       "+FVG+구조적SL+BE(1.5R)",        "sl_only",    1.5,  None,  "fixed",       None),
+    ("fvg_sl_be20",       "+FVG+구조적SL+BE(2.0R)",        "sl_only",    2.0,  None,  "fixed",       None),
+    # ── A안 + BE 1.5R + 스윙 트레일링 조건 비교 ──
+    ("fvg_sl_be15_A",     "FVG+구조적SL+BE1.5+4h프랙탈",   "sl_only",    1.5,  "A",   "fixed",       None),
+    ("fvg_sl_be15_B",     "FVG+구조적SL+BE1.5+BOS",       "sl_only",    1.5,  "B",   "fixed",       None),
+    ("fvg_sl_be15_C",     "FVG+구조적SL+BE1.5+거래량",     "sl_only",    1.5,  "C",   "fixed",       None),
+    # ── A안 + BE 1.5R + 캡 역산 포지션 사이징 ──
+    ("fvg_sl_cap",        "+FVG+구조적SL+BE1.5+캡역산",    "sl_only",    1.5,  None,  "capped",      None),
+    ("fvg_sl_cap_zone",   "+FVG+구조적SL+BE1.5+캡+Zone",  "sl_only",    1.5,  None,  "capped_zone", None),
+    # ── 참고: 순수 구조적 SL+TP (이전 결과 대조용) ──
+    ("fvg_struct_ref",    "+FVG+구조적 SL+TP (대조)",      "structural", None, None,  "fixed",       None),
 ]
 
 
@@ -1116,11 +1200,11 @@ def simulate_trades_me_phase2(
     bb_min_profit: float = 0.01,
 ) -> List[TradeME]:
     """
-    Phase 1-2 구조적 청산 시뮬레이션.
-    - baseline/fvg_fixed: 기존 고정 청산 사용 (Phase 1과 동일)
-    - fvg_struct*: 구조적 SL/TP + BE + 트레일링
-    - fvg_cap*: + 캡 역산 포지션 사이징
-    - fvg_cap_zone: + Zone 병합
+    Phase 1-2 시뮬레이션.
+    exit_type 분기:
+    - "fixed": 기존 고정 청산 (baseline/fvg_fixed)
+    - "sl_only": A안 하이브리드 — 구조적 SL + 기존 익절(BB_MIDLINE/TP/RSI/TRAILING/TIME_LIMIT) 보존
+    - "structural": 순수 구조적 SL+TP (대조군)
     """
     trades: List[TradeME] = []
     position: Optional[TradeME] = None
@@ -1130,7 +1214,8 @@ def simulate_trades_me_phase2(
     atr_series = calculate_atr(df_clean)
 
     use_fvg = scenario_name != "baseline"
-    use_structural = exit_type == "structural"
+    use_structural_exit = exit_type == "structural"
+    use_hybrid_exit = exit_type == "sl_only"
     use_capped = sizing in ("capped", "capped_zone")
     use_zone_merge = sizing == "capped_zone"
 
@@ -1140,13 +1225,23 @@ def simulate_trades_me_phase2(
 
         # ── 포지션 보유 중 → 청산 체크 ──
         if position:
-            if use_structural and position.structural_sl is not None:
+            if use_hybrid_exit and position.structural_sl is not None:
+                # A안: 구조적 SL + 기존 익절 보존
+                should_exit, reason = check_exit_signal_hybrid(
+                    row, position, df_clean, idx, config,
+                    be_threshold_r=be_threshold,
+                    swing_condition=swing_cond,
+                    bb_min_profit=bb_min_profit,
+                )
+            elif use_structural_exit and position.structural_sl is not None:
+                # 순수 구조적 (대조군)
                 should_exit, reason = check_exit_signal_structural(
                     row, position, df_clean, idx, config,
                     be_threshold_r=be_threshold,
                     swing_condition=swing_cond,
                 )
             else:
+                # 기존 고정 청산
                 should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
 
             if should_exit:
@@ -1179,7 +1274,7 @@ def simulate_trades_me_phase2(
                     continue
 
                 # 구조적 청산 시나리오: Net R:R 필터 (min_rr이 설정된 경우만)
-                if use_structural and min_rr is not None:
+                if use_structural_exit and min_rr is not None:
                     rr_net = me["rr"].get("rr_net", 0)
                     if rr_net < min_rr:
                         continue
