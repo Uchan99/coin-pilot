@@ -29,7 +29,7 @@ from src.analysis.multi_evidence import (
     detect_order_blocks, detect_fvg, detect_swing_fractals,
     calculate_atr, calculate_htf_trend, calculate_structural_rr,
     calculate_structural_rr_net, merge_zones, apply_spatial_capacity,
-    detect_significant_swing_lows, resample_to_4h,
+    detect_significant_swing_lows, detect_bos, resample_to_4h,
 )
 
 @dataclass
@@ -1459,6 +1459,424 @@ async def run_compare_me_phase2(config: StrategyConfig, days: int = 365):
     print("=" * 130)
 
 
+# ════════════════════════════════════════════════════════════════════
+# Phase 1-2 SMC: 추세 추종형 풀백 진입 (Mean-reversion 완전 대체)
+# ════════════════════════════════════════════════════════════════════
+
+def check_entry_signal_smc(
+    df: pd.DataFrame, idx: int, atr_val: float,
+    use_zone_merge: bool = False,
+    min_rr: float = 1.5,
+) -> Optional[Dict]:
+    """
+    SMC 네이티브 진입 — BOS 확인 후 FVG/OB 풀백 진입.
+    RSI/BB 기반 Mean-reversion을 완전히 대체.
+
+    진입 조건 (모두 충족):
+    1. HTF Trend: 4h 추세가 BEARISH가 아닌 경우 (BULLISH 또는 NEUTRAL)
+    2. BOS: 최근 168봉 내 Bullish BOS 확정 + 구조 유지 (가격 > 풀백 저점)
+    3. Retracement: BOS 이후 가격이 되돌림하여 미해소 강세 FVG/OB 영역에 도달
+       - 현재가가 FVG 내부 또는 상단에서 2% 이내
+       - 또는 현재가가 강세 OB 내부 또는 상단에서 2% 이내
+    4. Net R:R ≥ min_rr: SL=FVG/OB 하단-ATR버퍼, TP=다음 유동성 고점
+
+    핵심: '상승 추세 확인(BOS) → 눌림목(Pullback) → 수급 구간(FVG/OB) 진입'
+    기존 Mean-reversion("떨어지는 칼날 잡기")과 근본적으로 다른 진입 철학.
+
+    Returns: None (스킵) 또는 Dict with entry info
+    """
+    if idx < 50:  # 최소 데이터 필요
+        return None
+
+    df_slice = df.iloc[:idx + 1]
+    current_price = df_slice.iloc[-1]["close"]
+
+    # ── 1. HTF Trend ──
+    htf = calculate_htf_trend(df_slice)
+    if htf["htf_trend"] == "BEARISH":
+        return None
+
+    # ── 2. BOS 확인 ──
+    bos = detect_bos(df_slice, lookback=168)
+    if not bos["bos_active"] or bos["latest_bullish_bos"] is None:
+        return None
+
+    latest_bos = bos["latest_bullish_bos"]
+
+    # BOS 이후 최소 2봉 경과 (풀백 형성 시간 필요)
+    if idx - latest_bos["bos_idx"] < 2:
+        return None
+
+    # ── 3. FVG/OB Retracement ──
+    ob = detect_order_blocks(df_slice, lookback=168)
+    fvg = detect_fvg(df_slice, lookback=168)
+
+    bullish_obs = ob["unmitigated_bullish_obs"]
+    bullish_fvgs = fvg["unmitigated_bullish_fvgs"]
+
+    # Zone 병합 (선택적)
+    if use_zone_merge and atr_val > 0:
+        bullish_obs = merge_zones(bullish_obs, atr_val, price_key_low="price_low", price_key_high="price_high")
+        bullish_fvgs = merge_zones(bullish_fvgs, atr_val, price_key_low="gap_low", price_key_high="gap_high")
+
+    # BOS 이후 형성된 FVG/OB 또는 BOS 전후의 FVG/OB에서 풀백 진입
+    # 현재가가 강세 FVG/OB 근처(내부 or 2% 이내)인지 확인
+    entry_zone = None
+    entry_zone_type = None
+
+    # FVG 확인 (우선순위 높음 — Phase 1에서 유효성 확인됨)
+    for bf in bullish_fvgs:
+        if bf["gap_low"] <= current_price <= bf["gap_high"]:
+            entry_zone = {"low": bf["gap_low"], "high": bf["gap_high"]}
+            entry_zone_type = "FVG"
+            break
+        if bf["gap_high"] <= current_price and (current_price - bf["gap_high"]) / current_price <= 0.02:
+            entry_zone = {"low": bf["gap_low"], "high": bf["gap_high"]}
+            entry_zone_type = "FVG_nearby"
+            break
+
+    # OB 확인 (FVG 없으면)
+    if entry_zone is None:
+        for bo in bullish_obs:
+            if bo["price_low"] <= current_price <= bo["price_high"]:
+                entry_zone = {"low": bo["price_low"], "high": bo["price_high"]}
+                entry_zone_type = "OB"
+                break
+            if bo["price_high"] <= current_price and (current_price - bo["price_high"]) / current_price <= 0.02:
+                entry_zone = {"low": bo["price_low"], "high": bo["price_high"]}
+                entry_zone_type = "OB_nearby"
+                break
+
+    if entry_zone is None:
+        return None
+
+    # ── 4. 구조적 SL/TP + Net R:R ──
+    # SL = FVG/OB 하단 - ATR 버퍼 (풀백 저점보다 아래 → 구조적으로 안전)
+    structural_sl = entry_zone["low"]
+    # 풀백 저점이 더 아래면 그것을 SL로 사용 (더 보수적)
+    if latest_bos["pullback_low_price"] < structural_sl:
+        structural_sl = latest_bos["pullback_low_price"]
+
+    # TP = 다음 유동성 고점 (스윙 고점 or 약세 OB)
+    fractal = detect_swing_fractals(df_slice, lookback=168)
+    bearish_obs = ob["unmitigated_bearish_obs"]
+
+    structural_tp = None
+    if fractal["nearest_swing_high"]:
+        structural_tp = fractal["nearest_swing_high"]["price"]
+    for bo in bearish_obs:
+        if bo["price_low"] > current_price:
+            if structural_tp is None or bo["price_low"] < structural_tp:
+                structural_tp = bo["price_low"]
+
+    # Net R:R 계산 (슬리피지 반영)
+    rr = calculate_structural_rr_net(
+        current_price, structural_sl, structural_tp, atr_val,
+        min_rr=min_rr,
+    )
+
+    if not rr["rr_valid"]:
+        return None
+
+    return {
+        "structural_sl": rr["sl_price"],
+        "structural_tp": rr["tp_price"],
+        "risk_pct": rr["risk_pct"],
+        "rr_net": rr["rr_net"],
+        "rr_gross": rr["rr_ratio"],
+        "entry_zone_type": entry_zone_type,
+        "bos_price": latest_bos["bos_price"],
+        "htf_trend": htf["htf_trend"],
+    }
+
+
+# SMC 시나리오 정의
+# (name, desc, exit_type, be, swing, sizing, min_rr)
+SMC_SCENARIOS = [
+    # 기준선 (기존 RSI/BB Rule Engine)
+    ("baseline",         "기준선 (RSI/BB 고정)",         "fixed",      None, None, "fixed",       None),
+    ("fvg_me",           "+FVG (RSI/BB 고정)",          "fixed",      None, None, "fixed",       None),
+    # SMC 진입 — 구조적 SL+TP
+    ("smc_struct",       "SMC+구조적 SL+TP",            "structural", None, None, "fixed",       1.5),
+    # SMC 진입 — 하이브리드 (구조적 SL + 기존 익절, 비교용)
+    ("smc_hybrid",       "SMC+구조적SL+기존익절",         "sl_only",    None, None, "fixed",       1.5),
+    # SMC + BE 방어
+    ("smc_be10",         "SMC+구조적+BE(1.0R)",         "structural", 1.0,  None, "fixed",       1.5),
+    ("smc_be15",         "SMC+구조적+BE(1.5R)",         "structural", 1.5,  None, "fixed",       1.5),
+    ("smc_be20",         "SMC+구조적+BE(2.0R)",         "structural", 2.0,  None, "fixed",       1.5),
+    # SMC + BE + 트레일링
+    ("smc_be15_A",       "SMC+BE1.5+4h프랙탈",          "structural", 1.5,  "A",  "fixed",       1.5),
+    ("smc_be15_B",       "SMC+BE1.5+BOS트레일",         "structural", 1.5,  "B",  "fixed",       1.5),
+    # SMC + 캡 역산
+    ("smc_cap",          "SMC+BE1.5+캡역산",            "structural", 1.5,  None, "capped",      1.5),
+    ("smc_cap_zone",     "SMC+BE1.5+캡+Zone",          "structural", 1.5,  None, "capped_zone", 1.5),
+    # R:R 임계값 비교
+    ("smc_rr20",         "SMC+구조적 (R:R≥2.0)",        "structural", 1.5,  None, "fixed",       2.0),
+    ("smc_rr30",         "SMC+구조적 (R:R≥3.0)",        "structural", 1.5,  None, "fixed",       3.0),
+]
+
+
+def simulate_trades_smc(
+    df: pd.DataFrame, config: StrategyConfig, symbol: str,
+    scenario_name: str, exit_type: str, be_threshold: float,
+    swing_cond: str, sizing: str, min_rr: float = None,
+    bb_min_profit: float = 0.01,
+) -> List[TradeME]:
+    """
+    SMC 풀백 진입 시뮬레이션.
+    - baseline/fvg_me: 기존 RSI/BB 진입 + 고정 청산 (대조군)
+    - smc_*: BOS + FVG/OB 풀백 진입 + 구조적/하이브리드 청산
+    """
+    trades: List[TradeME] = []
+    position: Optional[TradeME] = None
+    cooldown_until = None
+
+    df_clean = df.dropna(subset=["rsi", "ma50", "ma200"]).reset_index(drop=True)
+    atr_series = calculate_atr(df_clean)
+
+    use_smc = scenario_name.startswith("smc_")
+    use_structural_exit = exit_type == "structural"
+    use_hybrid_exit = exit_type == "sl_only"
+    use_capped = sizing in ("capped", "capped_zone")
+    use_zone_merge = sizing == "capped_zone"
+
+    for idx, row in df_clean.iterrows():
+        current_time = row["timestamp"]
+        regime = get_regime(row, config)
+
+        # ── 포지션 보유 중 → 청산 체크 ──
+        if position:
+            if use_hybrid_exit and position.structural_sl is not None:
+                should_exit, reason = check_exit_signal_hybrid(
+                    row, position, df_clean, idx, config,
+                    be_threshold_r=be_threshold, swing_condition=swing_cond,
+                    bb_min_profit=bb_min_profit,
+                )
+            elif use_structural_exit and position.structural_sl is not None:
+                should_exit, reason = check_exit_signal_structural(
+                    row, position, df_clean, idx, config,
+                    be_threshold_r=be_threshold, swing_condition=swing_cond,
+                )
+            else:
+                should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+
+            if should_exit:
+                position.exit_time = current_time
+                position.exit_price = row["close"]
+                position.exit_reason = reason
+                gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+                position.pnl_pct = gross_pnl
+                position.pnl_net = gross_pnl - (FEE_RATE * 2)
+                trades.append(position)
+                position = None
+                cooldown_until = current_time + timedelta(minutes=30)
+
+        # ── 포지션 미보유 → 진입 체크 ──
+        else:
+            if cooldown_until and current_time < cooldown_until:
+                continue
+
+            atr_val = atr_series.iloc[idx] if pd.notna(atr_series.iloc[idx]) else 0
+
+            if use_smc:
+                # SMC 풀백 진입 (RSI/BB 완전 대체)
+                entry = check_entry_signal_smc(
+                    df_clean, idx, atr_val,
+                    use_zone_merge=use_zone_merge,
+                    min_rr=min_rr if min_rr else 1.5,
+                )
+                if entry is None:
+                    continue
+
+                structural_sl = entry["structural_sl"]
+                structural_tp = entry["structural_tp"]
+                risk_pct = entry["risk_pct"]
+                rr_ratio = entry["rr_net"]
+            else:
+                # 기존 Rule Engine 진입 (대조군: baseline, fvg_me)
+                if not check_entry_signal(row, regime, config, df_clean, idx):
+                    continue
+
+                # fvg_me: FVG 필터 추가
+                if scenario_name == "fvg_me":
+                    me = _compute_me_at_entry_phase2(df_clean.iloc[:idx + 1], atr_val)
+                    if not me["has_fvg_nearby"]:
+                        continue
+
+                structural_sl = None
+                structural_tp = None
+                risk_pct = 0.0
+                rr_ratio = 0.0
+
+            # 포지션 사이징
+            regime_config_dict = config.REGIMES.get(regime, {})
+            size_ratio = regime_config_dict.get("position_size_ratio", 0.0)
+            symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+            effective_ratio = float(size_ratio) * float(symbol_multiplier)
+            if effective_ratio <= 0:
+                continue
+
+            if use_capped and risk_pct > 0:
+                max_order = EQUITY * effective_ratio
+                pos_size, skip_reason = calculate_position_size_capped(
+                    EQUITY, risk_pct, max_order,
+                )
+                if skip_reason:
+                    continue
+            else:
+                pos_size = BASE_POSITION_SIZE * effective_ratio
+
+            position = TradeME(
+                symbol=symbol,
+                regime=regime,
+                entry_time=current_time,
+                entry_price=row["close"],
+                position_size=pos_size,
+                high_water_mark=row["close"],
+                structural_sl=structural_sl,
+                structural_tp=structural_tp,
+                current_sl=structural_sl,
+                rr_ratio=rr_ratio,
+                risk_pct=risk_pct,
+            )
+
+    # 마지막 포지션 청산
+    if position and len(df_clean) > 0:
+        last_row = df_clean.iloc[-1]
+        position.exit_time = last_row["timestamp"]
+        position.exit_price = last_row["close"]
+        position.exit_reason = "END"
+        gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+        position.pnl_pct = gross_pnl
+        position.pnl_net = gross_pnl - (FEE_RATE * 2)
+        trades.append(position)
+
+    return trades
+
+
+async def run_compare_smc(config: StrategyConfig, days: int = 365):
+    """
+    SMC 풀백 진입 vs 기존 RSI/BB 비교 백테스트.
+    Mean-reversion → 추세 추종형 전환의 유효성 데이터 검증.
+    """
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 130)
+    print("SMC Pullback 진입 vs RSI/BB Mean-reversion 비교 백테스트")
+    print("=" * 130)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(SMC_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, exit_type, be_thresh, swing_cond, sizing, min_rr in SMC_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_smc(
+                df_data, config, symbol,
+                sc_name, exit_type, be_thresh, swing_cond, sizing, min_rr,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        regime_counts = {}
+        for t in all_trades:
+            regime_counts[t.regime] = regime_counts.get(t.regime, 0) + 1
+
+        avg_sl_pct = 0.0
+        be_count = 0
+        avg_rr = 0.0
+        if all_trades:
+            sl_pcts = [t.risk_pct for t in all_trades if t.risk_pct > 0]
+            avg_sl_pct = sum(sl_pcts) / len(sl_pcts) if sl_pcts else 0
+            be_count = sum(1 for t in all_trades if t.be_triggered)
+            rrs = [t.rr_ratio for t in all_trades if t.rr_ratio > 0]
+            avg_rr = sum(rrs) / len(rrs) if rrs else 0
+
+        results.append({
+            "name": sc_name, "desc": sc_desc,
+            "total": total, "wins": len(wins), "losses": len(losses),
+            "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_profit": total_profit,
+            "avg_win": avg_win, "avg_loss": avg_loss,
+            "reasons": reasons, "regime_counts": regime_counts,
+            "avg_sl_pct": avg_sl_pct, "be_count": be_count, "avg_rr": avg_rr,
+        })
+
+    # ── 결과 테이블 ──
+    baseline_total = results[0]["total"] if results else 1
+    print()
+    print("-" * 130)
+    print(f"{'시나리오':<26} | {'거래':>4} | {'승률':>6} | {'누적PnL':>9} | {'예상수익':>10} | "
+          f"{'avg_W':>7} | {'avg_L':>7} | {'필터율':>6} | {'avgSL%':>6} | {'avgR:R':>6} | {'BE':>3}")
+    print("-" * 130)
+    for r in results:
+        filter_rate = (1 - r["total"] / baseline_total) * 100 if baseline_total > 0 else 0
+        print(f"{r['desc']:<26} | {r['total']:>4} | {r['win_rate']:>5.1f}% | "
+              f"{r['total_pnl']:>+8.2f}% | {r['total_profit']:>+9,.0f}원 | "
+              f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | {filter_rate:>5.1f}% | "
+              f"{r['avg_sl_pct']:>5.2f}% | {r['avg_rr']:>5.1f}:1 | {r['be_count']:>3}")
+
+    # ── 청산 사유 분포 ──
+    print()
+    print("-" * 130)
+    print("청산 사유 분포:")
+    print("-" * 130)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<26}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<26}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    # ── 레짐별 거래 분포 ──
+    print()
+    print("-" * 130)
+    print("레짐별 거래 수:")
+    print("-" * 130)
+    all_regimes = sorted({r for res in results for r in res["regime_counts"]})
+    header = f"{'시나리오':<26}"
+    for regime in all_regimes:
+        header += f" | {regime:>10}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<26}"
+        for regime in all_regimes:
+            cnt = r["regime_counts"].get(regime, 0)
+            line += f" | {cnt:>10}"
+        print(line)
+
+    print()
+    print("=" * 130)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -1472,6 +1890,8 @@ async def main():
                         help="다중 근거 기술적 분석 시나리오 10개 비교 모드 (OB/FVG/Fractal/R:R/HTF)")
     parser.add_argument("--me-phase2", action="store_true",
                         help="Phase 1-2: 구조적 청산 + 캡 역산 + BE 방어 비교 모드")
+    parser.add_argument("--smc-backtest", action="store_true",
+                        help="SMC 풀백 진입 (BOS+FVG/OB) 비교 모드 — Mean-reversion 대비 검증")
     parser.add_argument("--days", type=int, default=365,
                         help="백테스트 데이터 기간 (일, 기본 365)")
     args = parser.parse_args()
@@ -1498,6 +1918,11 @@ async def main():
     # Phase 1-2: 구조적 청산 비교 모드
     if args.me_phase2:
         await run_compare_me_phase2(config, days=args.days)
+        return
+
+    # SMC 풀백 진입 비교 모드
+    if args.smc_backtest:
+        await run_compare_smc(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용

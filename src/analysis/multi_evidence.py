@@ -558,7 +558,110 @@ def _empty_fractal_result() -> Dict:
 
 
 # ──────────────────────────────────────────────
-# 8. Zone 병합 (v4.1 — 군집화 방지)
+# 8. BOS (Break of Structure) 감지
+# ──────────────────────────────────────────────
+def detect_bos(
+    df: pd.DataFrame,
+    lookback: int = 168,
+) -> Dict:
+    """
+    Break of Structure (BOS) 감지.
+
+    Bullish BOS: 캔들 종가가 직전 스윙 고점(HH)을 상향 돌파.
+    ICT/SMC에서 BOS는 추세 전환/지속의 핵심 시그널.
+    BOS 이후 되돌림(Pullback)이 형성한 FVG/OB에 진입하는 것이 SMC 네이티브 전략.
+
+    감지 로직:
+    1. lookback 범위 내 스윙 고점/저점 식별 (3캔들 프렉탈)
+    2. 순차 순회하며 새 스윙 고점 > 이전 스윙 고점 = Bullish BOS
+    3. BOS 캔들 = 종가가 이전 HH를 넘은 최초 캔들
+    4. 풀백 저점 = 이전 HH ~ BOS 캔들 사이의 가장 낮은 저점 (SL 기준점)
+
+    Returns:
+        bullish_bos_list: 모든 Bullish BOS [{bos_price, bos_idx, prev_hh_price, prev_hh_idx, pullback_low_price, pullback_low_idx}]
+        latest_bullish_bos: 가장 최근 Bullish BOS (or None)
+        bos_active: bool — 최근 BOS 이후 가격이 아직 풀백 저점 위에 있는지 (구조 유지)
+    """
+    if len(df) < 5:
+        return {"bullish_bos_list": [], "latest_bullish_bos": None, "bos_active": False}
+
+    start = max(0, len(df) - lookback)
+    current_price = df.iloc[-1]["close"]
+
+    # 스윙 고점/저점 수집
+    swing_highs: List[Dict] = []
+    swing_lows: List[Dict] = []
+
+    for i in range(start + 1, len(df) - 1):
+        h = df.iloc[i]["high"]
+        if h > df.iloc[i - 1]["high"] and h > df.iloc[i + 1]["high"]:
+            swing_highs.append({"price": h, "idx": i})
+
+        lo = df.iloc[i]["low"]
+        if lo < df.iloc[i - 1]["low"] and lo < df.iloc[i + 1]["low"]:
+            swing_lows.append({"price": lo, "idx": i})
+
+    # Bullish BOS: 새 스윙 고점이 이전보다 높은 경우
+    bullish_bos_list: List[Dict] = []
+    prev_hh = None
+
+    for sh in swing_highs:
+        if prev_hh is not None and sh["price"] > prev_hh["price"]:
+            # BOS 캔들 = 이전 HH 이후 처음으로 종가가 HH를 넘은 캔들
+            bos_candle_idx = None
+            for j in range(prev_hh["idx"] + 1, min(sh["idx"] + 2, len(df))):
+                if df.iloc[j]["close"] > prev_hh["price"]:
+                    bos_candle_idx = j
+                    break
+
+            # 풀백 저점 = 이전 HH ~ BOS 캔들 사이의 최저점
+            pullback_low_price = None
+            pullback_low_idx = None
+            search_start = prev_hh["idx"]
+            search_end = bos_candle_idx if bos_candle_idx else sh["idx"]
+            for sl in swing_lows:
+                if search_start < sl["idx"] < search_end:
+                    if pullback_low_price is None or sl["price"] < pullback_low_price:
+                        pullback_low_price = sl["price"]
+                        pullback_low_idx = sl["idx"]
+
+            # 스윙 저점이 없으면 해당 구간 캔들 low의 최저값 사용
+            if pullback_low_price is None and bos_candle_idx:
+                lows_in_range = df.iloc[search_start:search_end]["low"]
+                if len(lows_in_range) > 0:
+                    min_idx = lows_in_range.idxmin()
+                    pullback_low_price = lows_in_range[min_idx]
+                    pullback_low_idx = min_idx
+
+            if bos_candle_idx is not None and pullback_low_price is not None:
+                bullish_bos_list.append({
+                    "bos_price": df.iloc[bos_candle_idx]["close"],
+                    "bos_idx": bos_candle_idx,
+                    "bos_timestamp": df.iloc[bos_candle_idx].get("timestamp"),
+                    "prev_hh_price": prev_hh["price"],
+                    "prev_hh_idx": prev_hh["idx"],
+                    "pullback_low_price": pullback_low_price,
+                    "pullback_low_idx": pullback_low_idx,
+                })
+
+        prev_hh = sh
+
+    latest = bullish_bos_list[-1] if bullish_bos_list else None
+
+    # BOS 활성 여부: 최근 BOS 이후 가격이 풀백 저점 위에 있으면 구조 유지
+    bos_active = False
+    if latest and current_price > latest["pullback_low_price"]:
+        bos_active = True
+
+    return {
+        "bullish_bos_list": bullish_bos_list,
+        "latest_bullish_bos": latest,
+        "bos_active": bos_active,
+    }
+
+
+# ──────────────────────────────────────────────
+# 9. Zone 병합 (v4.1 — 군집화 방지)
 # ──────────────────────────────────────────────
 def merge_zones(
     zones: List[Dict],
