@@ -2184,23 +2184,26 @@ async def run_compare_fvg_hybrid(config: StrategyConfig, days: int = 365):
 # ═══════════════════════════════════════════════════════════════════════
 # 레짐 필터 검증: BEAR 진입 차단 효과 + FVG 조합
 # ═══════════════════════════════════════════════════════════════════════
-# (name, desc, use_fvg, allowed_regimes)
+# (name, desc, use_fvg, allowed_regimes, bb_min_profit)
+# bb_min_profit: 0.01=1%(기본), 999.0=OFF, 0.015/0.02/0.025/0.03=가드 상향
 REGIME_FILTER_SCENARIOS = [
-    # ── 전체 레짐 (대조군) ──
-    ("all",              "전체 레짐",                    False, None),
-    ("all_fvg",          "전체+FVG",                    True,  None),
-    # ── BEAR 제외 ──
-    ("no_bear",          "BEAR 제외",                   False, ["BULL", "SIDEWAYS"]),
-    ("no_bear_fvg",      "BEAR 제외+FVG",               True,  ["BULL", "SIDEWAYS"]),
-    # ── SIDEWAYS만 ──
-    ("sideways",         "SIDEWAYS만",                  False, ["SIDEWAYS"]),
-    ("sideways_fvg",     "SIDEWAYS+FVG",                True,  ["SIDEWAYS"]),
-    # ── BULL만 ──
-    ("bull",             "BULL만",                      False, ["BULL"]),
-    ("bull_fvg",         "BULL+FVG",                    True,  ["BULL"]),
-    # ── BEAR만 (손실 격리 확인) ──
-    ("bear_only",        "BEAR만 (격리)",                False, ["BEAR"]),
-    ("bear_fvg",         "BEAR+FVG",                    True,  ["BEAR"]),
+    # ── 대조군 ──
+    ("all",              "전체 레짐",                    False, None,                  0.01),
+    ("all_fvg",          "전체+FVG",                    True,  None,                  0.01),
+    # ── FVG + BB가드 변형 (핵심 테스트) ──
+    ("fvg_bb10",         "FVG+BB가드1.0%",              True,  None,                  0.01),
+    ("fvg_bb15",         "FVG+BB가드1.5%",              True,  None,                  0.015),
+    ("fvg_bb20",         "FVG+BB가드2.0%",              True,  None,                  0.02),
+    ("fvg_bb25",         "FVG+BB가드2.5%",              True,  None,                  0.025),
+    ("fvg_bb30",         "FVG+BB가드3.0%",              True,  None,                  0.03),
+    ("fvg_bboff",        "FVG+BB OFF",                 True,  None,                  999.0),
+    # ── FVG + BB OFF + 레짐 필터 ──
+    ("fvg_off_nobear",   "FVG+BB OFF+BEAR제외",         True,  ["BULL", "SIDEWAYS"],  999.0),
+    ("fvg_off_sw",       "FVG+BB OFF+SIDEWAYS",        True,  ["SIDEWAYS"],          999.0),
+    # ── BB OFF만 (FVG 없이) ──
+    ("bboff_only",       "BB OFF (FVG 없음)",           False, None,                  999.0),
+    # ── BEAR 격리 (참조) ──
+    ("bear_only",        "BEAR만 (격리)",                False, ["BEAR"],              0.01),
 ]
 
 
@@ -2296,12 +2299,12 @@ async def run_compare_regime_filter(config: StrategyConfig, days: int = 365):
     print()
 
     results = []
-    for sc_name, sc_desc, use_fvg, allowed_regimes in REGIME_FILTER_SCENARIOS:
+    for sc_name, sc_desc, use_fvg, allowed_regimes, bb_guard in REGIME_FILTER_SCENARIOS:
         print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
         all_trades: List[TradeME] = []
         for symbol, df_data in market_data.items():
             trades = simulate_trades_regime_filter(
-                df_data, config, symbol, use_fvg, allowed_regimes,
+                df_data, config, symbol, use_fvg, allowed_regimes, bb_guard,
             )
             all_trades.extend(trades)
 
