@@ -2181,6 +2181,223 @@ async def run_compare_fvg_hybrid(config: StrategyConfig, days: int = 365):
     print("=" * 130)
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# 레짐 필터 검증: BEAR 진입 차단 효과 + FVG 조합
+# ═══════════════════════════════════════════════════════════════════════
+# (name, desc, use_fvg, allowed_regimes)
+REGIME_FILTER_SCENARIOS = [
+    # ── 전체 레짐 (대조군) ──
+    ("all",              "전체 레짐",                    False, None),
+    ("all_fvg",          "전체+FVG",                    True,  None),
+    # ── BEAR 제외 ──
+    ("no_bear",          "BEAR 제외",                   False, ["BULL", "SIDEWAYS"]),
+    ("no_bear_fvg",      "BEAR 제외+FVG",               True,  ["BULL", "SIDEWAYS"]),
+    # ── SIDEWAYS만 ──
+    ("sideways",         "SIDEWAYS만",                  False, ["SIDEWAYS"]),
+    ("sideways_fvg",     "SIDEWAYS+FVG",                True,  ["SIDEWAYS"]),
+    # ── BULL만 ──
+    ("bull",             "BULL만",                      False, ["BULL"]),
+    ("bull_fvg",         "BULL+FVG",                    True,  ["BULL"]),
+    # ── BEAR만 (손실 격리 확인) ──
+    ("bear_only",        "BEAR만 (격리)",                False, ["BEAR"]),
+    ("bear_fvg",         "BEAR+FVG",                    True,  ["BEAR"]),
+]
+
+
+def simulate_trades_regime_filter(
+    df: pd.DataFrame, config: StrategyConfig, symbol: str,
+    use_fvg: bool, allowed_regimes: list,
+    bb_min_profit: float = 0.01,
+) -> List[TradeME]:
+    """레짐 필터 + FVG 필터 조합 검증용 시뮬레이션. 청산은 기존 고정 방식."""
+    trades: List[TradeME] = []
+    position: Optional[TradeME] = None
+    cooldown_until = None
+
+    df_clean = df.dropna(subset=["rsi", "ma50", "ma200"]).reset_index(drop=True)
+    atr_series = calculate_atr(df_clean)
+
+    for idx, row in df_clean.iterrows():
+        current_time = row["timestamp"]
+        regime = get_regime(row, config)
+
+        if position:
+            should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+            if should_exit:
+                position.exit_time = current_time
+                position.exit_price = row["close"]
+                position.exit_reason = reason
+                gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+                position.pnl_pct = gross_pnl
+                position.pnl_net = gross_pnl - (FEE_RATE * 2)
+                trades.append(position)
+                position = None
+                cooldown_until = current_time + timedelta(minutes=30)
+        else:
+            if cooldown_until and current_time < cooldown_until:
+                continue
+
+            # 레짐 필터
+            if allowed_regimes and regime not in allowed_regimes:
+                continue
+
+            if not check_entry_signal(row, regime, config, df_clean, idx):
+                continue
+
+            # FVG 필터
+            if use_fvg:
+                atr_val = atr_series.iloc[idx] if pd.notna(atr_series.iloc[idx]) else 0
+                me = _compute_me_at_entry_phase2(df_clean.iloc[:idx + 1], atr_val)
+                if not me["has_fvg_nearby"]:
+                    continue
+
+            regime_config_dict = config.REGIMES.get(regime, {})
+            size_ratio = regime_config_dict.get("position_size_ratio", 0.0)
+            symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+            effective_ratio = float(size_ratio) * float(symbol_multiplier)
+            if effective_ratio <= 0:
+                continue
+
+            pos_size = BASE_POSITION_SIZE * effective_ratio
+            position = TradeME(
+                symbol=symbol, regime=regime,
+                entry_time=current_time, entry_price=row["close"],
+                position_size=pos_size, high_water_mark=row["close"],
+            )
+
+    if position and len(df_clean) > 0:
+        last_row = df_clean.iloc[-1]
+        position.exit_time = last_row["timestamp"]
+        position.exit_price = last_row["close"]
+        position.exit_reason = "END"
+        gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+        position.pnl_pct = gross_pnl
+        position.pnl_net = gross_pnl - (FEE_RATE * 2)
+        trades.append(position)
+
+    return trades
+
+
+async def run_compare_regime_filter(config: StrategyConfig, days: int = 365):
+    """레짐별 필터링 효과 + FVG 조합 비교."""
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 130)
+    print("레짐 필터 검증: BEAR 진입 차단 + FVG 필터 조합")
+    print("=" * 130)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(REGIME_FILTER_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, use_fvg, allowed_regimes in REGIME_FILTER_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_regime_filter(
+                df_data, config, symbol, use_fvg, allowed_regimes,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+
+        baseline_count = results[0]["total"] if results else total
+        filter_rate = (1 - total / baseline_count) * 100 if baseline_count > 0 and results else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        regime_counts = {}
+        for t in all_trades:
+            regime_counts[t.regime] = regime_counts.get(t.regime, 0) + 1
+
+        # 거래당 기대값
+        ev_per_trade = (total_pnl / total) if total > 0 else 0
+
+        results.append({
+            "name": sc_name, "desc": sc_desc, "total": total, "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_profit": total_profit,
+            "avg_win": avg_win, "avg_loss": avg_loss, "filter_rate": filter_rate,
+            "reasons": reasons, "regime_counts": regime_counts,
+            "ev": ev_per_trade,
+        })
+
+    # ── 결과 테이블 ──
+    print()
+    print("-" * 130)
+    header = (
+        f"{'시나리오':<22} | {'거래':>5} | {'승률':>7} | {'누적PnL':>10} | {'예상수익':>13} | "
+        f"{'avg_W':>7} | {'avg_L':>7} | {'EV/건':>8} | {'필터율':>7}"
+    )
+    print(header)
+    print("-" * 130)
+    for r in results:
+        pnl_marker = " ★" if r["total_pnl"] > 0 else ""
+        print(
+            f"{r['desc']:<22} | {r['total']:>5} | {r['win_rate']:>6.1f}% | "
+            f"{r['total_pnl']:>+9.2f}% | {r['total_profit']:>12,.0f}원 | "
+            f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | "
+            f"{r['ev']:>+7.3f}% | {r['filter_rate']:>6.1f}%{pnl_marker}"
+        )
+
+    # ── 청산 사유 분포 ──
+    print()
+    print("-" * 130)
+    print("청산 사유 분포:")
+    print("-" * 130)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<22}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<22}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    # ── 레짐별 거래 분포 ──
+    print()
+    print("-" * 130)
+    print("레짐별 거래 수:")
+    print("-" * 130)
+    all_regimes = sorted({r for res in results for r in res["regime_counts"]})
+    header = f"{'시나리오':<22}"
+    for regime in all_regimes:
+        header += f" | {regime:>10}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<22}"
+        for regime in all_regimes:
+            cnt = r["regime_counts"].get(regime, 0)
+            line += f" | {cnt:>10}"
+        print(line)
+
+    print()
+    print("=" * 130)
+    print("★ = 누적 PnL 양수 (수익)")
+    print("EV/건 = 거래당 기대값 (양수면 수익 전략)")
+    print("=" * 130)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -2198,6 +2415,8 @@ async def main():
                         help="SMC 풀백 진입 (BOS+FVG/OB) 비교 모드 — Mean-reversion 대비 검증")
     parser.add_argument("--fvg-hybrid", action="store_true",
                         help="A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 모드")
+    parser.add_argument("--regime-filter", action="store_true",
+                        help="레짐 필터 검증: BEAR 차단 + FVG 조합 효과 비교")
     parser.add_argument("--days", type=int, default=365,
                         help="백테스트 데이터 기간 (일, 기본 365)")
     args = parser.parse_args()
@@ -2234,6 +2453,11 @@ async def main():
     # A안 v2: FVG 하이브리드 비교 모드
     if args.fvg_hybrid:
         await run_compare_fvg_hybrid(config, days=args.days)
+        return
+
+    # 레짐 필터 검증
+    if args.regime_filter:
+        await run_compare_regime_filter(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
