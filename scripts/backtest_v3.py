@@ -1877,6 +1877,310 @@ async def run_compare_smc(config: StrategyConfig, days: int = 365):
     print("=" * 130)
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# A안 v2: RSI/BB 진입 + FVG 필터 + 적응형 SL 하이브리드
+# ═══════════════════════════════════════════════════════════════════════
+# 핵심 인사이트: +FVG 시나리오가 유일한 양성 시그널(61.1% 승률)
+# 문제: avg_L = -2.90% → SL을 구조적으로 줄이되, 바닥값(floor)으로 조기 청산 방지
+# Adaptive SL = max(구조적_SL, 현재가 × (1 - floor%))
+
+# (name, desc, sl_type, sl_floor, be_threshold, swing_cond, sizing)
+# sl_type: "fixed"=기존3%, "structural"=FVG/OB기반, "adaptive"=max(structural, floor)
+FVG_HYBRID_SCENARIOS = [
+    # ── 기준선 ──
+    ("baseline",        "기준선 (RSI/BB 고정)",          "fixed",      None,  None, None, "fixed"),
+    ("fvg_fixed",       "+FVG (고정 청산)",             "fixed",      None,  None, None, "fixed"),
+    # ── FVG + SL 방식 비교 ──
+    ("fvg_struct_sl",   "+FVG+구조적SL",               "structural", None,  None, None, "fixed"),
+    ("fvg_adapt15",     "+FVG+적응SL(≥1.5%)",          "adaptive",   0.015, None, None, "fixed"),
+    ("fvg_adapt20",     "+FVG+적응SL(≥2.0%)",          "adaptive",   0.020, None, None, "fixed"),
+    ("fvg_adapt25",     "+FVG+적응SL(≥2.5%)",          "adaptive",   0.025, None, None, "fixed"),
+    # ── 적응SL 2% + BE 방어 ──
+    ("fvg_ad20_be10",   "+FVG+적응2%+BE(1.0R)",        "adaptive",   0.020, 1.0,  None, "fixed"),
+    ("fvg_ad20_be15",   "+FVG+적응2%+BE(1.5R)",        "adaptive",   0.020, 1.5,  None, "fixed"),
+    ("fvg_ad20_be20",   "+FVG+적응2%+BE(2.0R)",        "adaptive",   0.020, 2.0,  None, "fixed"),
+    # ── 적응SL 2% + BE 1.5R + 트레일링 ──
+    ("fvg_ad20_trA",    "+FVG+적응2%+BE1.5+4h프랙탈",   "adaptive",   0.020, 1.5,  "A",  "fixed"),
+    ("fvg_ad20_trB",    "+FVG+적응2%+BE1.5+BOS트레일",  "adaptive",   0.020, 1.5,  "B",  "fixed"),
+    # ── 적응SL 2% + BE 1.5R + 캡 역산 ──
+    ("fvg_ad20_cap",    "+FVG+적응2%+BE1.5+캡역산",     "adaptive",   0.020, 1.5,  None, "capped"),
+    # ── 고정 SL에 BE만 추가 (참조용) ──
+    ("fvg_fix_be15",    "+FVG+고정SL+BE(1.5R)",        "fixed",      None,  1.5,  None, "fixed"),
+]
+
+
+def simulate_trades_fvg_hybrid(
+    df: pd.DataFrame, config: StrategyConfig, symbol: str,
+    scenario_name: str, sl_type: str, sl_floor: float,
+    be_threshold: float, swing_cond: str, sizing: str,
+    bb_min_profit: float = 0.01,
+) -> List[TradeME]:
+    """
+    A안 v2: RSI/BB 진입 + FVG 필터 + 적응형 SL 하이브리드.
+    - baseline: 기존 RSI/BB + 고정 청산
+    - fvg_*: RSI/BB + FVG 필터 + 적응형/구조적 SL + 기존 익절
+    """
+    trades: List[TradeME] = []
+    position: Optional[TradeME] = None
+    cooldown_until = None
+
+    df_clean = df.dropna(subset=["rsi", "ma50", "ma200"]).reset_index(drop=True)
+    atr_series = calculate_atr(df_clean)
+
+    use_fvg_filter = scenario_name != "baseline"
+    use_structural_sl = sl_type in ("structural", "adaptive")
+    use_capped = sizing == "capped"
+    has_be = be_threshold is not None
+
+    for idx, row in df_clean.iterrows():
+        current_time = row["timestamp"]
+        regime = get_regime(row, config)
+
+        # ── 포지션 보유 중 → 청산 체크 ──
+        if position:
+            if use_structural_sl and position.structural_sl is not None:
+                should_exit, reason = check_exit_signal_hybrid(
+                    row, position, df_clean, idx, config,
+                    be_threshold_r=be_threshold, swing_condition=swing_cond,
+                    bb_min_profit=bb_min_profit,
+                )
+            elif has_be and position.structural_sl is None:
+                # 고정 SL + BE 방어 (fvg_fix_be15)
+                # BE는 structural_sl 필드를 활용 — 진입가 기준 고정 SL 설정 후 BE 이동
+                should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+            else:
+                should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+
+            if should_exit:
+                position.exit_time = current_time
+                position.exit_price = row["close"]
+                position.exit_reason = reason
+                gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+                position.pnl_pct = gross_pnl
+                position.pnl_net = gross_pnl - (FEE_RATE * 2)
+                trades.append(position)
+                position = None
+                cooldown_until = current_time + timedelta(minutes=30)
+
+        # ── 포지션 미보유 → 진입 체크 ──
+        else:
+            if cooldown_until and current_time < cooldown_until:
+                continue
+
+            # RSI/BB 기반 진입 조건
+            if not check_entry_signal(row, regime, config, df_clean, idx):
+                continue
+
+            atr_val = atr_series.iloc[idx] if pd.notna(atr_series.iloc[idx]) else 0
+
+            # FVG 필터 + 구조적 데이터 계산
+            structural_sl = None
+            structural_tp = None
+            risk_pct = 0.0
+            rr_ratio = 0.0
+
+            if use_fvg_filter:
+                me = _compute_me_at_entry_phase2(df_clean.iloc[:idx + 1], atr_val)
+                if not me["has_fvg_nearby"]:
+                    continue
+
+                if use_structural_sl and me["structural_sl"] is not None:
+                    current_price = row["close"]
+                    raw_sl = me["structural_sl"]
+
+                    if sl_type == "adaptive" and sl_floor is not None:
+                        # 적응형 SL: 구조적 SL과 바닥값 중 더 넓은(낮은) 것
+                        floor_price = current_price * (1 - sl_floor)
+                        structural_sl = min(raw_sl, floor_price)
+                    else:
+                        structural_sl = raw_sl
+
+                    # SL 거리 검증 (0.3% ~ 5%)
+                    sl_dist = (current_price - structural_sl) / current_price
+                    if sl_dist < 0.003 or sl_dist > 0.05:
+                        structural_sl = None
+                    else:
+                        structural_tp = me.get("structural_tp")
+                        risk_pct = sl_dist
+                        if structural_tp and structural_tp > current_price:
+                            tp_dist = (structural_tp - current_price) / current_price
+                            rr_ratio = tp_dist / sl_dist if sl_dist > 0 else 0
+
+            # 포지션 사이징
+            regime_config_dict = config.REGIMES.get(regime, {})
+            size_ratio = regime_config_dict.get("position_size_ratio", 0.0)
+            symbol_multiplier = config.get_symbol_position_multiplier(symbol)
+            effective_ratio = float(size_ratio) * float(symbol_multiplier)
+            if effective_ratio <= 0:
+                continue
+
+            if use_capped and risk_pct > 0:
+                max_order = EQUITY * effective_ratio
+                pos_size, skip_reason = calculate_position_size_capped(
+                    EQUITY, risk_pct, max_order,
+                )
+                if skip_reason:
+                    continue
+            else:
+                pos_size = BASE_POSITION_SIZE * effective_ratio
+
+            position = TradeME(
+                symbol=symbol,
+                regime=regime,
+                entry_time=current_time,
+                entry_price=row["close"],
+                position_size=pos_size,
+                high_water_mark=row["close"],
+                structural_sl=structural_sl,
+                structural_tp=structural_tp,
+                current_sl=structural_sl,
+                rr_ratio=rr_ratio,
+                risk_pct=risk_pct,
+            )
+
+    # 마지막 포지션 청산
+    if position and len(df_clean) > 0:
+        last_row = df_clean.iloc[-1]
+        position.exit_time = last_row["timestamp"]
+        position.exit_price = last_row["close"]
+        position.exit_reason = "END"
+        gross_pnl = (position.exit_price - position.entry_price) / position.entry_price
+        position.pnl_pct = gross_pnl
+        position.pnl_net = gross_pnl - (FEE_RATE * 2)
+        trades.append(position)
+
+    return trades
+
+
+async def run_compare_fvg_hybrid(config: StrategyConfig, days: int = 365):
+    """
+    A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 백테스트.
+    """
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 130)
+    print("A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교")
+    print("=" * 130)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(FVG_HYBRID_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, sl_type, sl_floor, be_thresh, swing_cond, sizing in FVG_HYBRID_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_fvg_hybrid(
+                df_data, config, symbol,
+                sc_name, sl_type, sl_floor, be_thresh, swing_cond, sizing,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        total_profit = sum(t.pnl_net * t.position_size for t in all_trades if t.pnl_net)
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+
+        # 필터율 (기준선 대비)
+        baseline_count = results[0]["total"] if results else total
+        filter_rate = (1 - total / baseline_count) * 100 if baseline_count > 0 and results else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        regime_counts = {}
+        for t in all_trades:
+            regime_counts[t.regime] = regime_counts.get(t.regime, 0) + 1
+
+        avg_sl_pct = 0.0
+        be_count = 0
+        avg_rr = 0.0
+        sl_trades = [t for t in all_trades if t.risk_pct and t.risk_pct > 0]
+        if sl_trades:
+            avg_sl_pct = sum(t.risk_pct for t in sl_trades) / len(sl_trades) * 100
+        rr_trades = [t for t in all_trades if t.rr_ratio and t.rr_ratio > 0]
+        if rr_trades:
+            avg_rr = sum(t.rr_ratio for t in rr_trades) / len(rr_trades)
+        be_count = sum(1 for t in all_trades if t.be_triggered)
+
+        results.append({
+            "name": sc_name, "desc": sc_desc, "total": total, "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_profit": total_profit,
+            "avg_win": avg_win, "avg_loss": avg_loss, "filter_rate": filter_rate,
+            "reasons": reasons, "regime_counts": regime_counts,
+            "avg_sl": avg_sl_pct, "avg_rr": avg_rr, "be_count": be_count,
+        })
+
+    # ── 결과 테이블 ──
+    print()
+    print("-" * 130)
+    header = (
+        f"{'시나리오':<28} | {'거래':>5} | {'승률':>7} | {'누적PnL':>10} | {'예상수익':>13} | "
+        f"{'avg_W':>7} | {'avg_L':>7} | {'필터율':>7} | {'avgSL%':>6} | {'avgR:R':>6} | {'BE':>4}"
+    )
+    print(header)
+    print("-" * 130)
+    for r in results:
+        print(
+            f"{r['desc']:<28} | {r['total']:>5} | {r['win_rate']:>6.1f}% | "
+            f"{r['total_pnl']:>+9.2f}% | {r['total_profit']:>12,.0f}원 | "
+            f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | "
+            f"{r['filter_rate']:>6.1f}% | {r['avg_sl']:>5.2f}% | "
+            f"{r['avg_rr']:>5.1f}:1 | {r['be_count']:>4}"
+        )
+
+    # ── 청산 사유 분포 ──
+    print()
+    print("-" * 130)
+    print("청산 사유 분포:")
+    print("-" * 130)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<28}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<28}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    # ── 레짐별 거래 분포 ──
+    print()
+    print("-" * 130)
+    print("레짐별 거래 수:")
+    print("-" * 130)
+    all_regimes = sorted({r for res in results for r in res["regime_counts"]})
+    header = f"{'시나리오':<28}"
+    for regime in all_regimes:
+        header += f" | {regime:>10}"
+    print(header)
+    print("-" * 130)
+    for r in results:
+        line = f"{r['desc']:<28}"
+        for regime in all_regimes:
+            cnt = r["regime_counts"].get(regime, 0)
+            line += f" | {cnt:>10}"
+        print(line)
+
+    print()
+    print("=" * 130)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -1892,6 +2196,8 @@ async def main():
                         help="Phase 1-2: 구조적 청산 + 캡 역산 + BE 방어 비교 모드")
     parser.add_argument("--smc-backtest", action="store_true",
                         help="SMC 풀백 진입 (BOS+FVG/OB) 비교 모드 — Mean-reversion 대비 검증")
+    parser.add_argument("--fvg-hybrid", action="store_true",
+                        help="A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 모드")
     parser.add_argument("--days", type=int, default=365,
                         help="백테스트 데이터 기간 (일, 기본 365)")
     args = parser.parse_args()
@@ -1923,6 +2229,11 @@ async def main():
     # SMC 풀백 진입 비교 모드
     if args.smc_backtest:
         await run_compare_smc(config, days=args.days)
+        return
+
+    # A안 v2: FVG 하이브리드 비교 모드
+    if args.fvg_hybrid:
+        await run_compare_fvg_hybrid(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
