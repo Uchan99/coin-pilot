@@ -38,6 +38,7 @@ from src.common.llm_usage import (
     is_llm_cost_snapshot_enabled,
 )
 from src.common.rule_funnel import record_rule_funnel_event
+from src.analysis.multi_evidence import detect_fvg
 from src.mobile.query_api import mobile_router
 
 # Graceful Shutdown Handler
@@ -318,7 +319,59 @@ async def bot_loop():
                                     result="pass",
                                     reason="Entry Signal Detected",
                                 )
-                                
+
+                                # ── FVG 필터 (v3.5): 미해소 FVG 근처 진입만 허용 ──
+                                # FVG = 수급 불균형 구간. 백테스트 검증: 79% 필터링, PnL 74%p 개선
+                                # fail-open: 데이터 부족/예외 시 필터 스킵 (거래 허용)
+                                fvg_filter_enabled = regime_entry_config.get("fvg_filter_enabled", False)
+                                fvg_df_1m = None  # AI 컨텍스트 재사용을 위해 외부 변수로 선언
+                                if fvg_filter_enabled:
+                                    try:
+                                        # 168시간(7일) 1분봉 조회 → 1시간봉 리샘플 → FVG 감지
+                                        # AI 컨텍스트(36시간)도 이 데이터의 subset으로 커버
+                                        fvg_df_1m = await get_recent_candles(session, symbol, limit=168 * 60)
+                                        fvg_hourly = resample_to_hourly(fvg_df_1m)
+
+                                        if len(fvg_hourly) < 50:
+                                            # 데이터 부족 시 필터 스킵 (fail-open)
+                                            print(f"[!] {symbol} FVG Filter: 데이터 부족 ({len(fvg_hourly)}봉), 필터 스킵")
+                                        else:
+                                            fvg_result = detect_fvg(fvg_hourly, lookback=168)
+                                            has_fvg = (
+                                                fvg_result.get("price_in_fvg", False)
+                                                or fvg_result.get("has_bullish_fvg_nearby", False)
+                                            )
+                                            if not has_fvg:
+                                                bot_action = "SKIP"
+                                                bot_reason = f"[{regime}] FVG 필터 탈락: 근처 미해소 FVG 없음"
+                                                record_rule_funnel_event(
+                                                    session,
+                                                    symbol=symbol,
+                                                    strategy_name=strategy.name,
+                                                    regime=regime,
+                                                    stage="fvg_filter_reject",
+                                                    result="reject",
+                                                    reason=bot_reason,
+                                                )
+                                                print(f"[-] {symbol} FVG Filter Rejected")
+                                                continue
+                                            else:
+                                                fvg_info = fvg_result.get("nearest_bullish_fvg")
+                                                fvg_desc = f"gap_low={fvg_info['gap_low']:.0f}" if fvg_info else "price_in_fvg"
+                                                record_rule_funnel_event(
+                                                    session,
+                                                    symbol=symbol,
+                                                    strategy_name=strategy.name,
+                                                    regime=regime,
+                                                    stage="fvg_filter_pass",
+                                                    result="pass",
+                                                    reason=f"FVG detected: {fvg_desc}",
+                                                )
+                                                print(f"[+] {symbol} FVG Filter Passed ({fvg_desc})")
+                                    except Exception as e:
+                                        # FVG 감지 실패 시 필터 스킵 (fail-open)
+                                        print(f"[!] {symbol} FVG Filter Error (skipped): {e}")
+
                                 balance = await executor.get_balance(session)
                                 reference_equity = await risk_manager.get_reference_equity(session)
 
@@ -387,9 +440,13 @@ async def bot_loop():
                                     # 수량 계산 (투자금 / 현재가)
                                     quantity = actual_invest_amount / current_price
                                     if quantity > 0:
-                                        # Rule 통과 시점에만 AI 전용 컨텍스트(1시간봉 24개 목표) 추가 조회
-                                        ai_df_1m = await get_recent_candles(session, symbol, limit=36 * 60)
-                                        ai_source_df = ai_df_1m if len(ai_df_1m) > 0 else df
+                                        # AI 전용 컨텍스트: FVG 데이터 재사용 (168*60 > 36*60 superset)
+                                        # FVG 필터에서 이미 조회한 데이터가 있으면 재활용, 없으면 별도 조회
+                                        if fvg_df_1m is not None and len(fvg_df_1m) > 0:
+                                            ai_source_df = fvg_df_1m
+                                        else:
+                                            ai_df_1m = await get_recent_candles(session, symbol, limit=36 * 60)
+                                            ai_source_df = ai_df_1m if len(ai_df_1m) > 0 else df
                                         hourly_for_ai = resample_to_hourly(ai_source_df)
                                         market_context = build_market_context(hourly_for_ai, target_candles=24)
                                         context_len = len(market_context)

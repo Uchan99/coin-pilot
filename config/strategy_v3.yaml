@@ -30,6 +30,7 @@ position_sizing:
 regimes:
   BULL:
     entry:
+      fvg_filter_enabled: true    # v3.5: FVG(수급 불균형) 필터 — 미해소 FVG 근처 진입만 허용
       rsi_14_max: 50
       rsi_7_trigger: 42
       rsi_7_recover: 42
@@ -63,6 +64,7 @@ regimes:
 
   SIDEWAYS:
     entry:
+      fvg_filter_enabled: true    # v3.5: FVG 필터
       rsi_14_max: 48
       rsi_7_trigger: 40
       rsi_7_recover: 42
@@ -102,6 +104,7 @@ regimes:
 
   BEAR:
     entry:
+      fvg_filter_enabled: true    # v3.5: FVG 필터
       rsi_14_max: 42
       rsi_7_trigger: 30
       rsi_7_recover: 30
