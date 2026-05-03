@@ -2555,6 +2555,97 @@ async def run_compare_entry_filters(config: StrategyConfig, days: int = 365):
     print("=" * 120)
 
 
+# 거래량 임계값 세밀 탐색 시나리오
+VOL_SEARCH_THRESHOLDS = [None, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0, 1.1, 1.2]
+
+
+async def run_vol_search(config: StrategyConfig, days: int = 365):
+    """거래량 하한 임계값 세밀 탐색 — FVG ON 고정, SIDEWAYS volume_min_ratio 변화."""
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 105)
+    print("거래량 임계값 탐색 (FVG 필터 ON 고정)")
+    print("=" * 105)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"임계값: {VOL_SEARCH_THRESHOLDS}")
+    print()
+
+    results = []
+    for vol_thr in VOL_SEARCH_THRESHOLDS:
+        label = f"vol≥{vol_thr}" if vol_thr is not None else "vol 없음(현재)"
+        print(f"  시뮬레이션 중: {label}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_regime_filter(
+                df_data, config, symbol,
+                use_fvg=True, allowed_regimes=None,
+                volume_min_ratio_override=vol_thr,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+        ev_per_trade = total_pnl / total if total > 0 else 0
+        profit_factor = (
+            abs(sum(t.pnl_net for t in wins) / sum(t.pnl_net for t in losses))
+            if losses and sum(t.pnl_net for t in losses) != 0 else float("inf")
+        )
+        baseline_total = results[0]["total"] if results else total
+        filter_rate = (1 - total / baseline_total) * 100 if baseline_total > 0 and results else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        results.append({
+            "label": label, "vol_thr": vol_thr, "total": total, "win_rate": win_rate,
+            "total_pnl": total_pnl, "avg_win": avg_win, "avg_loss": avg_loss,
+            "ev": ev_per_trade, "profit_factor": profit_factor,
+            "filter_rate": filter_rate, "reasons": reasons,
+        })
+
+    print()
+    print("-" * 105)
+    header = (
+        f"{'임계값':<18} | {'거래':>5} | {'승률':>7} | {'누적PnL':>10} | "
+        f"{'avg_W':>7} | {'avg_L':>7} | {'EV/건':>8} | {'PF':>6} | {'필터율':>7} | "
+        f"{'BB_MID':>6} | {'SL':>4} | {'TL':>4}"
+    )
+    print(header)
+    print("-" * 105)
+    for r in results:
+        marker = " ★" if r["total_pnl"] > 0 else ""
+        bm = r["reasons"].get("BB_MIDLINE_EXIT", 0)
+        sl = r["reasons"].get("STOP_LOSS", 0)
+        tl = r["reasons"].get("TIME_LIMIT", 0)
+        print(
+            f"{r['label']:<18} | {r['total']:>5} | {r['win_rate']:>6.1f}% | "
+            f"{r['total_pnl']:>+9.2f}% | "
+            f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | "
+            f"{r['ev']:>+7.3f}% | {r['profit_factor']:>5.2f} | "
+            f"{r['filter_rate']:>6.1f}% | "
+            f"{bm:>6} | {sl:>4} | {tl:>4}"
+            f"{marker}"
+        )
+
+    print()
+    print("=" * 105)
+    print("★ = 누적 PnL 양수 | PF = Profit Factor | BB_MID/SL/TL = 청산 사유 건수")
+    print("=" * 105)
+
+
 # SIDEWAYS TIME_LIMIT 개선 검증 시나리오
 # 형식: (name, desc, sw_time_limit_hours)
 # FVG 필터 ON, 전 레짐 허용, BULL/BEAR time_limit은 config 기본값 유지
@@ -2683,6 +2774,8 @@ async def main():
                         help="A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 모드")
     parser.add_argument("--entry-filter-test", action="store_true",
                         help="진입 필터 개선 검증 (BB 중심선 아래 / 거래량 / BB 너비)")
+    parser.add_argument("--vol-search", action="store_true",
+                        help="거래량 임계값 세밀 탐색 (0.4~1.2 구간)")
     parser.add_argument("--timelimit-test", action="store_true",
                         help="SIDEWAYS TIME_LIMIT 단축 효과 검증 (12/24/36/48h 비교)")
     parser.add_argument("--regime-filter", action="store_true",
@@ -2738,6 +2831,11 @@ async def main():
     # 진입 필터 개선 검증
     if args.entry_filter_test:
         await run_compare_entry_filters(config, days=args.days)
+        return
+
+    # 거래량 임계값 세밀 탐색
+    if args.vol_search:
+        await run_vol_search(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
