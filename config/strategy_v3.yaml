@@ -80,7 +80,7 @@ regimes:
       bb_recovery_sustain_candles: 2
       require_price_above_bb_lower: true  # BB 하단 아래에서는 진입 금지
       volume_ratio: null                  # 상한 조건: 횡보장에서는 미적용
-      volume_min_ratio: 0.4               # 하한 조건: 최소 40% 이상 필요
+      volume_min_ratio: 1.0               # v3.6: 0.4→1.0 (평균 거래량 이상 캔들만 진입, 저모멘텀 TIME_LIMIT 감소 목적)
       ai_prefilter_enabled: true
       ai_prefilter_min_context_candles: 12
       ai_reject_cooldown_min_1: 5
