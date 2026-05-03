@@ -2218,6 +2218,9 @@ def simulate_trades_regime_filter(
     use_fvg: bool, allowed_regimes: list,
     bb_min_profit: float = 0.01,
     time_limit_override: dict = None,
+    require_below_bb_mid: bool = False,
+    volume_min_ratio_override: float = None,
+    bb_width_min_pct: float = None,
 ) -> List[TradeME]:
     """레짐 필터 + FVG 필터 조합 검증용 시뮬레이션. 청산은 기존 고정 방식."""
     trades: List[TradeME] = []
@@ -2256,6 +2259,21 @@ def simulate_trades_regime_filter(
 
             if not check_entry_signal(row, regime, config, df_clean, idx):
                 continue
+
+            # 추가 진입 필터 (entry_filter_test 시나리오용)
+            if require_below_bb_mid and not pd.isna(row.get('bb_mid', float('nan'))):
+                if row['close'] >= row['bb_mid']:
+                    continue
+            if volume_min_ratio_override is not None and not pd.isna(row.get('vol_ratio', float('nan'))):
+                if row['vol_ratio'] < volume_min_ratio_override:
+                    continue
+            if bb_width_min_pct is not None:
+                bb_upper = row.get('bb_upper', float('nan'))
+                bb_lower = row.get('bb_lower', float('nan'))
+                bb_mid = row.get('bb_mid', float('nan'))
+                if not pd.isna(bb_upper) and not pd.isna(bb_lower) and not pd.isna(bb_mid) and bb_mid > 0:
+                    if (bb_upper - bb_lower) / bb_mid * 100 < bb_width_min_pct:
+                        continue
 
             # FVG 필터
             if use_fvg:
@@ -2411,6 +2429,132 @@ async def run_compare_regime_filter(config: StrategyConfig, days: int = 365):
     print("=" * 130)
 
 
+# 진입 필터 개선 시나리오 (BB 위치, 거래량, BB 너비)
+# 형식: (name, desc, require_below_bb_mid, volume_min_ratio_override, bb_width_min_pct)
+ENTRY_FILTER_SCENARIOS = [
+    # ── 대조군 ──
+    ("baseline_fvg",   "FVG만 (현재)",              False, None,  None),
+    # ── BB 중심선 아래 진입 강제 ──
+    ("bb_mid",         "FVG+BB중심선아래",            True,  None,  None),
+    # ── 거래량 하한 상향 ──
+    ("vol_07",         "FVG+vol≥0.7",              False, 0.7,   None),
+    ("vol_08",         "FVG+vol≥0.8",              False, 0.8,   None),
+    # ── BB 너비 필터 ──
+    ("bbw_10",         "FVG+BB너비≥1.0%",           False, None,  1.0),
+    ("bbw_15",         "FVG+BB너비≥1.5%",           False, None,  1.5),
+    # ── 조합 ──
+    ("bb_mid_vol07",   "FVG+BB중심선+vol≥0.7",      True,  0.7,   None),
+    ("bb_mid_bbw10",   "FVG+BB중심선+너비≥1.0%",    True,  None,  1.0),
+    ("all_filters",    "FVG+BB중심선+vol≥0.7+너비≥1%", True, 0.7, 1.0),
+]
+
+
+async def run_compare_entry_filters(config: StrategyConfig, days: int = 365):
+    """진입 조건 개선 필터 효과 검증 — FVG ON 고정."""
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 120)
+    print("진입 필터 개선 검증: BB 중심선 아래 진입 / 거래량 하한 / BB 너비")
+    print("=" * 120)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(ENTRY_FILTER_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, below_mid, vol_min, bbw_min in ENTRY_FILTER_SCENARIOS:
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_regime_filter(
+                df_data, config, symbol,
+                use_fvg=True, allowed_regimes=None,
+                require_below_bb_mid=below_mid,
+                volume_min_ratio_override=vol_min,
+                bb_width_min_pct=bbw_min,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+        ev_per_trade = total_pnl / total if total > 0 else 0
+
+        baseline_total = results[0]["total"] if results else total
+        filter_rate = (1 - total / baseline_total) * 100 if baseline_total > 0 and results else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        sw_trades = [t for t in all_trades if t.regime == "SIDEWAYS"]
+        sw_tl = sum(1 for t in sw_trades if t.exit_reason == "TIME_LIMIT")
+        sw_tl_rate = sw_tl / len(sw_trades) * 100 if sw_trades else 0
+
+        profit_factor = (
+            abs(sum(t.pnl_net for t in wins) / sum(t.pnl_net for t in losses))
+            if losses and sum(t.pnl_net for t in losses) != 0 else float("inf")
+        )
+
+        results.append({
+            "name": sc_name, "desc": sc_desc, "total": total, "win_rate": win_rate,
+            "total_pnl": total_pnl, "avg_win": avg_win, "avg_loss": avg_loss,
+            "ev": ev_per_trade, "filter_rate": filter_rate, "reasons": reasons,
+            "sw_tl": sw_tl, "sw_tl_rate": sw_tl_rate, "profit_factor": profit_factor,
+        })
+
+    print()
+    print("-" * 120)
+    header = (
+        f"{'시나리오':<28} | {'거래':>5} | {'승률':>7} | {'누적PnL':>10} | "
+        f"{'avg_W':>7} | {'avg_L':>7} | {'EV/건':>8} | {'PF':>6} | {'필터율':>7} | {'SW_TL%':>7}"
+    )
+    print(header)
+    print("-" * 120)
+    for r in results:
+        marker = " ★" if r["total_pnl"] > 0 else ""
+        print(
+            f"{r['desc']:<28} | {r['total']:>5} | {r['win_rate']:>6.1f}% | "
+            f"{r['total_pnl']:>+9.2f}% | "
+            f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | "
+            f"{r['ev']:>+7.3f}% | {r['profit_factor']:>5.2f} | "
+            f"{r['filter_rate']:>6.1f}% | {r['sw_tl_rate']:>6.1f}%"
+            f"{marker}"
+        )
+
+    print()
+    print("-" * 120)
+    print("청산 사유 분포:")
+    print("-" * 120)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<28}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 120)
+    for r in results:
+        line = f"{r['desc']:<28}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    print()
+    print("=" * 120)
+    print("★ = 누적 PnL 양수 | PF = Profit Factor | SW_TL% = SIDEWAYS TIME_LIMIT 비율")
+    print("=" * 120)
+
+
 # SIDEWAYS TIME_LIMIT 개선 검증 시나리오
 # 형식: (name, desc, sw_time_limit_hours)
 # FVG 필터 ON, 전 레짐 허용, BULL/BEAR time_limit은 config 기본값 유지
@@ -2537,6 +2681,8 @@ async def main():
                         help="SMC 풀백 진입 (BOS+FVG/OB) 비교 모드 — Mean-reversion 대비 검증")
     parser.add_argument("--fvg-hybrid", action="store_true",
                         help="A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 모드")
+    parser.add_argument("--entry-filter-test", action="store_true",
+                        help="진입 필터 개선 검증 (BB 중심선 아래 / 거래량 / BB 너비)")
     parser.add_argument("--timelimit-test", action="store_true",
                         help="SIDEWAYS TIME_LIMIT 단축 효과 검증 (12/24/36/48h 비교)")
     parser.add_argument("--regime-filter", action="store_true",
@@ -2587,6 +2733,11 @@ async def main():
     # SIDEWAYS TIME_LIMIT 단축 효과 검증
     if args.timelimit_test:
         await run_compare_timelimit(config, days=args.days)
+        return
+
+    # 진입 필터 개선 검증
+    if args.entry_filter_test:
+        await run_compare_entry_filters(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
