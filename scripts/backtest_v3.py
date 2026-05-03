@@ -182,7 +182,8 @@ def check_entry_signal(row: pd.Series, regime: str, config: StrategyConfig, df: 
 
 
 def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig,
-                      bb_min_profit: float = 0.01, rsi_ob_override: float = None) -> tuple:
+                      bb_min_profit: float = 0.01, rsi_ob_override: float = None,
+                      time_limit_override: dict = None) -> tuple:
     """레짐별 청산 조건 체크 (트레일링 스탑 포함)"""
     regime_config = config.REGIMES.get(trade.regime, config.REGIMES["SIDEWAYS"])
     exit_cfg = regime_config["exit"]
@@ -227,7 +228,12 @@ def check_exit_signal(row: pd.Series, trade: Trade, config: StrategyConfig,
 
     # 6. 시간 초과
     hold_time = row['timestamp'] - trade.entry_time
-    if hold_time > timedelta(hours=exit_cfg["time_limit_hours"]):
+    tl_hours = (
+        time_limit_override.get(trade.regime, exit_cfg["time_limit_hours"])
+        if time_limit_override
+        else exit_cfg["time_limit_hours"]
+    )
+    if hold_time > timedelta(hours=tl_hours):
         return True, "TIME_LIMIT"
 
     return False, ""
@@ -2211,6 +2217,7 @@ def simulate_trades_regime_filter(
     df: pd.DataFrame, config: StrategyConfig, symbol: str,
     use_fvg: bool, allowed_regimes: list,
     bb_min_profit: float = 0.01,
+    time_limit_override: dict = None,
 ) -> List[TradeME]:
     """레짐 필터 + FVG 필터 조합 검증용 시뮬레이션. 청산은 기존 고정 방식."""
     trades: List[TradeME] = []
@@ -2225,7 +2232,10 @@ def simulate_trades_regime_filter(
         regime = get_regime(row, config)
 
         if position:
-            should_exit, reason = check_exit_signal(row, position, config, bb_min_profit)
+            should_exit, reason = check_exit_signal(
+                row, position, config, bb_min_profit,
+                time_limit_override=time_limit_override,
+            )
             if should_exit:
                 position.exit_time = current_time
                 position.exit_price = row["close"]
@@ -2401,6 +2411,115 @@ async def run_compare_regime_filter(config: StrategyConfig, days: int = 365):
     print("=" * 130)
 
 
+# SIDEWAYS TIME_LIMIT 개선 검증 시나리오
+# 형식: (name, desc, sw_time_limit_hours)
+# FVG 필터 ON, 전 레짐 허용, BULL/BEAR time_limit은 config 기본값 유지
+TIMELIMIT_SCENARIOS = [
+    ("fvg_sw48",  "FVG+SIDEWAYS 48h (현재)",  48),
+    ("fvg_sw36",  "FVG+SIDEWAYS 36h",          36),
+    ("fvg_sw24",  "FVG+SIDEWAYS 24h",          24),
+    ("fvg_sw12",  "FVG+SIDEWAYS 12h",          12),
+]
+
+
+async def run_compare_timelimit(config: StrategyConfig, days: int = 365):
+    """SIDEWAYS TIME_LIMIT 단축 효과 검증 — FVG 필터 ON 고정."""
+    market_data = {}
+    for symbol in config.SYMBOLS:
+        df = await load_market_data(symbol, days=days)
+        if not df.empty and len(df) >= 200:
+            market_data[symbol] = df
+
+    print("=" * 110)
+    print("SIDEWAYS TIME_LIMIT 단축 효과 검증 (FVG 필터 ON, 전 레짐)")
+    print("=" * 110)
+    for sym, df_data in market_data.items():
+        data_days = len(df_data) / 24
+        print(f"  {sym}: {len(df_data)}봉 ({data_days:.0f}일)")
+    print(f"시나리오: {len(TIMELIMIT_SCENARIOS)}개")
+    print()
+
+    results = []
+    for sc_name, sc_desc, sw_tl in TIMELIMIT_SCENARIOS:
+        tl_override = {"SIDEWAYS": sw_tl}
+        print(f"  시뮬레이션 중: {sc_desc}...", flush=True)
+        all_trades: List[TradeME] = []
+        for symbol, df_data in market_data.items():
+            trades = simulate_trades_regime_filter(
+                df_data, config, symbol,
+                use_fvg=True, allowed_regimes=None,
+                time_limit_override=tl_override,
+            )
+            all_trades.extend(trades)
+
+        total = len(all_trades)
+        wins = [t for t in all_trades if t.pnl_net and t.pnl_net > 0]
+        losses = [t for t in all_trades if t.pnl_net and t.pnl_net <= 0]
+        total_pnl = sum(t.pnl_net for t in all_trades if t.pnl_net) * 100
+        win_rate = len(wins) / total * 100 if total > 0 else 0
+        avg_win = (sum(t.pnl_net for t in wins) / len(wins) * 100) if wins else 0
+        avg_loss = (sum(t.pnl_net for t in losses) / len(losses) * 100) if losses else 0
+        ev_per_trade = (total_pnl / total) if total > 0 else 0
+
+        reasons = {}
+        for t in all_trades:
+            r = t.exit_reason or "UNKNOWN"
+            reasons[r] = reasons.get(r, 0) + 1
+
+        sw_trades = [t for t in all_trades if t.regime == "SIDEWAYS"]
+        sw_tl_count = sum(1 for t in sw_trades if t.exit_reason == "TIME_LIMIT")
+        sw_tl_rate = sw_tl_count / len(sw_trades) * 100 if sw_trades else 0
+
+        results.append({
+            "name": sc_name, "desc": sc_desc, "total": total, "win_rate": win_rate,
+            "total_pnl": total_pnl, "avg_win": avg_win, "avg_loss": avg_loss,
+            "ev": ev_per_trade, "reasons": reasons,
+            "sw_total": len(sw_trades), "sw_tl_count": sw_tl_count, "sw_tl_rate": sw_tl_rate,
+        })
+
+    print()
+    print("-" * 110)
+    header = (
+        f"{'시나리오':<24} | {'거래':>5} | {'승률':>7} | {'누적PnL':>10} | "
+        f"{'avg_W':>7} | {'avg_L':>7} | {'EV/건':>8} | {'SW TIME_LIMIT':>15}"
+    )
+    print(header)
+    print("-" * 110)
+    for r in results:
+        pnl_marker = " ★" if r["total_pnl"] > 0 else ""
+        print(
+            f"{r['desc']:<24} | {r['total']:>5} | {r['win_rate']:>6.1f}% | "
+            f"{r['total_pnl']:>+9.2f}% | "
+            f"{r['avg_win']:>+6.2f}% | {r['avg_loss']:>+6.2f}% | "
+            f"{r['ev']:>+7.3f}% | "
+            f"{r['sw_tl_count']:>5}건/{r['sw_total']:>4}건 ({r['sw_tl_rate']:>4.1f}%)"
+            f"{pnl_marker}"
+        )
+
+    print()
+    print("-" * 110)
+    print("청산 사유 분포:")
+    print("-" * 110)
+    all_reasons = sorted({r for res in results for r in res["reasons"]})
+    header = f"{'시나리오':<24}"
+    for reason in all_reasons:
+        header += f" | {reason:>14}"
+    print(header)
+    print("-" * 110)
+    for r in results:
+        line = f"{r['desc']:<24}"
+        for reason in all_reasons:
+            cnt = r["reasons"].get(reason, 0)
+            line += f" | {cnt:>14}"
+        print(line)
+
+    print()
+    print("=" * 110)
+    print("★ = 누적 PnL 양수 / EV/건 = 거래당 기대값")
+    print("SW TIME_LIMIT = SIDEWAYS에서 시간 초과 청산 건수/비율")
+    print("=" * 110)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="v3 백테스트")
     parser.add_argument("--config", default=None, help="전략 YAML 경로 (기본: config/strategy_v3.yaml)")
@@ -2418,6 +2537,8 @@ async def main():
                         help="SMC 풀백 진입 (BOS+FVG/OB) 비교 모드 — Mean-reversion 대비 검증")
     parser.add_argument("--fvg-hybrid", action="store_true",
                         help="A안 v2: RSI/BB + FVG 필터 + 적응형 SL 하이브리드 비교 모드")
+    parser.add_argument("--timelimit-test", action="store_true",
+                        help="SIDEWAYS TIME_LIMIT 단축 효과 검증 (12/24/36/48h 비교)")
     parser.add_argument("--regime-filter", action="store_true",
                         help="레짐 필터 검증: BEAR 차단 + FVG 조합 효과 비교")
     parser.add_argument("--days", type=int, default=365,
@@ -2461,6 +2582,11 @@ async def main():
     # 레짐 필터 검증
     if args.regime_filter:
         await run_compare_regime_filter(config, days=args.days)
+        return
+
+    # SIDEWAYS TIME_LIMIT 단축 효과 검증
+    if args.timelimit_test:
+        await run_compare_timelimit(config, days=args.days)
         return
 
     # 단일 가드 값 지정 시 적용
